@@ -45,6 +45,7 @@ To look at a style that isn't in this repository yet, start the server with the 
 | `bin/` | Command line tools |
 | `styles/` | The style index the builder reads |
 | `fixtures/` | Test data: manifests and plain-shape layers |
-| `docs/` | Format documentation |
+| `factory/` | The runner that starts the coding agent on a ticket with the `ready-for-agent` label, see [docs/factory.md](docs/factory.md) |
+| `docs/` | Format and runner documentation |
 | `test/` | Unit tests, run with `node --test` |
 | `AGENTS.md` | Setup, checks and house rules for the coding agents and reviewers |
