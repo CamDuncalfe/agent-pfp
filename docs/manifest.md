@@ -36,7 +36,7 @@ Two groups that are not base groups may only share pixels when the later one lis
 | --- | --- | --- |
 | `id` | string | Unique within the group. |
 | `label` | string | Name shown in the picker. |
-| `src` | string | Path of the layer image, relative to the manifest. It has to stay inside the style folder. |
+| `src` | string | Path of the layer image, relative to the manifest, with forward slashes. Each part of the path may use letters, digits, hyphens, underscores and dots, and may not start with a dot. A path cannot leave the style folder. |
 
 ## Selections
 

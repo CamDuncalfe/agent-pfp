@@ -49,15 +49,39 @@ function isNonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+const PATH_SEGMENT_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
+
 /**
- * A layer path must stay inside the style folder: relative, forward slashes,
- * no "." or ".." segments, no scheme, no query or fragment.
+ * A layer path must stay inside the style folder. It is a relative path with
+ * forward slashes, and each part may only use letters, digits, hyphens,
+ * underscores and dots, and may not start with a dot. That rules out "..",
+ * percent-encoding (a URL parser reads "%2e%2e" as ".."), backslashes,
+ * schemes, queries and fragments, so the browser and the command line tools
+ * resolve the same path to the same file.
  */
 export function isSafeRelativePath(src) {
-  if (!isNonEmptyString(src)) return false;
-  if (src.startsWith('/') || src.includes('\\')) return false;
-  if (/[?#:]/.test(src)) return false;
-  return src.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
+  if (typeof src !== 'string' || src.length === 0) return false;
+  return src.split('/').every((part) => PATH_SEGMENT_PATTERN.test(part));
+}
+
+/**
+ * The URL of a layer image, given the URL of its manifest. Throws when the
+ * path is not a safe relative path or the result is outside the manifest's
+ * folder.
+ * @param {string} src
+ * @param {string | URL} manifestUrl
+ * @returns {URL}
+ */
+export function resolveLayerUrl(src, manifestUrl) {
+  if (!isSafeRelativePath(src)) {
+    throw new Error(`layer path "${src}" is not a relative path inside the style folder`);
+  }
+  const folder = new URL('.', manifestUrl);
+  const url = new URL(src, folder);
+  if (url.origin !== folder.origin || !url.pathname.startsWith(folder.pathname)) {
+    throw new Error(`layer path "${src}" is outside the style folder`);
+  }
+  return url;
 }
 
 function validateZone(zone, canvas, where, errors) {

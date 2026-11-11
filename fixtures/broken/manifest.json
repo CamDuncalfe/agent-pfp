@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "style": "fixture-broken",
+  "name": "Broken fixture shapes (test data, each bad layer fails one check)",
+  "canvas": { "width": 64, "height": 64, "opaque": true },
+  "groups": [
+    {
+      "id": "background",
+      "label": "Background",
+      "base": true,
+      "bleed": ["top", "right", "bottom", "left"],
+      "options": [
+        { "id": "grey", "label": "Grey", "src": "layers/background/grey.png" },
+        { "id": "holed", "label": "Grey with a hole", "src": "layers/background/holed.png" }
+      ]
+    },
+    {
+      "id": "body",
+      "label": "Body",
+      "base": true,
+      "bleed": ["bottom"],
+      "options": [{ "id": "round", "label": "Round", "src": "layers/body/round.png" }]
+    },
+    {
+      "id": "eyes",
+      "label": "Eyes",
+      "zone": { "x": 18, "y": 24, "width": 28, "height": 8 },
+      "options": [
+        { "id": "dots", "label": "Dots", "src": "layers/eyes/dots.png" },
+        { "id": "wide", "label": "Too wide", "src": "layers/eyes/wide.png" }
+      ]
+    },
+    {
+      "id": "mouth",
+      "label": "Mouth",
+      "zone": { "x": 22, "y": 36, "width": 20, "height": 8 },
+      "options": [
+        { "id": "line", "label": "Line", "src": "layers/mouth/line.png" },
+        { "id": "offsize", "label": "Wrong size", "src": "layers/mouth/offsize.png" }
+      ]
+    },
+    {
+      "id": "headwear",
+      "label": "Headwear",
+      "optional": true,
+      "options": [
+        { "id": "clipped", "label": "Cut off at the top", "src": "layers/headwear/clipped.png" },
+        { "id": "low", "label": "Over the eyes", "src": "layers/headwear/low.png" },
+        { "id": "blank", "label": "Blank", "src": "layers/headwear/blank.png" }
+      ]
+    }
+  ]
+}
