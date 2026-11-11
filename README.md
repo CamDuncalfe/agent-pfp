@@ -6,6 +6,10 @@ Each style is a fixed set of layers prepared ahead of time. The app does not gen
 
 I'm building it during the [Qodo Software Factory Hackathon](https://hackathon.qodo.ai/). Coding agents write the code and Qodo reviews each pull request before I merge it.
 
+![The builder page showing a picture made from the fixture shapes](docs/img/builder.png)
+
+The picture in the screenshot is made from test shapes.
+
 ## What works today
 
 - A manifest format that describes one style: the canvas size, the trait groups in draw order and the options in each group. It is documented in [docs/manifest.md](docs/manifest.md).
