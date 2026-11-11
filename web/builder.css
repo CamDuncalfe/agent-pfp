@@ -41,6 +41,15 @@ h2 {
   margin: 4px 0 0;
 }
 
+.style-picker {
+  margin-top: 16px;
+  max-width: 344px;
+}
+
+#notice:empty {
+  display: none;
+}
+
 #status {
   min-height: 24px;
   margin: 8px 0;

@@ -7,36 +7,66 @@ import {
 } from '../src/manifest.js';
 import { compositeLayers } from '../src/composite.js';
 
-const DEFAULT_MANIFEST = '../fixtures/shapes/manifest.json';
+import {
+  createStyleSwitcher,
+  resolveManifestUrl,
+  styleFromSearch,
+  styleMismatch,
+  validateStyleIndex,
+} from '../src/styles.js';
+
+const STYLE_INDEX = '../styles/index.json';
 const NONE = '';
 
 const statusEl = document.querySelector('#status');
-const styleNameEl = document.querySelector('#style-name');
+const noticeEl = document.querySelector('#notice');
+const styleEl = document.querySelector('#style');
 const controlsEl = document.querySelector('#controls');
 const selectionEl = document.querySelector('#selection');
 const randomizeEl = document.querySelector('#randomize');
 const downloadEl = document.querySelector('#download');
 const previewEl = document.querySelector('#preview');
 
+/**
+ * The style on screen: its manifest and the function that redraws it. It is
+ * null while a style is loading and after one failed to load.
+ * @type {{ manifest: import('../src/manifest.js').Manifest, render: () => Promise<void> } | null}
+ */
+let current = null;
+
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
   statusEl.classList.toggle('error', isError);
 }
 
-/** The manifest has to come from this site, so a link cannot point the page at another host. */
-function manifestUrl() {
-  const requested = new URLSearchParams(location.search).get('manifest') ?? DEFAULT_MANIFEST;
-  const url = new URL(requested, location.href);
-  if (url.origin !== location.origin) throw new Error('The manifest has to be on this site.');
-  return url;
+function reason(error) {
+  return error instanceof Error ? error.message : String(error);
 }
 
-async function loadManifest(url) {
+async function loadJson(url, what) {
   const response = await fetch(url);
-  if (!response.ok) throw new Error(`Could not load the manifest (HTTP ${response.status}).`);
-  const manifest = await response.json();
+  if (!response.ok) throw new Error(`Could not load ${what} (HTTP ${response.status}).`);
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(`${what[0].toUpperCase()}${what.slice(1)} is not valid JSON.`);
+  }
+}
+
+/** The index is a file of this site, next to the page's folder. */
+async function loadStyleIndex(url) {
+  const index = await loadJson(url, 'the list of styles');
+  const result = validateStyleIndex(index);
+  if (!result.ok) throw new Error(`The list of styles is not valid: ${result.errors.join('; ')}`);
+  return index;
+}
+
+async function loadManifest(entry, url) {
+  const manifest = await loadJson(url, 'the manifest');
   const result = validateManifest(manifest);
   if (!result.ok) throw new Error(`The manifest is not valid: ${result.errors.join('; ')}`);
+  const mismatch = styleMismatch(entry, manifest);
+  if (mismatch) throw new Error(`The manifest is for another style: ${mismatch}.`);
   return manifest;
 }
 
@@ -112,7 +142,7 @@ async function loadLayerPixels(url, canvas) {
   }
 }
 
-function createRenderer(manifest, baseUrl) {
+function createRenderer(manifest, baseUrl, isOnScreen) {
   /** @type {Map<string, Promise<ImageData>>} */
   const cache = new Map();
   let latest = 0;
@@ -134,16 +164,16 @@ function createRenderer(manifest, baseUrl) {
       const layers = resolveSelection(manifest, readSelection(manifest));
       showSelection(layers);
       const rasters = await Promise.all(layers.map(({ option }) => pixelsFor(option.src)));
-      // A newer selection started while these layers were loading.
-      if (ticket !== latest) return;
+      // A newer selection or another style started while these layers were loading.
+      if (ticket !== latest || !isOnScreen()) return;
       const { width, height } = manifest.canvas;
       const picture = compositeLayers(width, height, rasters);
       previewEl.getContext('2d').putImageData(new ImageData(picture.data, width, height), 0, 0);
       downloadEl.disabled = false;
       setStatus('');
     } catch (error) {
-      if (ticket !== latest) return;
-      setStatus(error instanceof Error ? error.message : String(error), true);
+      if (ticket !== latest || !isOnScreen()) return;
+      setStatus(reason(error), true);
     }
   };
 }
@@ -163,25 +193,87 @@ function download(manifest) {
   }, 'image/png');
 }
 
+/** Empty the page of the last style, so a failed switch never shows a mix of two styles. */
+function clearStyle() {
+  current = null;
+  randomizeEl.disabled = true;
+  downloadEl.disabled = true;
+  controlsEl.replaceChildren();
+  selectionEl.replaceChildren();
+  previewEl.getContext('2d').clearRect(0, 0, previewEl.width, previewEl.height);
+}
+
+function showStyleInAddress(id) {
+  const url = new URL(location.href);
+  url.searchParams.set('style', id);
+  history.replaceState(null, '', url);
+}
+
+/**
+ * Puts one style on screen at a time. The Style picker stays usable the
+ * whole time, so a style that fails to load can be swapped for another one.
+ * createStyleSwitcher drops a style that finishes loading after a newer pick.
+ */
+function createSwitcher(indexUrl) {
+  return createStyleSwitcher({
+    clear(entry) {
+      clearStyle();
+      styleEl.value = entry.id;
+      showStyleInAddress(entry.id);
+      setStatus(`Loading ${entry.name}...`);
+    },
+    async load(entry) {
+      const url = resolveManifestUrl(entry, indexUrl);
+      return { url, manifest: await loadManifest(entry, url) };
+    },
+    async show(entry, { url, manifest }, isOnScreen) {
+      previewEl.width = manifest.canvas.width;
+      previewEl.height = manifest.canvas.height;
+      buildControls(manifest);
+      const render = createRenderer(manifest, url, isOnScreen);
+      current = { manifest, render };
+      randomizeEl.disabled = false;
+      await render();
+    },
+    fail(entry, error) {
+      clearStyle();
+      setStatus(`Could not open ${entry.name}. ${reason(error)}`, true);
+    },
+  });
+}
+
 async function start() {
   try {
-    const url = manifestUrl();
-    const manifest = await loadManifest(url);
-    styleNameEl.textContent = manifest.name;
-    previewEl.width = manifest.canvas.width;
-    previewEl.height = manifest.canvas.height;
-    buildControls(manifest);
-    const render = createRenderer(manifest, url);
-    controlsEl.addEventListener('change', render);
-    randomizeEl.addEventListener('click', () => {
-      writeSelection(manifest, randomSelection(manifest));
-      render();
+    const indexUrl = new URL(STYLE_INDEX, location.href);
+    const index = await loadStyleIndex(indexUrl);
+    for (const entry of index.styles) {
+      const option = document.createElement('option');
+      option.value = entry.id;
+      option.textContent = entry.name;
+      styleEl.append(option);
+    }
+    const switcher = createSwitcher(indexUrl);
+    styleEl.addEventListener('change', () => {
+      noticeEl.textContent = '';
+      const entry = index.styles.find((candidate) => candidate.id === styleEl.value);
+      if (entry) switcher.open(entry);
     });
-    downloadEl.addEventListener('click', () => download(manifest));
-    randomizeEl.disabled = false;
-    await render();
+    controlsEl.addEventListener('change', () => current?.render());
+    randomizeEl.addEventListener('click', () => {
+      if (!current) return;
+      writeSelection(current.manifest, randomSelection(current.manifest));
+      current.render();
+    });
+    downloadEl.addEventListener('click', () => {
+      if (current) download(current.manifest);
+    });
+    styleEl.disabled = false;
+
+    const { entry, notice } = styleFromSearch(index, location.search);
+    noticeEl.textContent = notice;
+    await switcher.open(entry);
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : String(error), true);
+    setStatus(reason(error), true);
   }
 }
 

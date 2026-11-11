@@ -42,6 +42,12 @@ test('fixtures/shapes passes the render check', async () => {
   assert.deepEqual(report.combinations, { total: 48, checked: 48, failed: 0, exhaustive: true });
 });
 
+test('fixtures/blocks passes the render check on its 96x64 canvas', async () => {
+  const report = await checkStyle('blocks');
+  assert.deepEqual(report.issues, []);
+  assert.deepEqual(report.combinations, { total: 24, checked: 24, failed: 0, exhaustive: true });
+});
+
 test('fixtures/broken fails once for each bad layer', async () => {
   const report = await checkStyle('broken');
   assert.equal(report.ok, false);
