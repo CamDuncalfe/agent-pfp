@@ -128,7 +128,10 @@ button:focus-visible {
   height: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  /* Small fixture images are scaled up, so keep their pixels sharp. */
+}
+
+/* Small fixture images are scaled up, so keep their pixels sharp. */
+#preview.pixel-art {
   image-rendering: pixelated;
 }
 

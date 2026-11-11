@@ -6,6 +6,7 @@ import {
   resolveLayerUrl,
 } from '../src/manifest.js';
 import { compositeLayers } from '../src/composite.js';
+import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
 
 import {
   createStyleSwitcher,
@@ -16,6 +17,8 @@ import {
 } from '../src/styles.js';
 
 const STYLE_INDEX = '../styles/index.json';
+/** The local preview server lists style folders kept outside the repository here. */
+const LOCAL_STYLE_INDEX = `../${LOCAL_STYLES_PREFIX}/index.json`;
 const NONE = '';
 
 const statusEl = document.querySelector('#status');
@@ -59,6 +62,21 @@ async function loadStyleIndex(url) {
   const result = validateStyleIndex(index);
   if (!result.ok) throw new Error(`The list of styles is not valid: ${result.errors.join('; ')}`);
   return index;
+}
+
+/**
+ * The local styles, when the page runs on the local preview server and it
+ * was started with a styles folder. Anything else gives null: local styles
+ * are an extra, and the page works without them.
+ */
+async function loadLocalStyleIndex(url) {
+  if (!mayLoadLocalStyles(location.hostname)) return null;
+  try {
+    const response = await fetch(url);
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  }
 }
 
 async function loadManifest(entry, url) {
@@ -214,7 +232,7 @@ function showStyleInAddress(id) {
  * whole time, so a style that fails to load can be swapped for another one.
  * createStyleSwitcher drops a style that finishes loading after a newer pick.
  */
-function createSwitcher(indexUrl) {
+function createSwitcher() {
   return createStyleSwitcher({
     clear(entry) {
       clearStyle();
@@ -223,12 +241,13 @@ function createSwitcher(indexUrl) {
       setStatus(`Loading ${entry.name}...`);
     },
     async load(entry) {
-      const url = resolveManifestUrl(entry, indexUrl);
+      const url = resolveManifestUrl(entry, entry.indexUrl);
       return { url, manifest: await loadManifest(entry, url) };
     },
     async show(entry, { url, manifest }, isOnScreen) {
       previewEl.width = manifest.canvas.width;
       previewEl.height = manifest.canvas.height;
+      previewEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
       buildControls(manifest);
       const render = createRenderer(manifest, url, isOnScreen);
       current = { manifest, render };
@@ -245,14 +264,16 @@ function createSwitcher(indexUrl) {
 async function start() {
   try {
     const indexUrl = new URL(STYLE_INDEX, location.href);
-    const index = await loadStyleIndex(indexUrl);
+    const localIndexUrl = new URL(LOCAL_STYLE_INDEX, location.href);
+    const [repoIndex, localIndex] = await Promise.all([loadStyleIndex(indexUrl), loadLocalStyleIndex(localIndexUrl)]);
+    const index = { styles: mergeStyleLists(repoIndex, indexUrl, localIndex, localIndexUrl) };
     for (const entry of index.styles) {
       const option = document.createElement('option');
       option.value = entry.id;
       option.textContent = entry.name;
       styleEl.append(option);
     }
-    const switcher = createSwitcher(indexUrl);
+    const switcher = createSwitcher();
     styleEl.addEventListener('change', () => {
       noticeEl.textContent = '';
       const entry = index.styles.find((candidate) => candidate.id === styleEl.value);
