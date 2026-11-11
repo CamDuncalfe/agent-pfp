@@ -76,3 +76,10 @@ Tests and fixtures use the plain shapes drawn by `fixtures/make-fixtures.js`. Ad
 
 - **Where:** `fixtures/`, `test/`, `docs/img/` and each style folder.
 - **Why:** This repository is public, and I release each character when it's ready.
+
+### 6. Keep the docs true
+
+A pull request corrects each sentence in AGENTS.md, README.md, `docs/` or a code comment that its change makes untrue. In two cases it leaves the sentence as it is and names it in its description, so I can decide. One is a numbered rule, because the rules are mine to change. The other is a file the pull request isn't allowed to edit. "How to work here" says which folders a run started by the factory runner leaves alone.
+
+- **Where:** `AGENTS.md`, `README.md`, `docs/`, the comments in code and the pull request description.
+- **Why:** A sentence that is no longer true sends the next agent or reviewer the wrong way. Qodo's review of [pull request #5](https://github.com/CamDuncalfe/agent-pfp/pull/5#issuecomment-6804310388) found that the page had started to load `styles/index.json` while rule 4 still said the manifest and its layers were the only requests allowed. Its review of [pull request #1](https://github.com/CamDuncalfe/agent-pfp/pull/1#issuecomment-6799376654) found a comment in `src/composite.js` that said the page and the check use identical pixels.
