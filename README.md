@@ -43,3 +43,4 @@ To check another style, pass its manifest: `node bin/render-check.js path/to/man
 | `fixtures/` | Test data: manifests and plain-shape layers |
 | `docs/` | Format documentation |
 | `test/` | Unit tests, run with `node --test` |
+| `AGENTS.md` | Setup, checks and house rules for the coding agents and reviewers |
