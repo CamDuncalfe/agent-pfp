@@ -4,7 +4,14 @@ import {
   resolveSelection,
   resolveLayerUrl,
 } from '../src/manifest.js';
-import { canRandomize, lockControlName, lockLabel, randomizeUnlocked, startingLocks } from '../src/locks.js';
+import {
+  canRandomize,
+  lockAccessibleName,
+  lockControlName,
+  lockText,
+  randomizeUnlocked,
+  startingLocks,
+} from '../src/locks.js';
 import { compositeLayers } from '../src/composite.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
 
@@ -140,7 +147,9 @@ function buildControls(manifest) {
     checkbox.type = 'checkbox';
     checkbox.name = lockControlName(group.id);
     checkbox.checked = locks[group.id];
-    lock.append(checkbox, lockLabel(group));
+    // The visible text is the same in each row. The aria-label names the group.
+    checkbox.setAttribute('aria-label', lockAccessibleName(group));
+    lock.append(checkbox, lockText(group));
 
     row.append(label, lock);
     controlsEl.append(row);

@@ -25,12 +25,29 @@ export function lockControlName(groupId) {
   return `lock:${groupId}`;
 }
 
+/** The text next to each lock checkbox. */
+const LOCK_TEXT = 'Lock';
+
 /**
- * The label of a group's lock checkbox, for example "Lock Headwear".
+ * The text the page shows next to a group's lock checkbox. It is the same
+ * for each group, whatever the group's name, so the lock column has one
+ * width and the checkboxes sit in one column.
  * @param {Group} group
  */
-export function lockLabel(group) {
-  return `Lock ${group.label}`;
+export function lockText(group) {
+  void group;
+  return LOCK_TEXT;
+}
+
+/**
+ * The accessible name of a group's lock checkbox, for example
+ * "Lock Headwear". The page writes it to the checkbox's `aria-label`, so a
+ * screen reader says which group the lock is for. It starts with the
+ * visible text, so somebody who speaks the visible text gets the control.
+ * @param {Group} group
+ */
+export function lockAccessibleName(group) {
+  return `${LOCK_TEXT} ${group.label}`;
 }
 
 /**
