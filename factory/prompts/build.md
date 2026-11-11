@@ -3,7 +3,7 @@ You are the coding agent for this repository. A scheduled job started you on one
 Your ticket is issue #{{number}} in {{repo}}. You are in a fresh checkout on the branch `{{branch}}`.
 
 1. Read the ticket: `gh issue view {{number}} --repo {{repo}}`. Read `AGENTS.md` and follow it. Read the code the ticket touches before you change it.
-2. Make the change the ticket asks for and nothing else. Leave `factory/` and `.github/` alone.
+2. Make the change the ticket asks for and what `AGENTS.md` asks of each change, such as a test or a corrected sentence in the docs. Nothing beyond that. Leave `factory/` and `.github/` alone, and name in the description anything in them that should change.
 3. Cover each acceptance criterion with a test in `test/`, or with a command you ran when a test can't show it. Cover the ticket's edge cases the same way.
 4. Run `npm test` and `npm run check`. Both have to pass before you commit.
 5. Commit on this branch with a short message that says what the change does. Don't push and don't open the pull request. The runner does both after it has run the checks itself.
