@@ -100,12 +100,42 @@ test('the page takes the lock text and the aria-label from src/locks.js', async 
   assert.doesNotMatch(js, /\.style\s*=/);
 });
 
-test('the Size picker sits next to Download, lists Full size first and starts disabled', async () => {
+test('Randomize, the Size picker and Download each take a line of their own at each width', async () => {
+  const css = await read('builder.css');
+
+  // One rule lays out the controls under the preview, and no other rule changes it for some width.
+  const layoutRules = rules(css).filter((rule) => rule.selectors.some((item) => /\.actions\b/.test(item)));
+  assert.equal(layoutRules.length, 1, 'one rule sets the layout of .actions');
+  assert.deepEqual(layoutRules[0].selectors, ['.actions']);
+  assert.doesNotMatch(css, /@media[^{]*\{[^}]*\.actions/, 'no media query changes it');
+
+  // A grid with one column puts each control on the next line, however wide the column is.
+  const actions = Object.fromEntries(declarations(css, '.actions'));
+  assert.equal(actions.display, 'grid');
+  assert.deepEqual(tracks(actions['grid-template-columns']), ['minmax(0, 1fr)'], 'one column');
+  assert.equal(actions['grid-auto-flow'], undefined, 'controls flow down the column');
+  assert.equal(actions['flex-wrap'], undefined);
+
+  // The buttons keep their own width and the picker takes the whole line.
+  assert.equal(actions['justify-items'], 'start');
+  const picker = Object.fromEntries(declarations(css, 'label.size-picker'));
+  assert.equal(picker['justify-self'], 'stretch');
+  assert.equal(picker['grid-column'], undefined);
+  assert.equal(picker.width, undefined);
+
+  // The order on the page is the order down the column.
+  const html = await read('index.html');
+  const controls = /<div class="actions">([\s\S]*?)<\/div>/.exec(html)[1];
+  const order = [...controls.matchAll(/<(?:button|select)[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(order, ['randomize', 'size', 'download']);
+});
+
+test('the Size picker sits right above Download, lists Full size first and starts disabled', async () => {
   const html = await read('index.html');
   const actions = /<div class="actions">([\s\S]*?)<\/div>/.exec(html)[1];
   const picker = actions.indexOf('<select id="size" disabled>');
   const button = actions.indexOf('<button type="button" id="download"');
-  assert.notEqual(picker, -1, 'the picker is in the row of buttons and starts disabled');
+  assert.notEqual(picker, -1, 'the picker is with the buttons and starts disabled');
   assert.ok(picker < button, 'the picker comes right before Download');
   assert.doesNotMatch(actions.slice(picker, button), /<button/, 'no button sits between them');
   assert.match(actions, /<label class="size-picker">\s*Size\s*<select id="size"/);

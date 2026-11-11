@@ -158,20 +158,29 @@ button:focus-visible {
   image-rendering: pixelated;
 }
 
+/*
+ * One column, so each control under the preview has a line of its own at
+ * each window width: Randomize, then the Size picker, then Download.
+ */
 .actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
   gap: 8px;
   margin-top: 16px;
 }
 
-/* The Size picker sits in the row of buttons, next to Download. */
+/* The Size picker takes the whole line between Randomize and Download. */
 label.size-picker {
   display: flex;
-  flex-direction: row;
   align-items: center;
   gap: 8px;
+  justify-self: stretch;
+}
+
+/* In a narrow column the picker shrinks and stays on its line. */
+label.size-picker select {
+  min-width: 0;
 }
 
 select:disabled {
