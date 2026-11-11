@@ -334,6 +334,26 @@ export function fillPrompt(template, values) {
   });
 }
 
+/**
+ * The values the runner fills into one prompt file. tick.js builds each
+ * prompt through this, so the test that fills the files with it sees what a
+ * run sees.
+ * @param {'build.md' | 'failed-check.md' | 'fix.md'} file
+ * @param {{ number: number, repo: string, branch: string, notes: string, check?: string, output?: string, pr?: number }} run
+ */
+export function promptValues(file, run) {
+  const base = { number: run.number, branch: run.branch, notes: run.notes };
+  if (file === 'build.md') return { ...base, repo: run.repo };
+  if (file === 'failed-check.md') return { ...base, check: run.check, output: run.output };
+  if (file === 'fix.md') return { ...base, pr: run.pr };
+  throw new Error(`The runner has no prompt file named "${file}".`);
+}
+
+/** The names a prompt file asks for, each one once. */
+export function promptPlaces(template) {
+  return [...new Set([...template.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]))];
+}
+
 /** Open findings as the text the agent gets in a fix round. */
 export function findingsText(findings) {
   return findings
