@@ -79,7 +79,7 @@ Tests and fixtures use the plain shapes drawn by `fixtures/make-fixtures.js`. Ad
 
 ### 6. Keep the docs true
 
-A pull request corrects each sentence in AGENTS.md, README.md, `docs/` or a code comment that its change makes untrue. The numbered rules are the exception, because they are mine to change. A pull request that runs into one leaves the rule's text alone and says in its description which rule and why, so I can decide.
+A pull request corrects each sentence in AGENTS.md, README.md, `docs/` or a code comment that its change makes untrue. The numbered rules are the exception, because they are mine to change. A pull request that runs into one leaves the rule's text alone and says in its description which rule and why, so I can decide. A run started by the factory runner does the same for a sentence in `factory/` or `.github/`: it leaves the sentence alone and names it in its description.
 
 - **Where:** `AGENTS.md`, `README.md`, `docs/`, the comments in code and the pull request description.
 - **Why:** A sentence that is no longer true sends the next agent or reviewer the wrong way. Qodo's review of [pull request #5](https://github.com/CamDuncalfe/agent-pfp/pull/5#issuecomment-6804310388) found that the page had started to load `styles/index.json` while rule 4 still said the manifest and its layers were the only requests allowed. Its review of [pull request #1](https://github.com/CamDuncalfe/agent-pfp/pull/1#issuecomment-6799376654) found a comment in `src/composite.js` that said the page and the check use identical pixels.

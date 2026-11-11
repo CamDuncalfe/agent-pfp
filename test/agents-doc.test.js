@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
+import { GUARDED_FOLDERS } from '../factory/decisions.js';
+
 const text = await readFile(new URL('../AGENTS.md', import.meta.url), 'utf8');
 
 /** The numbered rules under "## Rules" as { number, heading, body }. */
@@ -67,6 +69,20 @@ test('rule 6 says a pull request leaves a numbered rule alone and names it in it
   assert.match(prose, /numbered rules are the exception/);
   assert.match(prose, /leaves the rule's text alone/);
   assert.match(prose, /says in its description which rule and why, so I can decide/);
+});
+
+test('rule 6 agrees with the line that keeps a factory run out of the guarded folders', () => {
+  const guard = text.split('\n').filter((line) => line.includes('alone in such a run'));
+  assert.equal(guard.length, 1, 'one line tells a factory run which folders to leave alone');
+  const sentence = parts(six)
+    .prose[0].split(/(?<=\.) /)
+    .filter((item) => item.includes('factory runner'));
+  assert.equal(sentence.length, 1, 'one sentence of rule 6 is about a factory run');
+  for (const folder of GUARDED_FOLDERS) {
+    assert.ok(guard[0].includes(`\`${folder}\``), `the guard line names ${folder}`);
+    assert.ok(sentence[0].includes(`\`${folder}\``), `rule 6 names ${folder}`);
+  }
+  assert.match(sentence[0], /leaves the sentence alone and names it in its description/);
 });
 
 test('the Why line of rule 6 links the two Qodo reviews', () => {
