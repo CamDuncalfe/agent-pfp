@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { buildLocalIndex, mergeStyleLists } from '../src/local-styles.js';
+import { buildLocalIndex, isPixelArt, mayLoadLocalStyles, mergeStyleLists, PIXEL_ART_BELOW } from '../src/local-styles.js';
 import { resolveManifestUrl, validateStyleIndex } from '../src/styles.js';
 
 async function shapes(overrides = {}) {
@@ -114,4 +114,21 @@ test('a local style cannot take the place of a repo style', () => {
   };
   const merged = mergeStyleLists(repoIndex, repoUrl, localIndex, localUrl);
   assert.deepEqual(merged.map((entry) => entry.name), ['Shapes', 'Blocks', 'Marker (local)']);
+});
+
+test('the preview keeps sharp pixels for a canvas narrower than 256px', () => {
+  assert.equal(PIXEL_ART_BELOW, 256);
+  assert.equal(isPixelArt(64), true);
+  assert.equal(isPixelArt(96), true);
+  assert.equal(isPixelArt(255), true);
+  assert.equal(isPixelArt(256), false);
+  assert.equal(isPixelArt(1024), false);
+});
+
+test('the page asks for local styles on a loopback host name only', () => {
+  assert.equal(mayLoadLocalStyles('127.0.0.1'), true);
+  assert.equal(mayLoadLocalStyles('localhost'), true);
+  for (const hostname of ['example.com', 'localhost.example.com', '127.0.0.1.example.com', '127.0.0.2', '192.168.1.20', '[::1]', 'LOCALHOST', '']) {
+    assert.equal(mayLoadLocalStyles(hostname), false, hostname);
+  }
 });

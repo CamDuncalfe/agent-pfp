@@ -8,7 +8,14 @@ import { basename, join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-import { createHandler, resolveLocalStylePath, resolveRequestPath, resolveStylesDir } from '../bin/serve.js';
+import {
+  createHandler,
+  openInside,
+  readStyleFolders,
+  resolveLocalStylePath,
+  resolveRequestPath,
+  resolveStylesDir,
+} from '../bin/serve.js';
 
 const run = promisify(execFile);
 
@@ -60,6 +67,14 @@ async function makeStylesFolder(t) {
   await writeFile(join(outside, 'secret.json'), '{"secret":true}');
   await symlink(join(outside, 'secret.json'), join(folder, 'tidy', 'link.json'));
   await symlink(outside, join(folder, 'tidy', 'linked-folder'));
+  // A style whose manifest is a symlink to a valid manifest outside the folder.
+  await writeFile(join(outside, 'manifest.json'), JSON.stringify({ ...manifest, style: 'linked-out', name: 'Linked out' }));
+  await mkdir(join(folder, 'manifest-elsewhere'));
+  await symlink(join(outside, 'manifest.json'), join(folder, 'manifest-elsewhere', 'manifest.json'));
+  // A style whose manifest is a symlink that stays inside the folder is fine.
+  await mkdir(join(folder, 'manifest-nearby'));
+  await writeFile(join(folder, 'nearby.json'), JSON.stringify({ ...manifest, style: 'linked-in', name: 'Linked in' }));
+  await symlink(join(folder, 'nearby.json'), join(folder, 'manifest-nearby', 'manifest.json'));
   return { folder, outside };
 }
 
@@ -129,9 +144,16 @@ test('with a styles folder the server lists its styles and serves their files', 
   assert.match(response.headers.get('content-type'), /^application\/json/);
   assert.deepEqual(await response.json(), {
     version: 1,
-    styles: [{ id: 'local-tidy', name: 'Tidy', manifest: 'local-styles/tidy/manifest.json' }],
+    styles: [
+      { id: 'linked-in', name: 'Linked in', manifest: 'local-styles/manifest-nearby/manifest.json' },
+      { id: 'local-tidy', name: 'Tidy', manifest: 'local-styles/tidy/manifest.json' },
+    ],
   });
+  // A style in the list can be loaded: its manifest is served.
+  assert.equal((await fetch(`${base}/local-styles/manifest-nearby/manifest.json`)).status, 200);
+  assert.equal((await fetch(`${base}/local-styles/manifest-elsewhere/manifest.json`)).status, 404);
   assert.deepEqual(warnings, [
+    'Left out local style folder "manifest-elsewhere": manifest.json points outside the styles folder',
     'Left out local style folder "not-json": manifest.json is not valid JSON',
     'Left out local style folder "not-valid": manifest.json is not valid (version must be 1)',
     'Left out local style folder "same-id-as-repo": the style id "fixture-shapes" is already used by another style',
@@ -139,7 +161,7 @@ test('with a styles folder the server lists its styles and serves their files', 
 
   // The same warnings are not printed again on the next request.
   await (await fetch(`${base}/local-styles/index.json`)).arrayBuffer();
-  assert.equal(warnings.length, 3);
+  assert.equal(warnings.length, 4);
 
   const manifest = await fetch(`${base}/local-styles/tidy/manifest.json`);
   assert.equal(manifest.status, 200);
@@ -161,7 +183,7 @@ test('with a styles folder the server lists its styles and serves their files', 
   const laterManifest = JSON.parse(await readFile(join(folder, 'later', 'manifest.json'), 'utf8'));
   await writeFile(join(folder, 'later', 'manifest.json'), JSON.stringify({ ...laterManifest, style: 'a-later', name: 'Later' }));
   const again = await (await fetch(`${base}/local-styles/index.json`)).json();
-  assert.deepEqual(again.styles.map((entry) => entry.id), ['a-later', 'local-tidy']);
+  assert.deepEqual(again.styles.map((entry) => entry.id), ['a-later', 'linked-in', 'local-tidy']);
 });
 
 test('the server refuses everything else under /local-styles/', async (t) => {
@@ -243,4 +265,38 @@ test('the command exits with 2 when the styles folder is missing', async (t) => 
   assert.match(notFolder.stderr, /is not a folder/);
   assert.equal((await runServe(['--nope'])).code, 2);
   assert.equal((await runServe([], { PORT: 'abc' })).code, 2);
+});
+
+test('a manifest that is a symlink out of the styles folder is reported, not read', async (t) => {
+  const { folder } = await makeStylesFolder(t);
+  const folders = await readStyleFolders(folder);
+  const byName = Object.fromEntries(folders.map((entry) => [entry.folder, entry]));
+  assert.deepEqual(byName['manifest-elsewhere'], {
+    folder: 'manifest-elsewhere',
+    error: 'manifest.json points outside the styles folder',
+  });
+  assert.equal(byName['manifest-nearby'].manifest.style, 'linked-in');
+  assert.equal(byName['no-manifest'], undefined);
+});
+
+test('a file is read from the handle that was checked', async (t) => {
+  const { folder, outside } = await makeStylesFolder(t);
+  const target = join(folder, 'tidy', 'manifest.json');
+
+  const file = await openInside(folder, target);
+  t.after(() => file.handle.close().catch(() => {}));
+  assert.equal(file.path, target);
+  // Swap the path for a symlink to the secret after the check. The open
+  // handle still reads the file that was checked.
+  await rm(target);
+  await symlink(join(outside, 'secret.json'), target);
+  const text = await file.handle.readFile('utf8');
+  assert.equal(JSON.parse(text).style, 'local-tidy');
+  assert.doesNotMatch(text, /secret/);
+
+  // The path is a symlink out of the folder now, so it is refused.
+  await assert.rejects(openInside(folder, target), /outside the folder/);
+  await assert.rejects(openInside(folder, join(folder, 'tidy', 'link.json')), /outside the folder/);
+  await assert.rejects(openInside(folder, join(folder, 'tidy', 'layers')), /not a file/);
+  await assert.rejects(openInside(folder, join(folder, 'tidy', 'missing.png')));
 });

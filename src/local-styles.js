@@ -13,6 +13,29 @@ import { STYLE_INDEX_VERSION, validateStyleIndex } from './styles.js';
 /** The URL path the local server serves the styles folder under. */
 export const LOCAL_STYLES_PREFIX = 'local-styles';
 
+/** A canvas narrower than this is a small fixture. The preview keeps its pixels sharp when it is scaled up. */
+export const PIXEL_ART_BELOW = 256;
+
+/**
+ * Whether the preview shows a canvas of this width with sharp pixels. A
+ * large picture is scaled down smoothly.
+ * @param {number} canvasWidth
+ * @returns {boolean}
+ */
+export function isPixelArt(canvasWidth) {
+  return canvasWidth < PIXEL_ART_BELOW;
+}
+
+/**
+ * Whether the page asks for /local-styles/index.json. Only the local preview
+ * server has it, so the page asks on a loopback host name and nowhere else.
+ * @param {string} hostname the host name of the page, without a port
+ * @returns {boolean}
+ */
+export function mayLoadLocalStyles(hostname) {
+  return hostname === '127.0.0.1' || hostname === 'localhost';
+}
+
 const FOLDER_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
 
 /**

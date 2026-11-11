@@ -37,6 +37,7 @@ To check one style, pass its manifest: `node bin/render-check.js path/to/manifes
 - I merge. An agent never merges its own pull request.
 - The one dependency is `pngjs`. Ask in the pull request before you add another.
 - Add a test in `test/` when you change what the code does.
+- Put each decision the builder page makes in `src/` and test it there: which style opens, what a notice says, how the preview is scaled. `web/` reads the page, calls `src/` and writes the result back.
 
 ## Rules
 

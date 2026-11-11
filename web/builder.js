@@ -6,7 +6,7 @@ import {
   resolveLayerUrl,
 } from '../src/manifest.js';
 import { compositeLayers } from '../src/composite.js';
-import { LOCAL_STYLES_PREFIX, mergeStyleLists } from '../src/local-styles.js';
+import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
 
 import {
   createStyleSwitcher,
@@ -19,8 +19,6 @@ import {
 const STYLE_INDEX = '../styles/index.json';
 /** The local preview server lists style folders kept outside the repository here. */
 const LOCAL_STYLE_INDEX = `../${LOCAL_STYLES_PREFIX}/index.json`;
-/** A canvas narrower than this is a small fixture, shown with sharp pixels when scaled up. */
-const PIXEL_ART_BELOW = 256;
 const NONE = '';
 
 const statusEl = document.querySelector('#status');
@@ -72,7 +70,7 @@ async function loadStyleIndex(url) {
  * are an extra, and the page works without them.
  */
 async function loadLocalStyleIndex(url) {
-  if (location.hostname !== '127.0.0.1' && location.hostname !== 'localhost') return null;
+  if (!mayLoadLocalStyles(location.hostname)) return null;
   try {
     const response = await fetch(url);
     return response.ok ? await response.json() : null;
@@ -249,7 +247,7 @@ function createSwitcher() {
     async show(entry, { url, manifest }, isOnScreen) {
       previewEl.width = manifest.canvas.width;
       previewEl.height = manifest.canvas.height;
-      previewEl.classList.toggle('pixel-art', manifest.canvas.width < PIXEL_ART_BELOW);
+      previewEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
       buildControls(manifest);
       const render = createRenderer(manifest, url, isOnScreen);
       current = { manifest, render };

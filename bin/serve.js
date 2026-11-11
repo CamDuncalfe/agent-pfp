@@ -14,8 +14,8 @@
  * /local-styles/, and /local-styles/index.json lists its styles.
  */
 import { createServer } from 'node:http';
-import { createReadStream } from 'node:fs';
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import { constants, createReadStream } from 'node:fs';
+import { lstat, open, readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -85,7 +85,15 @@ export async function readStyleFolders(stylesDir) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
     let text;
     try {
-      text = await readFile(join(stylesDir, entry.name, 'manifest.json'), 'utf8');
+      // The server refuses a file whose real path is outside the styles
+      // folder, so a manifest that is a symlink to somewhere else could be
+      // listed and then never load. Leave it out and say why.
+      const real = await realpath(join(stylesDir, entry.name, 'manifest.json'));
+      if (!real.startsWith(stylesDir + sep)) {
+        folders.push({ folder: entry.name, error: 'manifest.json points outside the styles folder' });
+        continue;
+      }
+      text = await readFile(real, 'utf8');
     } catch {
       // A folder without a manifest.json is not a style.
       continue;
@@ -144,6 +152,53 @@ async function sendFile(request, response, target, info) {
 }
 
 /**
+ * Open a file for reading and make sure the file that was opened is inside
+ * the folder. A symlink in the folder may point outside it, and the path
+ * could be swapped for one between a check and the read, so the check is
+ * tied to the open file: the path is opened without following a final
+ * symlink, and after that its real path has to be unchanged and has to be
+ * the same file (device and inode) as the one that is open. The caller
+ * reads from the returned handle and never opens the path again.
+ * @returns {Promise<{ handle: import('node:fs/promises').FileHandle, path: string, size: number }>}
+ */
+export async function openInside(folder, target) {
+  const real = await realpath(target);
+  if (!real.startsWith(folder + sep)) throw new Error('outside the folder');
+  const handle = await open(real, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const opened = await handle.stat();
+    if (!opened.isFile()) throw new Error('not a file');
+    const [realNow, now] = await Promise.all([realpath(real), lstat(real)]);
+    if (realNow !== real || now.dev !== opened.dev || now.ino !== opened.ino) {
+      throw new Error('the file changed while it was being opened');
+    }
+    return { handle, path: real, size: opened.size };
+  } catch (error) {
+    await handle.close().catch(() => {});
+    throw error;
+  }
+}
+
+/** Send a file that openInside returned, reading from its handle. */
+async function sendOpenFile(request, response, { handle, path, size }) {
+  const type = TYPES[extname(path).toLowerCase()];
+  if (!type) throw new Error('not servable');
+  response.writeHead(200, {
+    'content-type': type,
+    'content-length': size,
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+  });
+  if (request.method === 'HEAD') {
+    response.end();
+    await handle.close();
+    return;
+  }
+  // The stream closes the handle when it ends or fails.
+  handle.createReadStream().on('error', () => response.destroy()).pipe(response);
+}
+
+/**
  * The request handler.
  * @param {{ root?: string, stylesDir?: string | null, warn?: (line: string) => void }} [options]
  *   `stylesDir` is the real path of the local styles folder, or null for none
@@ -165,13 +220,13 @@ export function createHandler({ root: rootOption = ROOT, stylesDir = null, warn 
       sendJson(request, response, index);
       return;
     }
-    // A symlink inside the folder may point outside it. Serve the file only
-    // when its real path is still inside the styles folder.
-    const real = await realpath(target);
-    if (!real.startsWith(stylesDir + sep)) throw new Error('outside the styles folder');
-    const info = await stat(real);
-    if (!info.isFile()) throw new Error('not a file');
-    await sendFile(request, response, real, info);
+    const file = await openInside(stylesDir, target);
+    try {
+      await sendOpenFile(request, response, file);
+    } catch (error) {
+      await file.handle.close().catch(() => {});
+      throw error;
+    }
   }
 
   function isIndexRequest(requestUrl) {
