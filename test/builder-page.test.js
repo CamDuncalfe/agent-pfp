@@ -99,3 +99,89 @@ test('the page takes the lock text and the aria-label from src/locks.js', async 
   assert.doesNotMatch(js, /\.style\./);
   assert.doesNotMatch(js, /\.style\s*=/);
 });
+
+test('Randomize, the Size picker and Download each take a line of their own at each width', async () => {
+  const css = await read('builder.css');
+
+  // One rule lays out the controls under the preview, and no other rule changes it for some width.
+  const layoutRules = rules(css).filter((rule) => rule.selectors.some((item) => /\.actions\b/.test(item)));
+  assert.equal(layoutRules.length, 1, 'one rule sets the layout of .actions');
+  assert.deepEqual(layoutRules[0].selectors, ['.actions']);
+  assert.doesNotMatch(css, /@media[^{]*\{[^}]*\.actions/, 'no media query changes it');
+
+  // A grid with one column puts each control on the next line, however wide the column is.
+  const actions = Object.fromEntries(declarations(css, '.actions'));
+  assert.equal(actions.display, 'grid');
+  assert.deepEqual(tracks(actions['grid-template-columns']), ['minmax(0, 1fr)'], 'one column');
+  assert.equal(actions['grid-auto-flow'], undefined, 'controls flow down the column');
+  assert.equal(actions['flex-wrap'], undefined);
+
+  // The buttons keep their own width and the picker takes the whole line.
+  assert.equal(actions['justify-items'], 'start');
+  const picker = Object.fromEntries(declarations(css, 'label.size-picker'));
+  assert.equal(picker['justify-self'], 'stretch');
+  assert.equal(picker['grid-column'], undefined);
+  assert.equal(picker.width, undefined);
+
+  // The order on the page is the order down the column.
+  const html = await read('index.html');
+  const controls = /<div class="actions">([\s\S]*?)<\/div>/.exec(html)[1];
+  const order = [...controls.matchAll(/<(?:button|select)[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(order, ['randomize', 'size', 'download']);
+});
+
+test('the Size picker sits right above Download, lists Full size first and starts disabled', async () => {
+  const html = await read('index.html');
+  const actions = /<div class="actions">([\s\S]*?)<\/div>/.exec(html)[1];
+  const picker = actions.indexOf('<select id="size" disabled>');
+  const button = actions.indexOf('<button type="button" id="download"');
+  assert.notEqual(picker, -1, 'the picker is with the buttons and starts disabled');
+  assert.ok(picker < button, 'the picker comes right before Download');
+  assert.doesNotMatch(actions.slice(picker, button), /<button/, 'no button sits between them');
+  assert.match(actions, /<label class="size-picker">\s*Size\s*<select id="size"/);
+
+  // Before a style opens the picker holds Full size, under the id src/download.js gives it.
+  const { FULL_SIZE } = await import('../src/download.js');
+  const options = [...actions.matchAll(/<option value="([^"]*)">([^<]*)<\/option>/g)].map((match) => [match[1], match[2]]);
+  assert.deepEqual(options, [[FULL_SIZE.id, FULL_SIZE.label]]);
+});
+
+test('the Size picker is disabled whenever Download is', async () => {
+  const js = await read('builder.js');
+  // One function sets both, from the same value, and nothing else sets either.
+  assert.match(js, /downloadEl\.disabled = picture === null;\n\s*sizeEl\.disabled = picture === null;/);
+  assert.equal(js.match(/downloadEl\.disabled\s*=/g).length, 1);
+  assert.equal(js.match(/sizeEl\.disabled\s*=/g).length, 1);
+});
+
+test('the page takes the sizes, the saved picture and the file name from src/download.js', async () => {
+  const js = await read('builder.js');
+  assert.match(js, /sizePicker\(manifest\.canvas, sizeEl\.value\)/);
+  assert.match(js, /planDownload\(manifest, sizeEl\.value\)/);
+  assert.match(js, /pictureToSave\(finished, plan\)/);
+  assert.match(js, /link\.download = plan\.fileName;/);
+  // The page holds no size, no file name and no scaling of its own.
+  assert.doesNotMatch(js, /agent-pfp-|\.png|\b500\b|scaleDown/);
+});
+
+test('Full size saves the preview canvas as it is, and a failed PNG is reported', async () => {
+  const js = await read('builder.js');
+  assert.match(js, /if \(!plan\.scaled\) return previewEl;/);
+  assert.match(js, /canvasToSave\(plan\)\.toBlob\(/);
+  assert.match(js, /'image\/png'/);
+  assert.match(js, /setStatus\('Could not make the PNG file\.', true\)/);
+});
+
+test('compositeLayers draws the picture once and nothing else stacks layers', async () => {
+  const js = await read('builder.js');
+  assert.equal(js.match(/compositeLayers\(/g).length, 1, 'the page composites in one place');
+  // The one drawImage is the layer loader, at 0,0 with no size.
+  assert.deepEqual(js.match(/drawImage\([^)]*\)/g), ['drawImage(bitmap, 0, 0)']);
+  assert.doesNotMatch(js, /globalCompositeOperation|\.scale\(|setTransform/);
+
+  // The download and scaling modules take a finished picture. Neither composites.
+  for (const name of ['download.js', 'scale.js']) {
+    const source = await readFile(new URL(`../src/${name}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /compositeLayers\(|^import[^;]*compositeLayers/m, name);
+  }
+});

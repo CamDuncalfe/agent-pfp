@@ -13,6 +13,7 @@ import {
   startingLocks,
 } from '../src/locks.js';
 import { compositeLayers } from '../src/composite.js';
+import { pictureToSave, planDownload, sizePicker } from '../src/download.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
 
 import {
@@ -35,6 +36,7 @@ const controlsEl = document.querySelector('#controls');
 const selectionEl = document.querySelector('#selection');
 const randomizeEl = document.querySelector('#randomize');
 const downloadEl = document.querySelector('#download');
+const sizeEl = document.querySelector('#size');
 const previewEl = document.querySelector('#preview');
 
 /**
@@ -43,6 +45,24 @@ const previewEl = document.querySelector('#preview');
  * @type {{ manifest: import('../src/manifest.js').Manifest, render: () => Promise<void> } | null}
  */
 let current = null;
+
+/**
+ * The picture in the preview, as compositeLayers drew it at canvas size. It
+ * is null whenever Download is disabled.
+ * @type {import('../src/composite.js').Raster | null}
+ */
+let finished = null;
+
+/**
+ * Download and the Size picker are enabled together, while a finished
+ * picture is on screen.
+ * @param {import('../src/composite.js').Raster | null} picture
+ */
+function setFinished(picture) {
+  finished = picture;
+  downloadEl.disabled = picture === null;
+  sizeEl.disabled = picture === null;
+}
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -212,7 +232,7 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
 
   return async function render() {
     const ticket = (latest += 1);
-    downloadEl.disabled = true;
+    setFinished(null);
     try {
       const layers = resolveSelection(manifest, readSelection(manifest));
       showSelection(layers);
@@ -222,7 +242,7 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
       const { width, height } = manifest.canvas;
       const picture = compositeLayers(width, height, rasters);
       previewEl.getContext('2d').putImageData(new ImageData(picture.data, width, height), 0, 0);
-      downloadEl.disabled = false;
+      setFinished(picture);
       setStatus('');
     } catch (error) {
       if (ticket !== latest || !isOnScreen()) return;
@@ -231,26 +251,62 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
   };
 }
 
+/** List the sizes this style offers. The pick is kept when the style offers it. */
+function buildSizePicker(manifest) {
+  const { options, value } = sizePicker(manifest.canvas, sizeEl.value);
+  sizeEl.replaceChildren(
+    ...options.map(({ id, label }) => {
+      const option = document.createElement('option');
+      option.value = id;
+      option.textContent = label;
+      return option;
+    }),
+  );
+  sizeEl.value = value;
+}
+
+/**
+ * The canvas whose pixels are saved. Full size is the preview canvas as it
+ * is. A smaller size is the finished picture scaled down, on a canvas of
+ * its own. No layer is drawn here.
+ */
+function canvasToSave(plan) {
+  if (!plan.scaled) return previewEl;
+  const picture = pictureToSave(finished, plan);
+  const canvas = document.createElement('canvas');
+  canvas.width = picture.width;
+  canvas.height = picture.height;
+  canvas.getContext('2d').putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+  return canvas;
+}
+
 function download(manifest) {
-  previewEl.toBlob((blob) => {
-    if (!blob) {
-      setStatus('Could not make the PNG file.', true);
-      return;
-    }
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `agent-pfp-${manifest.style}.png`;
-    link.click();
-    // Give the browser time to start the download before the URL is released.
-    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
-  }, 'image/png');
+  if (!finished) return;
+  const failed = () => setStatus('Could not make the PNG file.', true);
+  const plan = planDownload(manifest, sizeEl.value);
+  try {
+    canvasToSave(plan).toBlob((blob) => {
+      if (!blob) {
+        failed();
+        return;
+      }
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = plan.fileName;
+      link.click();
+      // Give the browser time to start the download before the URL is released.
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    }, 'image/png');
+  } catch {
+    failed();
+  }
 }
 
 /** Empty the page of the last style, so a failed switch never shows a mix of two styles. */
 function clearStyle() {
   current = null;
   randomizeEl.disabled = true;
-  downloadEl.disabled = true;
+  setFinished(null);
   controlsEl.replaceChildren();
   selectionEl.replaceChildren();
   previewEl.getContext('2d').clearRect(0, 0, previewEl.width, previewEl.height);
@@ -284,6 +340,7 @@ function createSwitcher() {
       previewEl.height = manifest.canvas.height;
       previewEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
       buildControls(manifest);
+      buildSizePicker(manifest);
       const render = createRenderer(manifest, url, isOnScreen);
       current = { manifest, render };
       updateRandomize();
