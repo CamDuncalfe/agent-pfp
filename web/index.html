@@ -16,13 +16,21 @@
       <p id="status" role="status"></p>
 
       <div class="layout">
-        <form id="controls" aria-label="Layers"></form>
-
-        <section aria-labelledby="selection-heading">
-          <h2 id="selection-heading">Layers, bottom first</h2>
-          <ol id="selection"></ol>
-          <button type="button" id="randomize" disabled>Randomize</button>
+        <section aria-label="Preview">
+          <canvas id="preview" width="64" height="64" role="img" aria-label="Profile picture preview"></canvas>
+          <div class="actions">
+            <button type="button" id="randomize" disabled>Randomize</button>
+            <button type="button" id="download" class="primary" disabled>Download PNG</button>
+          </div>
         </section>
+
+        <div>
+          <form id="controls" aria-label="Layers"></form>
+          <section aria-labelledby="selection-heading">
+            <h2 id="selection-heading">Layers, bottom first</h2>
+            <ol id="selection"></ol>
+          </section>
+        </div>
       </div>
     </main>
     <script type="module" src="builder.js"></script>

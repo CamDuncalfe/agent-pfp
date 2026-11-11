@@ -43,7 +43,7 @@ h2 {
 
 #status {
   min-height: 24px;
-  margin: 16px 0;
+  margin: 8px 0;
   color: var(--muted);
 }
 
@@ -112,8 +112,30 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+#preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  /* Small fixture images are scaled up, so keep their pixels sharp. */
+  image-rendering: pixelated;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+section[aria-labelledby='selection-heading'] {
+  margin-top: 24px;
+}
+
 #selection {
-  margin: 0 0 16px;
+  margin: 0;
   padding-left: 20px;
   color: var(--muted);
   font-size: 14px;
