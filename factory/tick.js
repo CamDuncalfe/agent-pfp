@@ -6,21 +6,23 @@
  * review found. docs/factory.md describes the setup and the limits.
  *
  * Usage: node factory/tick.js [--dry-run]
- *   --dry-run   say which ticket the run would take and change nothing
+ *   --dry-run   print which ticket the run would take. It changes nothing
+ *               on GitHub and writes no file.
  *
  * Exit code 0: the run finished, with or without a ticket. 1: it stopped on
  * an error it did not expect. 2: it could not start.
  */
-import { execFile } from 'node:child_process';
-import { appendFile, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { execFile, spawn } from 'node:child_process';
+import { appendFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  AGENT_TOOLS,
   LABELS,
   LIMITS,
+  acceptanceCriteria,
+  agentArgs,
   branchFor,
   candidates,
   ciState,
@@ -28,8 +30,9 @@ import {
   findingsText,
   guardedFiles,
   labelledBy,
-  lockIsStale,
+  lockCommand,
   nextStep,
+  prBody,
   reviewOf,
   ticketProblems,
 } from './decisions.js';
@@ -38,7 +41,10 @@ const FACTORY = dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = dirname(FACTORY);
 const HOME = process.env.FACTORY_HOME || join(homedir(), '.agent-pfp-factory');
 const CLAUDE = process.env.FACTORY_CLAUDE || 'claude';
-const LOCK = join(HOME, 'lock');
+const LOCK = join(HOME, 'tick.lock');
+/** Set on the second start of this script, the one that runs while the lock is held. */
+const HOLDING_LOCK = '--holding-lock';
+const DRY_RUN = process.argv.includes('--dry-run');
 /** The agent leaves its notes for the runner here, inside the worktree. Git ignores the folder. */
 const NOTES = '.factory-run';
 
@@ -46,9 +52,11 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let logFile = join(HOME, 'logs', 'ticks.log');
 
+/** Print a line and keep it in the log file. A dry run only prints. */
 async function log(message) {
   const line = `${new Date().toISOString()} ${message}`;
   console.log(line);
+  if (DRY_RUN) return;
   await mkdir(dirname(logFile), { recursive: true });
   await appendFile(logFile, `${line}\n`);
 }
@@ -88,20 +96,22 @@ async function ghPages(path) {
   return (await ghJson(['api', '--paginate', '--slurp', path])).flat();
 }
 
-async function takeLock() {
+/**
+ * Start this script again under the lock and wait for it. The operating
+ * system holds the lock for as long as that process runs.
+ * @returns {Promise<number>} the exit code of the locked run, or 0 when another run has the lock
+ */
+async function runLocked() {
   await mkdir(HOME, { recursive: true });
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      await mkdir(LOCK);
-      return true;
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      const { mtimeMs } = await stat(LOCK);
-      if (!lockIsStale(mtimeMs, Date.now())) return false;
-      await rm(LOCK, { recursive: true, force: true });
-    }
-  }
-  return false;
+  const { command, args, heldExit } = lockCommand(process.platform, LOCK);
+  const code = await new Promise((resolve, reject) => {
+    const child = spawn(command, [...args, process.execPath, fileURLToPath(import.meta.url), HOLDING_LOCK], { stdio: 'inherit' });
+    child.on('error', reject);
+    child.on('exit', (exitCode) => resolve(exitCode ?? 1));
+  });
+  if (code !== heldExit) return code;
+  await log('Another run holds the lock.');
+  return 0;
 }
 
 async function setLabel(repo, number, from, to) {
@@ -114,10 +124,7 @@ async function comment(repo, kind, number, body) {
 
 /** The first ticket the owner opened and labelled, or null. */
 async function chooseTicket(repo, owner) {
-  const issues = await ghJson([
-    'issue', 'list', '--repo', repo, '--state', 'open', '--label', LABELS.ready,
-    '--limit', '100', '--json', 'number,title,body,author,labels,state',
-  ]);
+  const issues = await ghPages(`repos/${repo}/issues?state=open&labels=${LABELS.ready}&per_page=100`);
   const { tickets, skipped } = candidates(issues, owner);
   for (const { number, reason } of skipped) await log(`Skipped #${number}: ${reason}.`);
   for (const ticket of tickets) {
@@ -131,9 +138,7 @@ async function chooseTicket(repo, owner) {
 
 /** Start the coding agent once in the worktree and wait for it. */
 async function callAgent(worktree, prompt, session) {
-  const args = ['-p', '--output-format', 'json', '--allowedTools', ...AGENT_TOOLS];
-  if (process.env.FACTORY_MODEL) args.push('--model', process.env.FACTORY_MODEL);
-  if (session) args.push('--resume', session);
+  const args = agentArgs({ model: process.env.FACTORY_MODEL, session });
   const started = Date.now();
   const result = await run(CLAUDE, args, { cwd: worktree, timeout: LIMITS.agentMs, input: prompt });
   const minutes = ((Date.now() - started) / 60000).toFixed(1);
@@ -187,8 +192,8 @@ async function inspect(worktree, before) {
 async function waitForReview(repo, pr, head, round) {
   const started = Date.now();
   for (;;) {
-    const runs = await ghJson(['api', `repos/${repo}/commits/${head}/check-runs`]);
-    const ci = ciState(runs.check_runs.filter((check) => check.app?.slug === 'github-actions'));
+    const pages = await ghJson(['api', '--paginate', '--slurp', `repos/${repo}/commits/${head}/check-runs?per_page=100`]);
+    const ci = ciState(pages.flatMap((page) => page.check_runs).filter((check) => check.app?.slug === 'github-actions'));
     const comments = await ghPages(`repos/${repo}/issues/${pr}/comments`);
     const review = reviewOf(comments, head);
     const next = nextStep({ ci, review, round, waitedMs: Date.now() - started });
@@ -250,7 +255,7 @@ async function work(repo, ticket) {
   const url = (
     await must('gh', ['pr', 'create', '--repo', repo, '--base', 'main', '--head', branch, '--title', ticket.title, '--body-file', '-'], {
       cwd: worktree,
-      input: `Closes #${number}\n\n${description}\n`,
+      input: prBody(number, acceptanceCriteria(ticket.body), description),
     })
   ).trim();
   pr = Number(url.split('/').pop());
@@ -286,48 +291,40 @@ async function work(repo, ticket) {
 }
 
 async function main() {
-  const dryRun = process.argv.includes('--dry-run');
   const { nameWithOwner: repo, owner } = await ghJson(['repo', 'view', '--json', 'nameWithOwner,owner']);
 
-  if (dryRun) {
+  if (DRY_RUN) {
     const ticket = await chooseTicket(repo, owner.login);
     await log(ticket ? `Dry run: would take #${ticket.number} "${ticket.title}" on branch ${branchFor(ticket)}.` : `No ticket has the ${LABELS.ready} label.`);
     return 0;
   }
+  if (!process.argv.includes(HOLDING_LOCK)) return runLocked();
 
-  if (!(await takeLock())) {
-    await log('Another run holds the lock.');
+  const ticket = await chooseTicket(repo, owner.login);
+  if (!ticket) {
+    await log(`No ticket has the ${LABELS.ready} label.`);
+    return 0;
+  }
+  logFile = join(HOME, 'logs', `issue-${ticket.number}.log`);
+  const problems = ticketProblems(ticket);
+  if (problems.length) {
+    await log(`#${ticket.number} can't start: ${problems.join(' ')}`);
+    await setLabel(repo, ticket.number, LABELS.ready, LABELS.help);
+    await comment(repo, 'issue', ticket.number, `The agent didn't start on this ticket.\n\n${problems.join('\n')}`);
     return 0;
   }
   try {
-    const ticket = await chooseTicket(repo, owner.login);
-    if (!ticket) {
-      await log(`No ticket has the ${LABELS.ready} label.`);
-      return 0;
-    }
-    logFile = join(HOME, 'logs', `issue-${ticket.number}.log`);
-    const problems = ticketProblems(ticket);
-    if (problems.length) {
-      await log(`#${ticket.number} can't start: ${problems.join(' ')}`);
-      await setLabel(repo, ticket.number, LABELS.ready, LABELS.help);
-      await comment(repo, 'issue', ticket.number, `The agent didn't start on this ticket.\n\n${problems.join('\n')}`);
-      return 0;
-    }
-    try {
-      await work(repo, ticket);
-    } catch (error) {
-      // The ticket must not sit on agent-working with nobody working on it.
-      await log(`The run failed: ${error.message}`);
-      await run('gh', ['issue', 'edit', String(ticket.number), '--repo', repo, '--remove-label', LABELS.working, '--add-label', LABELS.help]);
-      await run('gh', ['issue', 'comment', String(ticket.number), '--repo', repo, '--body-file', '-'], {
-        input: `The agent run stopped on an error in the runner and needs you.\n\n${error.message}`,
-      });
-      return 1;
-    }
-    return 0;
-  } finally {
-    await rm(LOCK, { recursive: true, force: true });
+    await work(repo, ticket);
+  } catch (error) {
+    // The ticket must not sit on agent-working with nobody working on it.
+    await log(`The run failed: ${error.message}`);
+    await run('gh', ['issue', 'edit', String(ticket.number), '--repo', repo, '--remove-label', LABELS.working, '--add-label', LABELS.help]);
+    await run('gh', ['issue', 'comment', String(ticket.number), '--repo', repo, '--body-file', '-'], {
+      input: `The agent run stopped on an error in the runner and needs you.\n\n${error.message}`,
+    });
+    return 1;
   }
+  return 0;
 }
 
 main().then(

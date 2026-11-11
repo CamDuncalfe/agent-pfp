@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  AGENT_BUILTIN_TOOLS,
+  AGENT_DENIED,
   AGENT_TOOLS,
   GUARDED_FOLDERS,
   LABELS,
   LIMITS,
   QODO_BOT,
   acceptanceCriteria,
+  agentArgs,
   branchFor,
   candidates,
   ciState,
@@ -15,9 +18,10 @@ import {
   findingsText,
   guardedFiles,
   labelledBy,
-  lockIsStale,
+  lockCommand,
   nextStep,
   parseQodoReview,
+  prBody,
   reviewOf,
   ticketProblems,
 } from '../factory/decisions.js';
@@ -29,9 +33,9 @@ const SHA_B = 'b'.repeat(40);
 function issue(number, labels, extra = {}) {
   return {
     number,
-    state: 'OPEN',
+    state: 'open',
     title: `Ticket ${number}`,
-    author: { login: OWNER },
+    user: { login: OWNER },
     labels: labels.map((name) => ({ name })),
     ...extra,
   };
@@ -102,19 +106,28 @@ test('candidates: takes labelled tickets the owner opened, lowest number first',
 test('candidates: leaves a ticket alone when someone else opened it, it is closed or a run has it', () => {
   const { tickets, skipped } = candidates(
     [
-      issue(1, [LABELS.ready], { author: { login: 'visitor' } }),
-      issue(2, [LABELS.ready], { state: 'CLOSED' }),
+      issue(1, [LABELS.ready], { user: { login: 'visitor' } }),
+      issue(2, [LABELS.ready], { state: 'closed' }),
       issue(3, [LABELS.ready, LABELS.working]),
-      issue(4, [LABELS.ready], { author: undefined }),
+      issue(4, [LABELS.ready], { user: undefined }),
+      issue(5, [LABELS.ready], { pull_request: { url: 'https://api.github.com/repos/owner/repo/pulls/5' } }),
     ],
     OWNER,
   );
   assert.deepEqual(tickets, []);
-  assert.deepEqual(skipped.map((entry) => entry.number), [1, 2, 3, 4]);
+  assert.deepEqual(skipped.map((entry) => entry.number), [1, 2, 3, 4, 5]);
   assert.match(skipped[0].reason, /visitor opened it, not owner/);
   assert.match(skipped[1].reason, /closed/);
   assert.match(skipped[2].reason, /agent-working/);
   assert.match(skipped[3].reason, /someone else opened it/);
+  assert.match(skipped[4].reason, /pull request/);
+});
+
+test('candidates: the lowest number wins from a list longer than one page, in any order', () => {
+  const issues = [];
+  for (let number = 250; number >= 1; number -= 1) issues.push(issue(number, [LABELS.ready]));
+  assert.equal(candidates(issues, OWNER).tickets[0].number, 1);
+  assert.equal(candidates(issues, OWNER).tickets.length, 250);
 });
 
 test('candidates: no labelled ticket gives two empty lists', () => {
@@ -189,11 +202,55 @@ test('AGENT_TOOLS: the agent can read tickets and commit, and can not push, merg
   assert.ok(AGENT_TOOLS.includes('Bash(git commit:*)'));
 });
 
-test('lockIsStale: a lock is ignored after 3 hours', () => {
-  const now = Date.UTC(2026, 10, 11, 20);
-  assert.equal(lockIsStale(now - 10 * 60 * 1000, now), false);
-  assert.equal(lockIsStale(now - LIMITS.lockStaleMs, now), false);
-  assert.equal(lockIsStale(now - LIMITS.lockStaleMs - 1, now), true);
+test('AGENT_DENIED: the file tools are refused in each guarded folder', () => {
+  assert.deepEqual(AGENT_DENIED, ['Edit(factory/**)', 'Write(factory/**)', 'Edit(.github/**)', 'Write(.github/**)']);
+});
+
+test('agentArgs: the call loads no settings, no MCP server and has nobody to ask', () => {
+  const args = agentArgs();
+  const after = (flag) => args[args.indexOf(flag) + 1];
+  assert.equal(args[0], '-p');
+  assert.equal(after('--output-format'), 'json');
+  assert.equal(after('--setting-sources'), '');
+  assert.equal(after('--permission-prompts'), 'none');
+  assert.equal(after('--tools'), AGENT_BUILTIN_TOOLS.join(','));
+  assert.ok(args.includes('--strict-mcp-config'));
+  for (const flag of ['--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '--permission-mode', '--add-dir', '--settings', '--mcp-config']) {
+    assert.ok(!args.includes(flag), `${flag} would widen what the agent can do`);
+  }
+  const allowed = args.slice(args.indexOf('--allowedTools') + 1, args.indexOf('--disallowedTools'));
+  assert.deepEqual(allowed, [...AGENT_TOOLS]);
+  assert.deepEqual(args.slice(args.indexOf('--disallowedTools') + 1), [...AGENT_DENIED]);
+  assert.deepEqual(AGENT_BUILTIN_TOOLS, ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash']);
+});
+
+test('agentArgs: a model and an earlier session go after the tool lists', () => {
+  const args = agentArgs({ model: 'some-model', session: 'abc-123' });
+  assert.deepEqual(args.slice(-4), ['--model', 'some-model', '--resume', 'abc-123']);
+  assert.deepEqual(args.slice(0, -4), agentArgs());
+  assert.deepEqual(agentArgs({ model: '', session: undefined }), agentArgs());
+});
+
+test('lockCommand: the operating system holds the lock, and a held lock has its own exit code', () => {
+  assert.deepEqual(lockCommand('darwin', '/tmp/f/tick.lock'), {
+    command: 'lockf',
+    args: ['-k', '-s', '-t', '0', '/tmp/f/tick.lock'],
+    heldExit: 75,
+  });
+  assert.equal(lockCommand('freebsd', 'x').command, 'lockf');
+  const linux = lockCommand('linux', '/tmp/f/tick.lock');
+  assert.equal(linux.command, 'flock');
+  assert.deepEqual(linux.args, ['--nonblock', '--conflict-exit-code', '75', '/tmp/f/tick.lock']);
+  assert.equal(linux.heldExit, 75);
+});
+
+test('prBody: the ticket, its criteria word for word, then the agent\'s description', () => {
+  const body = prBody(8, ['Each group has a lock.', '`npm test` passes.'], '\n## What it does\n\nIt adds locks.\n\n');
+  assert.equal(
+    body,
+    'Closes #8\n\n## Acceptance criteria from the ticket\n\n1. Each group has a lock.\n2. `npm test` passes.\n\n## What it does\n\nIt adds locks.\n',
+  );
+  assert.match(prBody(8, ['One'], ''), /^Closes #8\n\n## Acceptance criteria from the ticket\n\n1\. One\n/);
 });
 
 test('parseQodoReview: reads the commit and each finding', () => {

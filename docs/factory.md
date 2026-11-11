@@ -11,7 +11,7 @@ The code is in [`factory/`](../factory): `tick.sh` is what the job runs, `tick.j
 3. The run swaps the label for `agent-working` and makes a git worktree on a new branch from `origin/main`. The branch is the ticket number and a short form of the title, like `3-style-picker`.
 4. It starts Claude Code with `claude -p` in that worktree. The agent reads the ticket with `gh issue view`, reads AGENTS.md, makes the change, runs `npm test` and `npm run check`, commits, and writes the pull request description.
 5. The runner looks at the result itself. It wants a commit, a clean tree, no change in `factory/` or `.github/`, and both checks passing when it runs them again.
-6. The runner pushes the branch and opens the pull request with `Closes #<ticket>` and the agent's description.
+6. The runner pushes the branch and opens the pull request. It writes `Closes #<ticket>` and the ticket's acceptance criteria at the top itself, and the agent's description goes below.
 7. It waits for CI and for Qodo's review of the newest commit. With open findings, the agent gets them as text, fixes the ones it confirms and writes an answer. The runner checks again, pushes and posts the answer on the pull request. Then it waits for the next review.
 8. With CI green and no open finding, the ticket gets `agent-review` and a comment. The pull request waits for me. The runner never merges.
 
@@ -31,7 +31,7 @@ To send a ticket through again, fix what the comment names, delete the branch wh
 | Limit | Value |
 | --- | --- |
 | Tickets per run | 1 |
-| Runs at once | 1, held by a lock folder. A lock older than 3 hours is ignored. |
+| Runs at once | 1. The run holds a lock on a file through `lockf`, and macOS gives that lock back when the run ends, also when it was cut off. |
 | Fix rounds after the first pull request | 2. A check that fails before the pull request also uses one. |
 | One agent call | 20 minutes |
 | Waiting for CI and Qodo on one commit | 15 minutes |
@@ -40,7 +40,14 @@ A run that hits a limit ends with `agent-needs-help`. So does a failed check aft
 
 ## What the agent can do
 
-The agent runs with a fixed list of tools, `AGENT_TOOLS` in `factory/decisions.js`. It can read and edit files in its worktree, run the tests and the render check, commit, and read issues and pull requests with `gh`. Pushing, merging and each `gh` command that writes are not on the list, and a command that isn't on the list is refused because nobody is there to approve it. The runner does the push and the pull request after its own checks.
+`agentArgs` in `factory/decisions.js` builds the Claude Code call, and it is the whole of what the agent can do:
+
+- It has the built-in tools `Read`, `Glob`, `Grep`, `Edit`, `Write` and `Bash`, and no MCP server.
+- `AGENT_TOOLS` lists what is approved: reading and editing files in its worktree, the tests and the render check, `git add` and `git commit`, and reading issues and pull requests with `gh`.
+- `AGENT_DENIED` refuses `Edit` and `Write` in `factory/` and `.github/`.
+- The call loads no settings file (`--setting-sources ""`), so a permission saved on the Mac doesn't add to the list. Nobody is there to approve a prompt (`--permission-prompts none`), so a command that isn't on the list is refused. That covers `git push`, a merge and each `gh` command that writes.
+
+The runner still checks after the agent's commit that nothing in `factory/` or `.github/` changed. A test the agent runs can write files, and that check is what catches it.
 
 ## Setup on a Mac
 
@@ -57,7 +64,7 @@ You need Node 22 or newer, `git` with push access to the repository, the GitHub 
 
 2. Clone the repository into a folder that only the runner uses, and leave it on `main`. `tick.sh` pulls `main` before each run, so the runner is the version that went through review.
 
-3. Try it: `node factory/tick.js --dry-run` prints the ticket a run would take and changes nothing.
+3. Try it: `factory/tick.sh --dry-run` prints the ticket a run would take. A dry run changes nothing on GitHub, doesn't pull and writes no log.
 
 4. Save this as `~/Library/LaunchAgents/agent-pfp.factory.plist` with your own paths, then load it with `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/agent-pfp.factory.plist`:
 
@@ -87,7 +94,7 @@ You need Node 22 or newer, `git` with push access to the repository, the GitHub 
 
 | Variable | Default | What it is |
 | --- | --- | --- |
-| `FACTORY_HOME` | `~/.agent-pfp-factory` | Worktrees in `runs/`, logs in `logs/` and the lock |
+| `FACTORY_HOME` | `~/.agent-pfp-factory` | Worktrees in `runs/`, logs in `logs/` and the lock file |
 | `FACTORY_CLAUDE` | `claude` | The Claude Code command |
 | `FACTORY_MODEL` | Claude Code's default | The model for the agent |
 

@@ -19,8 +19,6 @@ export const LIMITS = Object.freeze({
   reviewWaitMs: 15 * 60 * 1000,
   /** How long one agent call may take. */
   agentMs: 20 * 60 * 1000,
-  /** A lock older than this was left by a run that was cut off. */
-  lockStaleMs: 3 * 60 * 60 * 1000,
   pollMs: 30 * 1000,
 });
 
@@ -30,10 +28,13 @@ export const QODO_BOT = 'qodo-code-review[bot]';
 /** The agent may not change the runner or the CI workflow that check its work. */
 export const GUARDED_FOLDERS = Object.freeze(['factory/', '.github/']);
 
+/** The built-in tools the agent has at all. Claude Code loads no other tool for it. */
+export const AGENT_BUILTIN_TOOLS = Object.freeze(['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash']);
+
 /**
- * The tools the agent may use without a person there to approve them.
- * Reading the ticket is on the list. Pushing, merging and each gh command
- * that writes are left off, so the runner does those after its own checks.
+ * What the agent may do without a person there to approve it. Reading the
+ * ticket is on the list. Pushing, merging and each gh command that writes
+ * are left off, so the runner does those after its own checks.
  */
 export const AGENT_TOOLS = Object.freeze([
   'Read',
@@ -59,6 +60,35 @@ export const AGENT_TOOLS = Object.freeze([
   'Bash(gh pr view:*)',
 ]);
 
+/** The file tools are refused in the guarded folders, whatever else is allowed. */
+export const AGENT_DENIED = Object.freeze(GUARDED_FOLDERS.flatMap((folder) => [`Edit(${folder}**)`, `Write(${folder}**)`]));
+
+/**
+ * The arguments for one unattended Claude Code call. The prompt goes in on
+ * standard input.
+ *
+ * --allowedTools on its own only approves tools ahead of time, and a
+ * permission saved in a settings file on the Mac would add to it. So the
+ * call also loads no settings file and no MCP server, limits the built-in
+ * tools, and has nobody to ask: a command that is not on the list is refused.
+ * @param {{ model?: string, session?: string }} [options] session is the id of an earlier call to carry on from
+ */
+export function agentArgs({ model, session } = {}) {
+  const args = [
+    '-p',
+    '--output-format', 'json',
+    '--setting-sources', '',
+    '--strict-mcp-config',
+    '--permission-prompts', 'none',
+    '--tools', AGENT_BUILTIN_TOOLS.join(','),
+    '--allowedTools', ...AGENT_TOOLS,
+    '--disallowedTools', ...AGENT_DENIED,
+  ];
+  if (model) args.push('--model', model);
+  if (session) args.push('--resume', session);
+  return args;
+}
+
 function labelNames(issue) {
   return (issue.labels ?? []).map((label) => label.name);
 }
@@ -66,7 +96,8 @@ function labelNames(issue) {
 /**
  * The tickets a tick may take, lowest number first, and the ones it leaves
  * alone with the reason. Only an open ticket the owner opened counts.
- * @param {Array<{number: number, state?: string, author?: {login: string}, labels?: Array<{name: string}>}>} issues
+ * @param {Array<{number: number, state?: string, user?: {login: string}, pull_request?: object, labels?: Array<{name: string}>}>} issues
+ *   issues as the GitHub REST API lists them, which includes pull requests
  * @param {string} owner the repository owner's login
  */
 export function candidates(issues, owner) {
@@ -75,12 +106,14 @@ export function candidates(issues, owner) {
   for (const issue of [...issues].sort((a, b) => a.number - b.number)) {
     const names = labelNames(issue);
     if (!names.includes(LABELS.ready)) continue;
-    if (issue.state && issue.state.toUpperCase() !== 'OPEN') {
+    if (issue.pull_request) {
+      skipped.push({ number: issue.number, reason: 'it is a pull request' });
+    } else if (issue.state && issue.state.toLowerCase() !== 'open') {
       skipped.push({ number: issue.number, reason: 'it is closed' });
     } else if (names.includes(LABELS.working)) {
       skipped.push({ number: issue.number, reason: `it also has the ${LABELS.working} label` });
-    } else if (issue.author?.login !== owner) {
-      skipped.push({ number: issue.number, reason: `${issue.author?.login ?? 'someone else'} opened it, not ${owner}` });
+    } else if (issue.user?.login !== owner) {
+      skipped.push({ number: issue.number, reason: `${issue.user?.login ?? 'someone else'} opened it, not ${owner}` });
     } else {
       tickets.push(issue);
     }
@@ -158,9 +191,30 @@ export function guardedFiles(files) {
   return files.filter((file) => GUARDED_FOLDERS.some((folder) => file.startsWith(folder)));
 }
 
-/** Whether the lock folder was left by a run that never finished. */
-export function lockIsStale(lockedAtMs, nowMs, staleMs = LIMITS.lockStaleMs) {
-  return nowMs - lockedAtMs > staleMs;
+/**
+ * The command that runs another command while it holds the lock file. The
+ * operating system gives the lock to one process at a time and takes it back
+ * when that process ends, so a run that was cut off leaves nothing to clean up.
+ * @returns {{ command: string, args: string[], heldExit: number }} heldExit is the exit code that means another run has the lock
+ */
+export function lockCommand(platform, lockFile) {
+  if (platform === 'darwin' || platform === 'freebsd') {
+    // -k keeps the file, so two runs never lock two different files of one name.
+    return { command: 'lockf', args: ['-k', '-s', '-t', '0', lockFile], heldExit: 75 };
+  }
+  return { command: 'flock', args: ['--nonblock', '--conflict-exit-code', '75', lockFile], heldExit: 75 };
+}
+
+/**
+ * The pull request description: the ticket it closes, the ticket's
+ * acceptance criteria word for word, then what the agent wrote.
+ */
+export function prBody(number, criteria, description) {
+  return [
+    `Closes #${number}`,
+    `## Acceptance criteria from the ticket\n\n${criteria.map((criterion, i) => `${i + 1}. ${criterion}`).join('\n')}`,
+    String(description).trim(),
+  ].join('\n\n') + '\n';
 }
 
 const ENTITIES = { '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'", '&#39;': "'", '&amp;': '&' };
