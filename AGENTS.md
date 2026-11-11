@@ -35,6 +35,7 @@ To check one style, pass its manifest: `node bin/render-check.js path/to/manifes
 - One branch and one pull request per change. Nobody pushes to `main`.
 - Qodo reviews each pull request. Answer each finding on the pull request with the commit that fixes it or with what you did about it.
 - I merge. An agent never merges its own pull request.
+- A ticket with the `ready-for-agent` label is started by the factory runner on my Mac. [docs/factory.md](docs/factory.md) has the labels and the limits. The runner pushes the branch and opens the pull request, so an agent it starts commits and stops there. Leave `factory/` and `.github/` alone in such a run.
 - The one dependency is `pngjs`. Ask in the pull request before you add another.
 - Add a test in `test/` when you change what the code does.
 - Put each decision the builder page makes in `src/` and test it there: which style opens, what a notice says, how the preview is scaled. `web/` reads the page, calls `src/` and writes the result back.
