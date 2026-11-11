@@ -41,12 +41,16 @@ export const DEFAULT_OPTIONS = Object.freeze({
  *   pixels?: number,
  *   selection?: import('./manifest.js').Selection,
  * }} Issue
+ *
+ * In a report, `combinations.total` is null when the style allows more
+ * combinations than a number can count exactly (above 2^53).
+ *
  * @typedef {{
  *   ok: boolean,
  *   style: string | null,
  *   layers: number,
  *   pairs: number,
- *   combinations: { total: number, checked: number, failed: number, exhaustive: boolean },
+ *   combinations: { total: number | null, checked: number, failed: number, exhaustive: boolean },
  *   issues: Issue[],
  * }} Report
  */
@@ -296,7 +300,8 @@ export async function checkManifest(manifest, loadLayer, options = {}) {
   // 3. Each combination a user can pick.
   const total = countCombinations(manifest);
   const exhaustive = total <= settings.maxCombinations;
-  report.combinations.total = total;
+  // Infinity does not survive JSON, so a count too large to hold is reported as null.
+  report.combinations.total = Number.isFinite(total) ? total : null;
   report.combinations.exhaustive = exhaustive;
   const selections = exhaustive
     ? walkCombinations(manifest)
@@ -355,9 +360,10 @@ export function formatReport(report, { maxPerKind = 20 } = {}) {
   lines.push(`Style: ${report.style ?? '(manifest not valid)'}`);
   lines.push(`Layers checked: ${report.layers}`);
   lines.push(`Layer pairs checked: ${report.pairs}`);
+  const total = combinations.total === null ? 'more than 2^53' : String(combinations.total);
   const scope = combinations.exhaustive
-    ? `all ${combinations.total}`
-    : `a sample of ${combinations.checked} out of ${combinations.total}`;
+    ? `all ${total}`
+    : `a sample of ${combinations.checked} different ones out of ${total}`;
   lines.push(`Combinations checked: ${scope}, ${combinations.failed} failed`);
   if (report.ok) {
     lines.push('Render check passed.');

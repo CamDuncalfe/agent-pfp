@@ -223,7 +223,48 @@ test('above maxCombinations the check samples with the seed', async () => {
   const { manifest, load } = makeStyle();
   const report = await checkManifest(manifest, load, { maxCombinations: 3, seed: 5 });
   assert.deepEqual(report.combinations, { total: 4, checked: 3, failed: 0, exhaustive: false });
-  assert.match(formatReport(report), /a sample of 3 out of 4/);
+  assert.match(formatReport(report), /a sample of 3 different ones out of 4/);
+});
+
+test('a style with too many combinations to count reports a null total that survives JSON', async () => {
+  const size = 4;
+  const manifest = {
+    version: 1,
+    style: 'huge',
+    name: 'Huge',
+    canvas: { width: size, height: size },
+    groups: Array.from({ length: 20 }, (_, g) => ({
+      id: `g${g}`,
+      label: `Group ${g}`,
+      base: true,
+      options: Array.from({ length: 10 }, (_, o) => ({ id: `o${o}`, label: `Option ${o}`, src: `g${g}/o${o}.png` })),
+    })),
+  };
+  const dot = layer([[1, 1, 1, 1]], size);
+  const report = await checkManifest(manifest, () => dot, { maxCombinations: 25 });
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.combinations, { total: null, checked: 25, failed: 0, exhaustive: false });
+  assert.deepEqual(JSON.parse(JSON.stringify(report)).combinations, report.combinations);
+  assert.match(formatReport(report), /a sample of 25 different ones out of more than 2\^53/);
+});
+
+test('results depend on alpha only, so a colour shift in a layer does not change them', async () => {
+  const run = async (shift) => {
+    const { manifest, layers, load } = makeStyle();
+    layers['hat/flat.png'] = layer([[3, 2, 10, 6, [200, 60, 60, 128]]]);
+    layers['background/plain.png'].data.set([200, 200, 200, 128], 4);
+    for (const raster of Object.values(layers)) {
+      for (let i = 0; i < raster.data.length; i += 4) {
+        raster.data[i] += shift;
+        raster.data[i + 1] += shift;
+        raster.data[i + 2] += shift;
+      }
+    }
+    return checkManifest(manifest, load);
+  };
+  const exact = await run(0);
+  assert.equal(exact.ok, false);
+  assert.deepEqual(await run(4), exact);
 });
 
 test('an async loader works', async () => {

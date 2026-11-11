@@ -1,7 +1,8 @@
 /**
  * Compositing on plain RGBA pixel buffers. The builder page and the render
- * check both call compositeLayers, so the check tests the same pixels a user
- * downloads.
+ * check both call compositeLayers, so a picture is put together the same
+ * way in both. They read layer pixels differently (a canvas in the browser,
+ * a PNG decoder in Node); docs/render-check.md says where that can differ.
  *
  * A raster is `{ width, height, data }` where `data` holds 4 bytes per pixel
  * (red, green, blue, alpha), row by row from the top left, with straight

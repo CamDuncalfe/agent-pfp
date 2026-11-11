@@ -50,9 +50,9 @@ The summary line counts a combination as failed when it has a hole or uses a lay
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `--max-combinations <n>` | 2000 | The check visits every combination up to this many. Above it, the check visits a random sample of this size. |
+| `--max-combinations <n>` | 2000 | The check visits every combination up to this many. Above it, the check visits a random sample of this many different combinations. |
 | `--seed <n>` | 1 | Seed for the sample, so a failing run can be repeated. |
-| `--json` | off | Print the full report as JSON. |
+| `--json` | off | Print the full report as JSON. `combinations.total` is `null` when the style allows more combinations than a number can count exactly (above 2^53). |
 
 `checkManifest` in [`src/render-check.js`](../src/render-check.js) also takes `alphaThreshold` (a pixel counts as drawn from this alpha value up, default 16) and `overlapTolerance` (shared pixels allowed per pair, default 0).
 
@@ -61,3 +61,4 @@ The summary line counts a combination as failed when it has a hole or uses a lay
 - The check compares pixel coverage. It does not judge how a combination looks.
 - Layers and pairs are always checked in full. Only the hole check depends on the combination sample, so a style with more combinations than `--max-combinations` can hide a hole in a combination the sample did not visit.
 - Zones are rectangles.
+- The check and the builder page read layer pixels in different ways. The check decodes the PNG file. The page reads pixels back from a canvas, which stores colour multiplied by alpha. Alpha values and opaque pixels are the same in both. The colour of a see-through pixel can differ by a few levels in the page: in Chrome a pixel of red 200 comes back as 199 at alpha 128 and as 204 at alpha 10. Every check here counts drawn pixels by alpha and never reads colour, so its results hold for what the page draws.

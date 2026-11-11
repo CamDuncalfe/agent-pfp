@@ -1,4 +1,10 @@
-import { validateManifest, groupChoices, resolveSelection, randomSelection } from '../src/manifest.js';
+import {
+  validateManifest,
+  groupChoices,
+  resolveSelection,
+  randomSelection,
+  resolveLayerUrl,
+} from '../src/manifest.js';
 import { compositeLayers } from '../src/composite.js';
 
 const DEFAULT_MANIFEST = '../fixtures/shapes/manifest.json';
@@ -81,20 +87,29 @@ function showSelection(layers) {
 /**
  * Load one layer image and read its pixels at the manifest's canvas size.
  * A layer of another size is refused, the same way the render check refuses it.
+ *
+ * The pixels come back through a 2D canvas, which stores premultiplied
+ * alpha. Alpha values and opaque pixels come back exact. The colour of a
+ * see-through pixel can shift by a few levels (see docs/render-check.md).
  */
 async function loadLayerPixels(url, canvas) {
-  const image = new Image();
-  image.src = url.href;
-  await image.decode();
-  if (image.naturalWidth !== canvas.width || image.naturalHeight !== canvas.height) {
-    throw new Error(
-      `${url.pathname} is ${image.naturalWidth}x${image.naturalHeight}, the canvas is ${canvas.width}x${canvas.height}.`,
-    );
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load ${url.pathname} (HTTP ${response.status}).`);
+  // Ignore embedded colour profiles, like the PNG reader the render check uses.
+  const bitmap = await createImageBitmap(await response.blob(), { colorSpaceConversion: 'none' });
+  try {
+    if (bitmap.width !== canvas.width || bitmap.height !== canvas.height) {
+      throw new Error(
+        `${url.pathname} is ${bitmap.width}x${bitmap.height}, the canvas is ${canvas.width}x${canvas.height}.`,
+      );
+    }
+    const scratch = new OffscreenCanvas(canvas.width, canvas.height);
+    const context = scratch.getContext('2d', { willReadFrequently: true });
+    context.drawImage(bitmap, 0, 0);
+    return context.getImageData(0, 0, canvas.width, canvas.height);
+  } finally {
+    bitmap.close();
   }
-  const scratch = new OffscreenCanvas(canvas.width, canvas.height);
-  const context = scratch.getContext('2d', { willReadFrequently: true });
-  context.drawImage(image, 0, 0);
-  return context.getImageData(0, 0, canvas.width, canvas.height);
 }
 
 function createRenderer(manifest, baseUrl) {
@@ -104,7 +119,7 @@ function createRenderer(manifest, baseUrl) {
 
   function pixelsFor(src) {
     if (!cache.has(src)) {
-      const pending = loadLayerPixels(new URL(src, baseUrl), manifest.canvas);
+      const pending = loadLayerPixels(resolveLayerUrl(src, baseUrl), manifest.canvas);
       // A failed load is dropped from the cache, so the next render tries again.
       pending.catch(() => cache.delete(src));
       cache.set(src, pending);
