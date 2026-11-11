@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agent PFP builder</title>
+    <link rel="stylesheet" href="builder.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Agent PFP builder</h1>
+        <p id="style-name" class="muted"></p>
+      </header>
+
+      <p id="status" role="status"></p>
+
+      <div class="layout">
+        <form id="controls" aria-label="Layers"></form>
+
+        <section aria-labelledby="selection-heading">
+          <h2 id="selection-heading">Layers, bottom first</h2>
+          <ol id="selection"></ol>
+          <button type="button" id="randomize" disabled>Randomize</button>
+        </section>
+      </div>
+    </main>
+    <script type="module" src="builder.js"></script>
+  </body>
+</html>

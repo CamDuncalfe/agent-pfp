@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "style": "fixture-shapes",
+  "name": "Fixture shapes (test data, not artwork)",
+  "canvas": { "width": 64, "height": 64, "opaque": true },
+  "groups": [
+    {
+      "id": "background",
+      "label": "Background",
+      "base": true,
+      "bleed": ["top", "right", "bottom", "left"],
+      "options": [
+        { "id": "grey", "label": "Grey", "src": "layers/background/grey.png" },
+        { "id": "blue", "label": "Blue", "src": "layers/background/blue.png" }
+      ]
+    },
+    {
+      "id": "body",
+      "label": "Body",
+      "base": true,
+      "bleed": ["bottom"],
+      "options": [
+        { "id": "round", "label": "Round", "src": "layers/body/round.png" },
+        { "id": "square", "label": "Square", "src": "layers/body/square.png" }
+      ]
+    },
+    {
+      "id": "eyes",
+      "label": "Eyes",
+      "zone": { "x": 18, "y": 24, "width": 28, "height": 8 },
+      "options": [
+        { "id": "dots", "label": "Dots", "src": "layers/eyes/dots.png" },
+        { "id": "bars", "label": "Bars", "src": "layers/eyes/bars.png" }
+      ]
+    },
+    {
+      "id": "mouth",
+      "label": "Mouth",
+      "zone": { "x": 22, "y": 36, "width": 20, "height": 8 },
+      "options": [
+        { "id": "line", "label": "Line", "src": "layers/mouth/line.png" },
+        { "id": "open", "label": "Open", "src": "layers/mouth/open.png" }
+      ]
+    },
+    {
+      "id": "headwear",
+      "label": "Headwear",
+      "optional": true,
+      "zone": { "x": 12, "y": 4, "width": 40, "height": 18 },
+      "options": [
+        { "id": "cap", "label": "Cap", "src": "layers/headwear/cap.png" },
+        { "id": "tall", "label": "Tall hat", "src": "layers/headwear/tall.png" }
+      ]
+    }
+  ]
+}

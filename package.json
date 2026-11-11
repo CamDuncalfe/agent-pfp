@@ -1,0 +1,14 @@
+{
+  "name": "agent-pfp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pick an art style and build a profile picture for your coding agent from layers.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node bin/serve.js",
+    "test": "node --test"
+  }
+}
