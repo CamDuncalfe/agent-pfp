@@ -237,7 +237,9 @@ async function work(repo, ticket) {
   const base = (await must('git', ['rev-parse', 'HEAD'], { cwd: worktree })).trim();
 
   // Build. A failed check sends the agent back in, and that uses a fix round.
-  const ticketRun = { number, repo, branch, notes: NOTES };
+  // One list for the build prompt and the pull request description.
+  const criteria = acceptanceCriteria(ticket.body);
+  const ticketRun = { number, repo, branch, notes: NOTES, criteria };
   const promptFor = async (file, extra = {}) =>
     fillPrompt(await readFile(join(prompts, file), 'utf8'), promptValues(file, { ...ticketRun, ...extra }));
   let agent = await callAgent(worktree, await promptFor('build.md'));
@@ -258,7 +260,7 @@ async function work(repo, ticket) {
   const url = (
     await must('gh', ['pr', 'create', '--repo', repo, '--base', 'main', '--head', branch, '--title', ticket.title, '--body-file', '-'], {
       cwd: worktree,
-      input: prBody(number, acceptanceCriteria(ticket.body), description),
+      input: prBody(number, criteria, description),
     })
   ).trim();
   pr = Number(url.split('/').pop());
