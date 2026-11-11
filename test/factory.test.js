@@ -265,6 +265,47 @@ test('acceptanceCriteria: inside a collapsed block, the tag in code neither open
   assert.deepEqual(acceptanceCriteria(body), ['One', 'Two', 'Three']);
 });
 
+test('acceptanceCriteria: a tag inside an HTML comment neither opens nor closes a block', () => {
+  const opening = ['## Acceptance criteria', '1. One', '<details>', '<!-- <details> -->', '2. Dropped', '</details>', '2. Two'];
+  assert.deepEqual(acceptanceCriteria(opening.join('\n')), ['One', 'Two']);
+  const closing = ['## Acceptance criteria', '1. One', '<details>', '<!-- </details> -->', '2. Dropped', '</details>', '2. Two'];
+  assert.deepEqual(acceptanceCriteria(closing.join('\n')), ['One', 'Two']);
+  // A comment at the start of a line hides the tag after it from nobody: the block still opens.
+  const after = ['## Acceptance criteria', '1. One', '<!-- old --> <details>', '2. Dropped', '</details>', '2. Two'];
+  assert.deepEqual(acceptanceCriteria(after.join('\n')), ['One', 'Two']);
+  // A comment written in inline code is text, and the line is read as before.
+  assert.deepEqual(acceptanceCriteria('## Acceptance criteria\n1. `<!--` starts a comment.\n<details>\n2. Dropped\n</details>\n2. Two'), [
+    '`<!--` starts a comment.',
+    'Two',
+  ]);
+});
+
+test('acceptanceCriteria: a comment over several lines is not read for tags', () => {
+  const above = ['<!--', '<details>', 'Left over from a template.', '-->', '', '## Acceptance criteria', '', '1. It locks.', '2. `npm test` passes.'];
+  assert.deepEqual(acceptanceCriteria(above.join('\n')), ['It locks.', '`npm test` passes.']);
+  const inside = [
+    '## Acceptance criteria',
+    '1. One',
+    '<details>',
+    '<!-- The first wording:',
+    '</details>',
+    '<details>',
+    '```',
+    'ends here --> 2. Dropped',
+    '</details>',
+    '2. Two',
+  ];
+  assert.deepEqual(acceptanceCriteria(inside.join('\n')), ['One', 'Two']);
+  // As before this change, a numbered line inside a comment counts as a criterion.
+  assert.deepEqual(acceptanceCriteria('## Acceptance criteria\n1. One\n<!--\n2. In a comment\n-->\n3. Three'), ['One', 'In a comment', 'Three']);
+});
+
+test('ticketProblems: criteria that come after a collapsed block with a commented tag start the agent', () => {
+  const body = '<details>\n<!-- <details> -->\n\n## Acceptance criteria\n\n1. Old.\n\n</details>\n\n## Acceptance criteria\n\n1. It locks.';
+  assert.deepEqual(acceptanceCriteria(body), ['It locks.']);
+  assert.deepEqual(ticketProblems({ title: 'Lock a trait', body }), []);
+});
+
 test('ticketProblems: criteria that are only in a collapsed block do not start the agent', () => {
   const body = '<details>\n\n## Acceptance criteria\n\n1. It locks.\n\n</details>';
   assert.match(ticketProblems({ title: 'Lock a trait', body })[0], /Acceptance criteria/);

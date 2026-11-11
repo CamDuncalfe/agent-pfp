@@ -145,7 +145,9 @@ export function labelledBy(events, label) {
  *
  * A block opens where a line starts with the <details> tag. The tag named in
  * a sentence, in `inline code` or in a fenced code block opens nothing, so a
- * ticket can write about the tag and keep its criteria.
+ * ticket can write about the tag and keep its criteria. A tag inside an HTML
+ * comment, on one line or over several, neither opens nor closes a block.
+ * A numbered line inside a comment still counts as a criterion.
  * @param {string} body
  */
 export function acceptanceCriteria(body) {
@@ -153,15 +155,19 @@ export function acceptanceCriteria(body) {
   let inSection = false;
   let collapsed = 0;
   let fence = null;
+  let comment = false;
   for (const line of String(body ?? '').split(/\r?\n/)) {
-    const mark = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    const mark = comment ? null : /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
     if (fence) {
       // A fence ends on a line of the same marks, at least as many, and nothing after them.
       if (mark && mark[1][0] === fence[0] && mark[1].length >= fence.length && !mark[2].trim()) fence = null;
     } else if (mark && !(mark[1][0] === '`' && mark[2].includes('`'))) {
       fence = mark[1];
     } else {
-      const tags = line.replace(/(`+).*?\1/g, '');
+      // The line without inline code and without comments. A comment left open carries on in the next line.
+      let tags = `${comment ? '<!--' : ''}${line.replace(/(`+).*?\1/g, '')}`.replace(/<!--.*?-->/g, '');
+      comment = tags.includes('<!--');
+      if (comment) tags = tags.slice(0, tags.indexOf('<!--'));
       const opens = collapsed > 0 || /^ {0,3}<details(?=[\s>]|$)/i.test(tags);
       const opened = opens ? (tags.match(/<details(?=[\s>]|$)/gi) ?? []).length : 0;
       const closed = collapsed > 0 || opened > 0 ? (tags.match(/<\/details\s*>/gi) ?? []).length : 0;
