@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import {
@@ -346,4 +347,19 @@ test('findingsText: what the agent reads in a fix round', () => {
   assert.match(text, /## 2\. Another bug/);
   assert.match(text, /Qodo's suggested prompt:\n\n## Issue description\nFix Another bug\./);
   assert.equal(findingsText([{ number: 1, title: 'Bare', kind: '', description: '', prompt: '' }]), '## 1. Bare');
+});
+
+test('the prompt files only ask for values the runner gives them', async () => {
+  const read = (name) => readFile(new URL(`../factory/prompts/${name}`, import.meta.url), 'utf8');
+  const values = { number: 8, repo: 'owner/repo', branch: '8-lock', notes: '.factory-run' };
+  const build = fillPrompt(await read('build.md'), values);
+  assert.match(build, /gh issue view 8 --repo owner\/repo/);
+  assert.match(build, /\.factory-run\/pr-body\.md/);
+  assert.match(build, /Leave out the `Closes` line/);
+  const failed = fillPrompt(await read('failed-check.md'), { ...values, check: 'npm test', output: 'not ok 1' });
+  assert.match(failed, /`npm test` failed/);
+  const fix = fillPrompt(await read('fix.md'), { ...values, pr: 11 });
+  assert.match(fix, /pull request #11 for ticket #8/);
+  assert.match(fix, /\.factory-run\/reply\.md/);
+  for (const text of [build, failed, fix]) assert.doesNotMatch(text, /\{\{/);
 });

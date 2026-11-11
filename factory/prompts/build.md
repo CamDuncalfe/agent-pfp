@@ -13,4 +13,4 @@ Your ticket is issue #{{number}} in {{repo}}. You are in a fresh checkout on the
    - the edge cases you covered,
    - what you couldn't check from here, for example how the page looks in a browser.
 
-Write the description and the commit message in plain words and short sentences. Say what you did. No headings other than "What it does", "Acceptance criteria", "Edge cases" and "Not checked".
+Write the description and the commit message in plain words and short sentences. Say what you did. No headings other than "What it does", "Acceptance criteria", "Edge cases" and "Not checked". Leave out the `Closes` line and the ticket's own list of criteria, because the runner writes both above your text. Don't sign the description or the commit with a tool's name.
