@@ -5,6 +5,11 @@
   --paper: #ffffff;
   --accent: #2f55d4;
   --radius: 8px;
+  /*
+   * Room for a checkbox and the word "Lock". The same in each trait row.
+   * In em, so the column grows with the text when the user enlarges it.
+   */
+  --lock-column: 4.5em;
   color-scheme: light;
 }
 
@@ -86,7 +91,8 @@ label {
 
 .trait {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  /* The picker takes what is left. The lock column never sizes to its text. */
+  grid-template-columns: minmax(0, 1fr) var(--lock-column);
   align-items: end;
   gap: 12px;
 }
@@ -97,6 +103,7 @@ label.lock {
   gap: 6px;
   min-height: 40px;
   font-weight: 400;
+  white-space: nowrap;
 }
 
 select,

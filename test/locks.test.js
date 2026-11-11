@@ -6,7 +6,8 @@ import { groupChoices, randomSelection, resolveSelection } from '../src/manifest
 import {
   canRandomize,
   lockControlName,
-  lockLabel,
+  lockAccessibleName,
+  lockText,
   lockedGroupIds,
   randomizeUnlocked,
   startingLocks,
@@ -35,12 +36,34 @@ function allLocked(manifest) {
 
 const groupIds = (manifest) => manifest.groups.map((group) => group.id);
 
-test('each group has a lock label that names it and a control name of its own', async () => {
+test('the text next to each lock checkbox is "Lock" and takes no group', () => {
+  assert.equal(lockText(), 'Lock');
+  assert.equal(lockText.length, 0);
+});
+
+test("each lock checkbox's accessible name names its group", async () => {
   const manifest = await loadFixture('shapes');
   const headwear = manifest.groups.find((group) => group.id === 'headwear');
-  assert.equal(lockLabel(headwear), 'Lock Headwear');
-  for (const group of manifest.groups) assert.equal(lockLabel(group), `Lock ${group.label}`);
+  assert.equal(lockAccessibleName(headwear), 'Lock Headwear');
+  assert.equal(lockAccessibleName(manifest.groups.find((group) => group.id === 'eyes')), 'Lock Eyes');
+  for (const group of manifest.groups) {
+    assert.equal(lockAccessibleName(group), `Lock ${group.label}`);
+    // The accessible name starts with the text on screen.
+    assert.equal(lockAccessibleName(group).startsWith(lockText()), true);
+  }
+  const names = manifest.groups.map((group) => lockAccessibleName(group));
+  assert.equal(new Set(names).size, manifest.groups.length);
+});
 
+test('a group with a long name gets the same "Lock" text and names itself to a screen reader', () => {
+  const long = { id: 'background-accessories', label: 'Background accessories', options: [] };
+  // The text has no group to read, so a long name can't change it.
+  assert.equal(lockText(), 'Lock');
+  assert.equal(lockAccessibleName(long), 'Lock Background accessories');
+});
+
+test('each group has a lock control name of its own', async () => {
+  const manifest = await loadFixture('shapes');
   const lockNames = manifest.groups.map((group) => lockControlName(group.id));
   assert.equal(new Set(lockNames).size, manifest.groups.length);
   for (const name of lockNames) assert.equal(groupIds(manifest).includes(name), false);
