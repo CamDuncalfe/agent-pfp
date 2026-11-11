@@ -9,6 +9,11 @@
   },
   "scripts": {
     "start": "node bin/serve.js",
-    "test": "node --test"
+    "test": "node --test",
+    "check": "node bin/render-check.js fixtures/shapes/manifest.json",
+    "fixtures": "node fixtures/make-fixtures.js"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
   }
 }
