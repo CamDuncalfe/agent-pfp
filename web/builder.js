@@ -2,9 +2,9 @@ import {
   validateManifest,
   groupChoices,
   resolveSelection,
-  randomSelection,
   resolveLayerUrl,
 } from '../src/manifest.js';
+import { canRandomize, lockControlName, lockLabel, randomizeUnlocked, startingLocks } from '../src/locks.js';
 import { compositeLayers } from '../src/composite.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
 
@@ -103,9 +103,25 @@ function writeSelection(manifest, selection) {
   }
 }
 
+function readLocks(manifest) {
+  const locks = {};
+  for (const group of manifest.groups) {
+    locks[group.id] = controlsEl.elements.namedItem(lockControlName(group.id)).checked;
+  }
+  return locks;
+}
+
+/** Randomize is off while no style is on screen and while each group is locked. */
+function updateRandomize() {
+  randomizeEl.disabled = !current || !canRandomize(current.manifest, readLocks(current.manifest));
+}
+
 function buildControls(manifest) {
   controlsEl.replaceChildren();
+  const locks = startingLocks(manifest);
   for (const group of manifest.groups) {
+    const row = document.createElement('div');
+    row.className = 'trait';
     const label = document.createElement('label');
     label.append(group.label);
     const select = document.createElement('select');
@@ -117,7 +133,17 @@ function buildControls(manifest) {
       select.append(option);
     }
     label.append(select);
-    controlsEl.append(label);
+
+    const lock = document.createElement('label');
+    lock.className = 'lock';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.name = lockControlName(group.id);
+    checkbox.checked = locks[group.id];
+    lock.append(checkbox, lockLabel(group));
+
+    row.append(label, lock);
+    controlsEl.append(row);
   }
 }
 
@@ -251,7 +277,7 @@ function createSwitcher() {
       buildControls(manifest);
       const render = createRenderer(manifest, url, isOnScreen);
       current = { manifest, render };
-      randomizeEl.disabled = false;
+      updateRandomize();
       await render();
     },
     fail(entry, error) {
@@ -279,10 +305,17 @@ async function start() {
       const entry = index.styles.find((candidate) => candidate.id === styleEl.value);
       if (entry) switcher.open(entry);
     });
-    controlsEl.addEventListener('change', () => current?.render());
+    controlsEl.addEventListener('change', (event) => {
+      // A lock changes what Randomize does next. The picture stays as it is.
+      if (event.target instanceof HTMLInputElement) updateRandomize();
+      else current?.render();
+    });
     randomizeEl.addEventListener('click', () => {
       if (!current) return;
-      writeSelection(current.manifest, randomSelection(current.manifest));
+      const { manifest } = current;
+      const locks = readLocks(manifest);
+      if (!canRandomize(manifest, locks)) return;
+      writeSelection(manifest, randomizeUnlocked(manifest, readSelection(manifest), locks));
       current.render();
     });
     downloadEl.addEventListener('click', () => {

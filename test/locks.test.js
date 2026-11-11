@@ -1,0 +1,172 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+
+import { groupChoices, randomSelection, resolveSelection } from '../src/manifest.js';
+import {
+  canRandomize,
+  lockControlName,
+  lockLabel,
+  lockedGroupIds,
+  randomizeUnlocked,
+  startingLocks,
+} from '../src/locks.js';
+
+async function loadFixture(name) {
+  const url = new URL(`../fixtures/${name}/manifest.json`, import.meta.url);
+  return JSON.parse(await readFile(url, 'utf8'));
+}
+
+/** A `random` that walks through `values` and starts over at the end. */
+function sequence(values) {
+  let calls = 0;
+  const random = () => {
+    const value = values[calls % values.length];
+    calls += 1;
+    return value;
+  };
+  random.calls = () => calls;
+  return random;
+}
+
+function allLocked(manifest) {
+  return Object.fromEntries(manifest.groups.map((group) => [group.id, true]));
+}
+
+const groupIds = (manifest) => manifest.groups.map((group) => group.id);
+
+test('each group has a lock label that names it and a control name of its own', async () => {
+  const manifest = await loadFixture('shapes');
+  const headwear = manifest.groups.find((group) => group.id === 'headwear');
+  assert.equal(lockLabel(headwear), 'Lock Headwear');
+  for (const group of manifest.groups) assert.equal(lockLabel(group), `Lock ${group.label}`);
+
+  const lockNames = manifest.groups.map((group) => lockControlName(group.id));
+  assert.equal(new Set(lockNames).size, manifest.groups.length);
+  for (const name of lockNames) assert.equal(groupIds(manifest).includes(name), false);
+});
+
+test('Randomize keeps each locked group and picks each other group', async () => {
+  const manifest = await loadFixture('shapes');
+  const selection = { background: 'blue', body: 'square', eyes: 'bars', mouth: 'open', headwear: 'cap' };
+  const locks = { ...startingLocks(manifest), eyes: true, headwear: true };
+
+  const low = randomizeUnlocked(manifest, selection, locks, () => 0);
+  assert.deepEqual(low, { background: 'grey', body: 'round', eyes: 'bars', mouth: 'line', headwear: 'cap' });
+  const high = randomizeUnlocked(manifest, selection, locks, () => 0.999);
+  assert.deepEqual(high, { background: 'blue', body: 'square', eyes: 'bars', mouth: 'open', headwear: 'cap' });
+  assert.doesNotThrow(() => resolveSelection(manifest, low));
+});
+
+test('Randomize can pick any option of an unlocked group', async () => {
+  const manifest = await loadFixture('shapes');
+  const selection = randomSelection(manifest, () => 0);
+  const locks = { ...startingLocks(manifest), body: true };
+  const seen = new Map(manifest.groups.map((group) => [group.id, new Set()]));
+  for (let step = 0; step < 100; step += 1) {
+    const next = randomizeUnlocked(manifest, selection, locks, () => step / 100);
+    for (const group of manifest.groups) seen.get(group.id).add(next[group.id]);
+  }
+  for (const group of manifest.groups) {
+    const expected = group.id === 'body' ? [selection.body] : groupChoices(group);
+    assert.deepEqual(seen.get(group.id), new Set(expected), group.id);
+  }
+});
+
+test('Randomize does not use up a random number for a locked group', async () => {
+  const manifest = await loadFixture('shapes');
+  const selection = randomSelection(manifest, () => 0);
+  const random = sequence([0.5]);
+  randomizeUnlocked(manifest, selection, { background: true, mouth: true }, random);
+  assert.equal(random.calls(), manifest.groups.length - 2);
+});
+
+test('Randomize leaves a locked group on None', async () => {
+  const manifest = await loadFixture('shapes');
+  const selection = { background: 'grey', body: 'round', eyes: 'dots', mouth: 'line', headwear: null };
+  for (const value of [0, 0.5, 0.999]) {
+    const next = randomizeUnlocked(manifest, selection, { headwear: true }, () => value);
+    assert.equal(next.headwear, null);
+    assert.doesNotThrow(() => resolveSelection(manifest, next));
+  }
+  // A selection may also leave an empty group out.
+  const rest = { background: 'grey', body: 'round', eyes: 'dots', mouth: 'line' };
+  assert.equal(randomizeUnlocked(manifest, rest, { headwear: true }, () => 0.999).headwear, null);
+});
+
+test('with no locks Randomize is randomSelection', async () => {
+  const manifest = await loadFixture('shapes');
+  const selection = { background: 'blue', body: 'square', eyes: 'bars', mouth: 'open', headwear: 'cap' };
+  const values = [0.1, 0.9, 0.4, 0.7, 0.2, 0.999, 0];
+  for (const locks of [{}, startingLocks(manifest)]) {
+    assert.deepEqual(
+      randomizeUnlocked(manifest, selection, locks, sequence(values)),
+      randomSelection(manifest, sequence(values)),
+    );
+  }
+});
+
+test('a locked group changed with its picker keeps the new option and its lock', async () => {
+  const manifest = await loadFixture('shapes');
+  const locks = Object.freeze({ ...startingLocks(manifest), headwear: true });
+  const before = { background: 'grey', body: 'round', eyes: 'dots', mouth: 'line', headwear: 'cap' };
+  assert.equal(randomizeUnlocked(manifest, before, locks, () => 0).headwear, 'cap');
+
+  // The picker changes the selection. Nothing changes the locks.
+  const after = Object.freeze({ ...before, headwear: 'tall' });
+  assert.equal(randomizeUnlocked(manifest, after, locks, () => 0).headwear, 'tall');
+  assert.deepEqual(lockedGroupIds(manifest, locks), ['headwear']);
+});
+
+test('a style opens with each lock off', async () => {
+  for (const name of ['shapes', 'blocks']) {
+    const manifest = await loadFixture(name);
+    const locks = startingLocks(manifest);
+    assert.deepEqual(Object.keys(locks), groupIds(manifest));
+    assert.deepEqual(lockedGroupIds(manifest, locks), []);
+    assert.equal(canRandomize(manifest, locks), true);
+  }
+});
+
+test('Randomize is off while each group is locked and on again when one is unlocked', async () => {
+  const manifest = await loadFixture('shapes');
+  const locks = startingLocks(manifest);
+  for (const group of manifest.groups) {
+    assert.equal(canRandomize(manifest, locks), true);
+    locks[group.id] = true;
+  }
+  assert.equal(canRandomize(manifest, locks), false);
+  locks.mouth = false;
+  assert.equal(canRandomize(manifest, locks), true);
+});
+
+test('with each group locked Randomize changes nothing', async () => {
+  const manifest = await loadFixture('shapes');
+  const selection = { background: 'blue', body: 'square', eyes: 'bars', mouth: 'open', headwear: null };
+  const random = sequence([0]);
+  assert.deepEqual(randomizeUnlocked(manifest, selection, allLocked(manifest), random), selection);
+  assert.equal(random.calls(), 0);
+});
+
+test('a lock for a group the style does not have is ignored', async () => {
+  const manifest = await loadFixture('shapes');
+  const selection = randomSelection(manifest, () => 0);
+  const locks = { tail: true, toString: true, eyes: true };
+  assert.deepEqual(lockedGroupIds(manifest, locks), ['eyes']);
+
+  const next = randomizeUnlocked(manifest, selection, locks, () => 0.999);
+  assert.deepEqual(Object.keys(next), groupIds(manifest));
+  assert.equal(next.eyes, selection.eyes);
+  assert.doesNotThrow(() => resolveSelection(manifest, next));
+
+  // Unknown locks don't count towards "each group is locked".
+  const oneOpen = { ...allLocked(manifest), eyes: false, tail: true };
+  assert.equal(canRandomize(manifest, oneOpen), true);
+  assert.equal(canRandomize(manifest, { ...allLocked(manifest), tail: true }), false);
+});
+
+test('only true locks a group', async () => {
+  const manifest = await loadFixture('shapes');
+  const locks = { eyes: 'yes', mouth: 1, body: false, background: true };
+  assert.deepEqual(lockedGroupIds(manifest, locks), ['background']);
+});
