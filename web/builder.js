@@ -7,7 +7,13 @@ import {
 } from '../src/manifest.js';
 import { compositeLayers } from '../src/composite.js';
 
-import { chooseStyle, resolveManifestUrl, styleMismatch, validateStyleIndex } from '../src/styles.js';
+import {
+  createStyleSwitcher,
+  resolveManifestUrl,
+  styleFromSearch,
+  styleMismatch,
+  validateStyleIndex,
+} from '../src/styles.js';
 
 const STYLE_INDEX = '../styles/index.json';
 const NONE = '';
@@ -27,9 +33,6 @@ const previewEl = document.querySelector('#preview');
  * @type {{ manifest: import('../src/manifest.js').Manifest, render: () => Promise<void> } | null}
  */
 let current = null;
-
-/** Counts style switches, so a style that finishes loading late is dropped. */
-let latestSwitch = 0;
 
 function setStatus(message, isError = false) {
   statusEl.textContent = message;
@@ -207,33 +210,36 @@ function showStyleInAddress(id) {
 }
 
 /**
- * Put one style on screen. The Style picker stays usable the whole time, so
- * a style that fails to load can be swapped for another one.
+ * Puts one style on screen at a time. The Style picker stays usable the
+ * whole time, so a style that fails to load can be swapped for another one.
+ * createStyleSwitcher drops a style that finishes loading after a newer pick.
  */
-async function openStyle(entry, indexUrl) {
-  const ticket = (latestSwitch += 1);
-  const isOnScreen = () => ticket === latestSwitch;
-  clearStyle();
-  styleEl.value = entry.id;
-  showStyleInAddress(entry.id);
-  setStatus(`Loading ${entry.name}...`);
-  try {
-    const url = resolveManifestUrl(entry, indexUrl);
-    const manifest = await loadManifest(entry, url);
-    // Another style was picked while this one was loading.
-    if (!isOnScreen()) return;
-    previewEl.width = manifest.canvas.width;
-    previewEl.height = manifest.canvas.height;
-    buildControls(manifest);
-    const render = createRenderer(manifest, url, isOnScreen);
-    current = { manifest, render };
-    randomizeEl.disabled = false;
-    await render();
-  } catch (error) {
-    if (!isOnScreen()) return;
-    clearStyle();
-    setStatus(`Could not open ${entry.name}. ${reason(error)}`, true);
-  }
+function createSwitcher(indexUrl) {
+  return createStyleSwitcher({
+    clear(entry) {
+      clearStyle();
+      styleEl.value = entry.id;
+      showStyleInAddress(entry.id);
+      setStatus(`Loading ${entry.name}...`);
+    },
+    async load(entry) {
+      const url = resolveManifestUrl(entry, indexUrl);
+      return { url, manifest: await loadManifest(entry, url) };
+    },
+    async show(entry, { url, manifest }, isOnScreen) {
+      previewEl.width = manifest.canvas.width;
+      previewEl.height = manifest.canvas.height;
+      buildControls(manifest);
+      const render = createRenderer(manifest, url, isOnScreen);
+      current = { manifest, render };
+      randomizeEl.disabled = false;
+      await render();
+    },
+    fail(entry, error) {
+      clearStyle();
+      setStatus(`Could not open ${entry.name}. ${reason(error)}`, true);
+    },
+  });
 }
 
 async function start() {
@@ -246,10 +252,11 @@ async function start() {
       option.textContent = entry.name;
       styleEl.append(option);
     }
+    const switcher = createSwitcher(indexUrl);
     styleEl.addEventListener('change', () => {
       noticeEl.textContent = '';
       const entry = index.styles.find((candidate) => candidate.id === styleEl.value);
-      if (entry) openStyle(entry, indexUrl);
+      if (entry) switcher.open(entry);
     });
     controlsEl.addEventListener('change', () => current?.render());
     randomizeEl.addEventListener('click', () => {
@@ -262,12 +269,9 @@ async function start() {
     });
     styleEl.disabled = false;
 
-    const requested = new URLSearchParams(location.search).get('style');
-    const { entry, unknown } = chooseStyle(index, requested);
-    if (unknown !== null) {
-      noticeEl.textContent = `This builder doesn't know a style called "${unknown}". Showing ${entry.name}.`;
-    }
-    await openStyle(entry, indexUrl);
+    const { entry, notice } = styleFromSearch(index, location.search);
+    noticeEl.textContent = notice;
+    await switcher.open(entry);
   } catch (error) {
     setStatus(reason(error), true);
   }

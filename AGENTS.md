@@ -61,9 +61,9 @@ The builder page and the render check draw with `compositeLayers` from `src/comp
 
 ### 4. No generated images
 
-The app draws the layer files a manifest names and nothing else. No image-generation API, no model call, and no network request other than loading the manifest and its layers from the same origin.
+The app draws the layer files a manifest names and nothing else. No image-generation API, no model call, and no network request other than loading the style index, the manifests it lists and their layers from the same origin.
 
-- **Where:** `web/`, `src/`, `bin/` and the dependencies in `package.json`.
+- **Where:** `web/`, `src/`, `bin/`, `styles/` and the dependencies in `package.json`.
 - **Why:** I pick and cut each option before it goes in the builder. A user only gets art I've looked at.
 
 ### 5. Art needs a sign-off

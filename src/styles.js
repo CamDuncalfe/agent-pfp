@@ -118,3 +118,59 @@ export function styleMismatch(entry, manifest) {
     ? null
     : `the index lists this style as "${entry.id}" and its manifest says "${manifest.style}"`;
 }
+
+/**
+ * What the page says when the address names a style the index does not list.
+ * @param {string} unknown the id from the address
+ * @param {StyleEntry} entry the style that opens instead
+ * @returns {string}
+ */
+export function unknownStyleNotice(unknown, entry) {
+  return `This builder doesn't know a style called "${unknown}". Showing ${entry.name}.`;
+}
+
+/**
+ * The style a page address asks for. Only the `style` parameter is read.
+ * @param {StyleIndex} index
+ * @param {string} search the query string of the address, with or without "?"
+ * @returns {{ entry: StyleEntry, notice: string }} `notice` is empty unless the id was unknown
+ */
+export function styleFromSearch(index, search) {
+  const requested = new URLSearchParams(search).get('style');
+  const { entry, unknown } = chooseStyle(index, requested);
+  return { entry, notice: unknown === null ? '' : unknownStyleNotice(unknown, entry) };
+}
+
+/**
+ * Opens one style at a time. When a second style is opened while the first
+ * is still loading, the first one is dropped when it arrives: it is not
+ * shown and its failure is not reported.
+ *
+ * @template Loaded
+ * @param {{
+ *   clear: (entry: StyleEntry) => void,
+ *   load: (entry: StyleEntry) => Promise<Loaded>,
+ *   show: (entry: StyleEntry, loaded: Loaded, isOnScreen: () => boolean) => void | Promise<void>,
+ *   fail: (entry: StyleEntry, error: unknown) => void,
+ * }} steps `clear` runs first on each switch, then `load`, then `show` or `fail`
+ * @returns {{ open: (entry: StyleEntry) => Promise<boolean> }} `open` resolves to true when the style ended up on screen
+ */
+export function createStyleSwitcher({ clear, load, show, fail }) {
+  let latest = 0;
+  return {
+    async open(entry) {
+      const ticket = (latest += 1);
+      const isOnScreen = () => ticket === latest;
+      clear(entry);
+      try {
+        const loaded = await load(entry);
+        if (!isOnScreen()) return false;
+        await show(entry, loaded, isOnScreen);
+        return isOnScreen();
+      } catch (error) {
+        if (isOnScreen()) fail(entry, error);
+        return false;
+      }
+    },
+  };
+}

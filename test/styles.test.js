@@ -10,9 +10,12 @@ import { promisify } from 'node:util';
 import { validateManifest } from '../src/manifest.js';
 import {
   chooseStyle,
+  createStyleSwitcher,
   resolveManifestUrl,
+  styleFromSearch,
   styleMismatch,
   styleRootUrl,
+  unknownStyleNotice,
   validateStyleIndex,
 } from '../src/styles.js';
 
@@ -122,6 +125,114 @@ test('a manifest for another style is a mismatch', () => {
   const entry = { id: 'a', name: 'A', manifest: 'a/manifest.json' };
   assert.equal(styleMismatch(entry, { style: 'a' }), null);
   assert.match(styleMismatch(entry, { style: 'b' }), /"a".*"b"/);
+});
+
+test('the address picks the style through the style parameter only', async () => {
+  const index = await loadIndex();
+  const [first, second] = index.styles;
+  assert.deepEqual(styleFromSearch(index, ''), { entry: first, notice: '' });
+  assert.deepEqual(styleFromSearch(index, '?style=fixture-blocks'), { entry: second, notice: '' });
+  assert.deepEqual(styleFromSearch(index, 'other=1&style=fixture-blocks'), { entry: second, notice: '' });
+  // The page used to read ?manifest=. It has no say now.
+  assert.deepEqual(styleFromSearch(index, '?manifest=../fixtures/blocks/manifest.json'), { entry: first, notice: '' });
+  assert.deepEqual(styleFromSearch(index, '?manifest=https://example.com/m.json&style=fixture-blocks'), {
+    entry: second,
+    notice: '',
+  });
+});
+
+test('an unknown style in the address opens the first style with a notice', async () => {
+  const index = await loadIndex();
+  const first = index.styles[0];
+  assert.deepEqual(styleFromSearch(index, '?style=nope'), {
+    entry: first,
+    notice: 'This builder doesn\'t know a style called "nope". Showing Fixture shapes (test data, not artwork).',
+  });
+  // The id is quoted as it came. The page puts the notice in as text.
+  assert.equal(
+    unknownStyleNotice('<b>x</b>', { id: 'a', name: 'A', manifest: 'a/manifest.json' }),
+    'This builder doesn\'t know a style called "<b>x</b>". Showing A.',
+  );
+});
+
+/** A switcher whose loads finish when the test says so. */
+function switcherWithManualLoads() {
+  const events = [];
+  const pending = new Map();
+  const switcher = createStyleSwitcher({
+    clear: (entry) => events.push(`clear ${entry.id}`),
+    load: (entry) => new Promise((resolve, reject) => pending.set(entry.id, { resolve, reject })),
+    show: (entry, loaded, isOnScreen) => {
+      events.push(`show ${entry.id} ${loaded} ${isOnScreen()}`);
+    },
+    fail: (entry, error) => events.push(`fail ${entry.id} ${error.message}`),
+  });
+  return { events, pending, switcher };
+}
+
+const styleA = { id: 'a', name: 'A', manifest: 'a/manifest.json' };
+const styleB = { id: 'b', name: 'B', manifest: 'b/manifest.json' };
+
+test('a style that loads is cleared for, then shown', async () => {
+  const { events, pending, switcher } = switcherWithManualLoads();
+  const opened = switcher.open(styleA);
+  pending.get('a').resolve('manifest-a');
+  assert.equal(await opened, true);
+  assert.deepEqual(events, ['clear a', 'show a manifest-a true']);
+});
+
+test('a style that fails to load is reported and another one can be opened', async () => {
+  const { events, pending, switcher } = switcherWithManualLoads();
+  const failed = switcher.open(styleA);
+  pending.get('a').reject(new Error('HTTP 404'));
+  assert.equal(await failed, false);
+  const opened = switcher.open(styleB);
+  pending.get('b').resolve('manifest-b');
+  assert.equal(await opened, true);
+  assert.deepEqual(events, ['clear a', 'fail a HTTP 404', 'clear b', 'show b manifest-b true']);
+});
+
+test('the style picked last stays on screen when an earlier one finishes loading later', async () => {
+  const { events, pending, switcher } = switcherWithManualLoads();
+  const first = switcher.open(styleA);
+  const second = switcher.open(styleB);
+  pending.get('b').resolve('manifest-b');
+  assert.equal(await second, true);
+  pending.get('a').resolve('manifest-a');
+  assert.equal(await first, false);
+  assert.deepEqual(events, ['clear a', 'clear b', 'show b manifest-b true']);
+});
+
+test('an earlier style that fails late is not reported over the newer one', async () => {
+  const { events, pending, switcher } = switcherWithManualLoads();
+  const first = switcher.open(styleA);
+  const second = switcher.open(styleB);
+  pending.get('a').reject(new Error('HTTP 500'));
+  assert.equal(await first, false);
+  pending.get('b').resolve('manifest-b');
+  assert.equal(await second, true);
+  assert.deepEqual(events, ['clear a', 'clear b', 'show b manifest-b true']);
+});
+
+test('a style that is replaced while it is being shown reports that it is off screen', async () => {
+  const events = [];
+  let release;
+  const switcher = createStyleSwitcher({
+    clear: () => {},
+    load: async (entry) => entry.id,
+    show: async (entry, loaded, isOnScreen) => {
+      if (entry.id === 'a') await new Promise((resolve) => { release = resolve; });
+      events.push(`${entry.id} on screen: ${isOnScreen()}`);
+    },
+    fail: () => events.push('fail'),
+  });
+  const first = switcher.open(styleA);
+  await new Promise((resolve) => setImmediate(resolve));
+  const second = switcher.open(styleB);
+  assert.equal(await second, true);
+  release();
+  assert.equal(await first, false);
+  assert.deepEqual(events, ['b on screen: true', 'a on screen: false']);
 });
 
 test('check-styles passes on the styles in the index', async () => {
