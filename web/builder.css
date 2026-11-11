@@ -84,6 +84,21 @@ label {
   font-weight: 600;
 }
 
+.trait {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+label.lock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  font-weight: 400;
+}
+
 select,
 button {
   font: inherit;
@@ -116,6 +131,7 @@ button:disabled {
 }
 
 select:focus-visible,
+input:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;

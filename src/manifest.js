@@ -247,6 +247,17 @@ export function resolveSelection(manifest, selection) {
 }
 
 /**
+ * Pick one of a group's choices.
+ * @param {Group} group
+ * @param {() => number} [random] returns a number in [0, 1), like Math.random
+ * @returns {string | null}
+ */
+export function randomChoice(group, random = Math.random) {
+  const choices = groupChoices(group);
+  return choices[Math.min(choices.length - 1, Math.floor(random() * choices.length))];
+}
+
+/**
  * Pick one choice per group.
  * @param {Manifest} manifest
  * @param {() => number} [random] returns a number in [0, 1), like Math.random
@@ -255,9 +266,7 @@ export function resolveSelection(manifest, selection) {
 export function randomSelection(manifest, random = Math.random) {
   const selection = {};
   for (const group of manifest.groups) {
-    const choices = groupChoices(group);
-    const index = Math.min(choices.length - 1, Math.floor(random() * choices.length));
-    selection[group.id] = choices[index];
+    selection[group.id] = randomChoice(group, random);
   }
   return selection;
 }
