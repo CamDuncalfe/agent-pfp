@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "style": "fixture-blocks",
+  "name": "Fixture blocks (test data, not artwork)",
+  "canvas": { "width": 96, "height": 64, "opaque": true },
+  "groups": [
+    {
+      "id": "background",
+      "label": "Background",
+      "base": true,
+      "bleed": ["top", "right", "bottom", "left"],
+      "options": [
+        { "id": "sand", "label": "Sand", "src": "layers/background/sand.png" },
+        { "id": "mint", "label": "Mint", "src": "layers/background/mint.png" }
+      ]
+    },
+    {
+      "id": "body",
+      "label": "Body",
+      "base": true,
+      "bleed": ["bottom"],
+      "options": [
+        { "id": "block", "label": "Block", "src": "layers/body/block.png" },
+        { "id": "tall", "label": "Tall", "src": "layers/body/tall.png" }
+      ]
+    },
+    {
+      "id": "visor",
+      "label": "Visor",
+      "zone": { "x": 34, "y": 22, "width": 28, "height": 8 },
+      "options": [
+        { "id": "bar", "label": "Bar", "src": "layers/visor/bar.png" },
+        { "id": "split", "label": "Split", "src": "layers/visor/split.png" }
+      ]
+    },
+    {
+      "id": "antenna",
+      "label": "Antenna",
+      "optional": true,
+      "zone": { "x": 40, "y": 2, "width": 16, "height": 8 },
+      "options": [
+        { "id": "one", "label": "One", "src": "layers/antenna/one.png" },
+        { "id": "two", "label": "Two", "src": "layers/antenna/two.png" }
+      ]
+    }
+  ]
+}

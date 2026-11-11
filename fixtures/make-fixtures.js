@@ -4,7 +4,8 @@
  * artwork and do not ship in a style.
  *
  *   fixtures/shapes  a small style that passes the render check
- *   fixtures/broken  the same idea with one layer for each kind of failure
+ *   fixtures/blocks  a second passing style with a wide canvas and other groups
+ *   fixtures/broken  the shapes style with one layer for each kind of failure
  *
  * Run `npm run fixtures` to write the PNG files again after changing a shape.
  * test/fixtures.test.js fails when the files on disk and this script disagree.
@@ -23,6 +24,12 @@ const SKIN = [245, 214, 160, 255];
 const INK = [30, 30, 36, 255];
 const RED = [210, 70, 60, 255];
 const CLEAR = [0, 0, 0, 0];
+const SAND = [232, 220, 196, 255];
+const MINT = [168, 220, 198, 255];
+const STEEL = [120, 132, 150, 255];
+
+/** The blocks style has a canvas that is wider than it is tall. */
+const WIDE = { width: 96, height: 64 };
 
 function rect(raster, x, y, width, height, colour) {
   for (let py = y; py < y + height; py += 1) {
@@ -45,11 +52,13 @@ function circle(raster, centreX, centreY, radius, colour) {
   return raster;
 }
 
-function layer(draw, size = SIZE) {
-  const raster = createRaster(size, size);
+function layer(draw, width = SIZE, height = width) {
+  const raster = createRaster(width, height);
   draw(raster);
   return raster;
 }
+
+const wide = (draw) => layer(draw, WIDE.width, WIDE.height);
 
 const torso = (raster) => rect(raster, 16, 50, 32, 14, SKIN);
 const roundBody = (raster) => torso(circle(raster, 32, 30, 18, SKIN));
@@ -72,6 +81,16 @@ export function buildFixtures() {
     'shapes/layers/mouth/open.png': layer((r) => rect(r, 27, 37, 10, 6, INK)),
     'shapes/layers/headwear/cap.png': layer((r) => rect(rect(r, 14, 10, 36, 6, RED), 48, 14, 4, 2, RED)),
     'shapes/layers/headwear/tall.png': layer((r) => rect(rect(r, 22, 4, 20, 8, RED), 13, 12, 38, 4, RED)),
+
+    // A second style that passes, on a 96x64 canvas.
+    'blocks/layers/background/sand.png': wide((r) => rect(r, 0, 0, WIDE.width, WIDE.height, SAND)),
+    'blocks/layers/background/mint.png': wide((r) => rect(r, 0, 0, WIDE.width, WIDE.height, MINT)),
+    'blocks/layers/body/block.png': wide((r) => rect(r, 28, 16, 40, 48, STEEL)),
+    'blocks/layers/body/tall.png': wide((r) => rect(r, 34, 12, 28, 52, STEEL)),
+    'blocks/layers/visor/bar.png': wide((r) => rect(r, 36, 24, 24, 4, INK)),
+    'blocks/layers/visor/split.png': wide((r) => rect(rect(r, 36, 24, 10, 4, INK), 50, 24, 10, 4, INK)),
+    'blocks/layers/antenna/one.png': wide((r) => rect(r, 47, 3, 2, 6, RED)),
+    'blocks/layers/antenna/two.png': wide((r) => rect(rect(r, 43, 3, 2, 6, RED), 51, 3, 2, 6, RED)),
 
     // One layer for each kind of failure.
     'broken/layers/background/grey.png': layer((r) => rect(r, 0, 0, SIZE, SIZE, GREY)),

@@ -16,7 +16,8 @@ The picture in the screenshot is made from test shapes.
 - `validateManifest` in [src/manifest.js](src/manifest.js), which checks a manifest and lists what is wrong with it.
 - `compositeLayers` in [src/composite.js](src/composite.js), which draws the layers of a selection into one picture.
 - A render check that fails a style when a layer is the wrong size, blank, cut off by a canvas edge, outside its zone or overlapping another group, or when a finished picture has a hole. It is documented in [docs/render-check.md](docs/render-check.md).
-- A builder page that loads a manifest, shows one picker per group, previews the picture and downloads it as a PNG.
+- A builder page with a Style picker. It loads the style's manifest, shows one picker per group, previews the picture and downloads it as a PNG.
+- A style index, [styles/index.json](styles/index.json), that lists the styles the builder offers. It is documented in [docs/styles.md](docs/styles.md).
 
 No artwork is in this repository yet. The files under `fixtures/` are plain shapes used as test data.
 
@@ -27,7 +28,7 @@ You need Node 22 or newer.
 ```sh
 npm ci
 npm test         # unit tests
-npm run check    # render check on fixtures/shapes
+npm run check    # render check on each style in styles/index.json
 npm start        # builder page at http://127.0.0.1:4173/web/
 ```
 
@@ -40,6 +41,7 @@ To check another style, pass its manifest: `node bin/render-check.js path/to/man
 | `src/` | Code shared by the builder page and the command line tools |
 | `web/` | The builder page |
 | `bin/` | Command line tools |
+| `styles/` | The style index the builder reads |
 | `fixtures/` | Test data: manifests and plain-shape layers |
 | `docs/` | Format documentation |
 | `test/` | Unit tests, run with `node --test` |
