@@ -166,6 +166,54 @@ test('acceptanceCriteria: the numbered lines under that heading, and only those'
   assert.deepEqual(acceptanceCriteria(undefined), []);
 });
 
+test('acceptanceCriteria: a collapsed block is left out, with its heading and its numbered lines', () => {
+  // The shape of ticket #18: the criteria that count, then the first wording kept in a collapsed block.
+  const body = [
+    '## Acceptance criteria',
+    '',
+    '1. A Size picker next to Download lists Full size first.',
+    '2. `npm test` passes.',
+    '',
+    '## Why this ticket changed',
+    '',
+    'The first version drew the picture again at the picked size.',
+    '',
+    '<details>',
+    '<summary>Original wording</summary>',
+    '',
+    '## Acceptance criteria',
+    '',
+    '1. A Size picker offers GitHub, Slack and Full size.',
+    '2. The file name ends with the size.',
+    '',
+    '</details>',
+  ].join('\n');
+  assert.deepEqual(acceptanceCriteria(body), ['A Size picker next to Download lists Full size first.', '`npm test` passes.']);
+});
+
+test('acceptanceCriteria: the list carries on after a collapsed block, and a block inside a block stays closed', () => {
+  const body = [
+    '## Acceptance criteria',
+    '1. One',
+    '<details><summary>Old</summary>',
+    '2. Dropped',
+    '<details>',
+    '3. Dropped too',
+    '</details>',
+    '4. Still dropped',
+    '</details>',
+    '2. Two',
+    '<details><summary>On one line</summary> 9. Dropped </details>',
+    '3. Three',
+  ].join('\n');
+  assert.deepEqual(acceptanceCriteria(body), ['One', 'Two', 'Three']);
+});
+
+test('ticketProblems: criteria that are only in a collapsed block do not start the agent', () => {
+  const body = '<details>\n\n## Acceptance criteria\n\n1. It locks.\n\n</details>';
+  assert.match(ticketProblems({ title: 'Lock a trait', body })[0], /Acceptance criteria/);
+});
+
 test('ticketProblems: a ticket needs a title and numbered acceptance criteria', () => {
   assert.deepEqual(ticketProblems({ title: 'Lock a trait', body: '## Acceptance criteria\n1. It locks.' }), []);
   assert.match(ticketProblems({ title: 'Lock a trait', body: 'Please lock it.' })[0], /Acceptance criteria/);

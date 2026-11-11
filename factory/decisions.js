@@ -139,13 +139,22 @@ export function labelledBy(events, label) {
 
 /**
  * The numbered acceptance criteria of a ticket, in order. They are the
- * numbered lines under a heading that reads "Acceptance criteria".
+ * numbered lines under a heading that reads "Acceptance criteria". A
+ * collapsed <details> block is left out with its headings, because a ticket
+ * keeps wording there that no longer counts, such as its first version.
  * @param {string} body
  */
 export function acceptanceCriteria(body) {
   const criteria = [];
   let inSection = false;
+  let collapsed = 0;
   for (const line of String(body ?? '').split(/\r?\n/)) {
+    const opened = (line.match(/<details[\s>]/gi) ?? []).length;
+    const closed = (line.match(/<\/details\s*>/gi) ?? []).length;
+    if (collapsed > 0 || opened > 0) {
+      collapsed = Math.max(0, collapsed + opened - closed);
+      continue;
+    }
     const heading = /^#{1,6}\s+(.*?)\s*$/.exec(line);
     if (heading) {
       inSection = /^acceptance criteria$/i.test(heading[1]);
