@@ -161,8 +161,21 @@ button:focus-visible {
 .actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 16px;
+}
+
+/* The Size picker sits in the row of buttons, next to Download. */
+label.size-picker {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+select:disabled {
+  opacity: 0.5;
 }
 
 section[aria-labelledby='selection-heading'] {
