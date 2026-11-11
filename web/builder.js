@@ -149,7 +149,7 @@ function buildControls(manifest) {
     checkbox.checked = locks[group.id];
     // The visible text is the same in each row. The aria-label names the group.
     checkbox.setAttribute('aria-label', lockAccessibleName(group));
-    lock.append(checkbox, lockText(group));
+    lock.append(checkbox, lockText());
 
     row.append(label, lock);
     controlsEl.append(row);

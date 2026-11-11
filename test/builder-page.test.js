@@ -50,10 +50,14 @@ function tracks(value) {
   return list;
 }
 
-/** A length that doesn't depend on what is in the column, for example 72px or 4.5rem. */
-const FIXED_LENGTH = /^\d+(\.\d+)?(px|rem)$/;
+/**
+ * A length that doesn't depend on what is in the column and grows with the
+ * text size, for example 4.5em. A px length stays put when the user enlarges
+ * the text, and the word "Lock" would run out of the column.
+ */
+const FIXED_LENGTH = /^\d+(\.\d+)?(em|rem)$/;
 
-test('each trait row uses the same two columns and the lock column has a fixed width', async () => {
+test('each trait row uses the same two columns and the lock column has one width that grows with the text', async () => {
   const css = await read('builder.css');
 
   // One rule sets the columns of a trait row, so each row gets the same ones.
@@ -90,7 +94,7 @@ test('the lock text stays on one line and the lock label sets no width of its ow
 test('the page takes the lock text and the aria-label from src/locks.js', async () => {
   const js = await read('builder.js');
   assert.match(js, /checkbox\.setAttribute\('aria-label', lockAccessibleName\(group\)\)/);
-  assert.match(js, /lock\.append\(checkbox, lockText\(group\)\)/);
+  assert.match(js, /lock\.append\(checkbox, lockText\(\)\)/);
   // No row gets an inline style of its own.
   assert.doesNotMatch(js, /\.style\./);
   assert.doesNotMatch(js, /\.style\s*=/);

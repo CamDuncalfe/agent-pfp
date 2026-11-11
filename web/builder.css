@@ -5,8 +5,11 @@
   --paper: #ffffff;
   --accent: #2f55d4;
   --radius: 8px;
-  /* Room for a checkbox and the word "Lock". The same in each trait row. */
-  --lock-column: 72px;
+  /*
+   * Room for a checkbox and the word "Lock". The same in each trait row.
+   * In em, so the column grows with the text when the user enlarges it.
+   */
+  --lock-column: 4.5em;
   color-scheme: light;
 }
 

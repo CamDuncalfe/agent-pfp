@@ -36,11 +36,9 @@ function allLocked(manifest) {
 
 const groupIds = (manifest) => manifest.groups.map((group) => group.id);
 
-test('the text next to each lock checkbox is "Lock"', async () => {
-  for (const name of ['shapes', 'blocks']) {
-    const manifest = await loadFixture(name);
-    for (const group of manifest.groups) assert.equal(lockText(group), 'Lock', group.id);
-  }
+test('the text next to each lock checkbox is "Lock" and takes no group', () => {
+  assert.equal(lockText(), 'Lock');
+  assert.equal(lockText.length, 0);
 });
 
 test("each lock checkbox's accessible name names its group", async () => {
@@ -51,7 +49,7 @@ test("each lock checkbox's accessible name names its group", async () => {
   for (const group of manifest.groups) {
     assert.equal(lockAccessibleName(group), `Lock ${group.label}`);
     // The accessible name starts with the text on screen.
-    assert.equal(lockAccessibleName(group).startsWith(lockText(group)), true);
+    assert.equal(lockAccessibleName(group).startsWith(lockText()), true);
   }
   const names = manifest.groups.map((group) => lockAccessibleName(group));
   assert.equal(new Set(names).size, manifest.groups.length);
@@ -59,9 +57,8 @@ test("each lock checkbox's accessible name names its group", async () => {
 
 test('a group with a long name gets the same "Lock" text and names itself to a screen reader', () => {
   const long = { id: 'background-accessories', label: 'Background accessories', options: [] };
-  const short = { id: 'eyes', label: 'Eyes', options: [] };
-  assert.equal(lockText(long), 'Lock');
-  assert.equal(lockText(long), lockText(short));
+  // The text has no group to read, so a long name can't change it.
+  assert.equal(lockText(), 'Lock');
   assert.equal(lockAccessibleName(long), 'Lock Background accessories');
 });
 

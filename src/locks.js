@@ -29,13 +29,11 @@ export function lockControlName(groupId) {
 const LOCK_TEXT = 'Lock';
 
 /**
- * The text the page shows next to a group's lock checkbox. It is the same
- * for each group, whatever the group's name, so the lock column has one
- * width and the checkboxes sit in one column.
- * @param {Group} group
+ * The text the page shows next to each lock checkbox. It takes no group:
+ * the text is the same whatever the group's name, so the lock column has
+ * one width and the checkboxes sit in one column.
  */
-export function lockText(group) {
-  void group;
+export function lockText() {
   return LOCK_TEXT;
 }
 
