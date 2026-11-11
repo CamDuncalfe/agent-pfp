@@ -9,8 +9,8 @@ Your ticket is issue #{{number}} in {{repo}}. You are in a fresh checkout on the
 5. Commit on this branch with a short message that says what the change does. Don't push and don't open the pull request. The runner does both after it has run the checks itself.
 6. Write the pull request description to `{{notes}}/pr-body.md`. Git ignores that folder. Put in it:
    - two or three sentences on what the change does and where the code is,
-   - a table with one row per acceptance criterion: the criterion, whether it's met, and the test or command that shows it,
+   - a table with one row per acceptance criterion: its number in the ticket, whether it's met, and the test or command that shows it,
    - the edge cases you covered,
    - what you couldn't check from here, for example how the page looks in a browser.
 
-Write the description and the commit message in plain words and short sentences. Say what you did. No headings other than "What it does", "Acceptance criteria", "Edge cases" and "Not checked". Leave out the `Closes` line and the ticket's own list of criteria, because the runner writes both above your text. Don't sign the description or the commit with a tool's name.
+Write the description and the commit message in plain words and short sentences. Say what you did. No headings other than "What it does", "Acceptance criteria", "Edge cases" and "Not checked". Leave out the `Closes` line and the text of the criteria, because the runner writes both above your description. The table refers to each criterion by its number. Don't sign the description or the commit with a tool's name.

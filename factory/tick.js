@@ -33,6 +33,7 @@ import {
   lockCommand,
   nextStep,
   prBody,
+  promptValues,
   reviewOf,
   ticketProblems,
 } from './decisions.js';
@@ -236,14 +237,16 @@ async function work(repo, ticket) {
   const base = (await must('git', ['rev-parse', 'HEAD'], { cwd: worktree })).trim();
 
   // Build. A failed check sends the agent back in, and that uses a fix round.
-  const values = { number, repo, branch, notes: NOTES };
-  let agent = await callAgent(worktree, fillPrompt(await readFile(join(prompts, 'build.md'), 'utf8'), values));
+  const ticketRun = { number, repo, branch, notes: NOTES };
+  const promptFor = async (file, extra = {}) =>
+    fillPrompt(await readFile(join(prompts, file), 'utf8'), promptValues(file, { ...ticketRun, ...extra }));
+  let agent = await callAgent(worktree, await promptFor('build.md'));
   if (!agent.ok) return stop(agent.reason);
   let state = await inspect(worktree, base);
   while (state.problem) {
     if (!state.failedCheck || round >= LIMITS.fixRounds) return stop(state.problem);
     round += 1;
-    const prompt = fillPrompt(await readFile(join(prompts, 'failed-check.md'), 'utf8'), { ...values, check: state.failedCheck, output: state.output });
+    const prompt = await promptFor('failed-check.md', { check: state.failedCheck, output: state.output });
     agent = await callAgent(worktree, prompt, agent.session);
     if (!agent.ok) return stop(agent.reason);
     state = await inspect(worktree, base);
@@ -272,8 +275,7 @@ async function work(repo, ticket) {
     await writeFile(join(worktree, NOTES, 'findings.md'), findingsText(next.review.open));
     await rm(join(worktree, NOTES, 'reply.md'), { force: true });
     const before = state.head;
-    const prompt = fillPrompt(await readFile(join(prompts, 'fix.md'), 'utf8'), { ...values, pr });
-    agent = await callAgent(worktree, prompt, agent.session);
+    agent = await callAgent(worktree, await promptFor('fix.md', { pr }), agent.session);
     if (!agent.ok) return stop(agent.reason);
     state = await inspect(worktree, before);
     if (state.problem) return stop(state.problem);

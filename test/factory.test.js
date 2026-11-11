@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import {
@@ -23,6 +23,8 @@ import {
   nextStep,
   parseQodoReview,
   prBody,
+  promptPlaces,
+  promptValues,
   reviewOf,
   ticketProblems,
 } from '../factory/decisions.js';
@@ -349,17 +351,32 @@ test('findingsText: what the agent reads in a fix round', () => {
   assert.equal(findingsText([{ number: 1, title: 'Bare', kind: '', description: '', prompt: '' }]), '## 1. Bare');
 });
 
-test('the prompt files only ask for values the runner gives them', async () => {
-  const read = (name) => readFile(new URL(`../factory/prompts/${name}`, import.meta.url), 'utf8');
-  const values = { number: 8, repo: 'owner/repo', branch: '8-lock', notes: '.factory-run' };
-  const build = fillPrompt(await read('build.md'), values);
-  assert.match(build, /gh issue view 8 --repo owner\/repo/);
-  assert.match(build, /\.factory-run\/pr-body\.md/);
-  assert.match(build, /Leave out the `Closes` line/);
-  const failed = fillPrompt(await read('failed-check.md'), { ...values, check: 'npm test', output: 'not ok 1' });
-  assert.match(failed, /`npm test` failed/);
-  const fix = fillPrompt(await read('fix.md'), { ...values, pr: 11 });
-  assert.match(fix, /pull request #11 for ticket #8/);
-  assert.match(fix, /\.factory-run\/reply\.md/);
-  for (const text of [build, failed, fix]) assert.doesNotMatch(text, /\{\{/);
+test('each prompt file is filled by the values the runner passes for it', async () => {
+  const run = { number: 8, repo: 'owner/repo', branch: '8-lock', notes: '.factory-run', check: 'npm test', output: 'not ok 1', pr: 11 };
+  const files = (await readdir(new URL('../factory/prompts/', import.meta.url))).sort();
+  assert.deepEqual(files, ['build.md', 'failed-check.md', 'fix.md']);
+  for (const file of files) {
+    const template = await readFile(new URL(`../factory/prompts/${file}`, import.meta.url), 'utf8');
+    const values = promptValues(file, run);
+    // Each place in the file has a value, and the runner passes no value the file doesn't use.
+    assert.deepEqual(promptPlaces(template).sort(), Object.keys(values).sort(), file);
+    const filled = fillPrompt(template, values);
+    assert.doesNotMatch(filled, /\{\{|undefined/, file);
+    assert.match(filled, /#8\b/, file);
+  }
+});
+
+test('promptValues: each file gets its own values, and an unknown file is an error', () => {
+  const run = { number: 8, repo: 'owner/repo', branch: '8-lock', notes: '.factory-run' };
+  assert.deepEqual(promptValues('build.md', { ...run, pr: 11 }), { number: 8, branch: '8-lock', notes: '.factory-run', repo: 'owner/repo' });
+  assert.deepEqual(promptValues('fix.md', { ...run, pr: 11 }), { number: 8, branch: '8-lock', notes: '.factory-run', pr: 11 });
+  assert.deepEqual(Object.keys(promptValues('failed-check.md', run)), ['number', 'branch', 'notes', 'check', 'output']);
+  // The pull request number doesn't exist before the first push, and a prompt that needs it fails to fill.
+  assert.throws(() => fillPrompt('PR #{{pr}}', promptValues('build.md', run)), /asks for "pr"/);
+  assert.throws(() => promptValues('merge.md', run), /no prompt file named "merge.md"/);
+});
+
+test('promptPlaces: the names a prompt asks for, each once', () => {
+  assert.deepEqual(promptPlaces('#{{number}} on {{branch}}, #{{number}} again'), ['number', 'branch']);
+  assert.deepEqual(promptPlaces('No places.'), []);
 });
