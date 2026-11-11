@@ -34,6 +34,8 @@ npm start        # builder page at http://127.0.0.1:4173/web/
 
 To check another style, pass its manifest: `node bin/render-check.js path/to/manifest.json`.
 
+To look at a style that isn't in this repository yet, start the server with the folder that holds its style folder: `npm start -- --styles ../my-styles`. The Style picker lists it with "(local)" after its name. [docs/styles.md](docs/styles.md) has the details.
+
 ## Layout
 
 | Path | What it holds |

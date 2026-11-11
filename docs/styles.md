@@ -40,3 +40,29 @@ node bin/check-styles.js styles/index.json
 ```
 
 It exits with 0 when each style passes, 1 when a check found issues and 2 when it could not run (an index or manifest that cannot be read or is not valid).
+
+## Styles kept outside the repository
+
+Artwork goes into this repository only after it is approved ([AGENTS.md](../AGENTS.md) rule 5). To look at a style in the builder before that, keep its folder somewhere else and start the local server with the folder that holds it:
+
+```sh
+npm start -- --styles ../my-styles      # or: STYLES_DIR=../my-styles npm start
+```
+
+```
+my-styles/
+  marker/
+    manifest.json
+    layers/...
+```
+
+- Each folder directly inside the styles folder that has a `manifest.json` is one style.
+- The server sends the folder's `.json` and `.png` files under `/local-styles/`, for GET and HEAD requests only. It answers 404 for dotfiles, for other file types and for a path or a symlink that leaves the folder. It copies nothing into the repository.
+- `/local-styles/index.json` lists the styles in the format above, sorted by id, with manifest paths like `local-styles/marker/manifest.json`. The server builds the list on each request, so a style added while it runs shows up when the page is reloaded.
+- The Style picker shows the repository's styles first and the local ones after them, with "(local)" after the name.
+- A folder is left out of the list, and the server prints one line that says why, when its `manifest.json` is not valid JSON, fails `validateManifest`, uses a style id that another style already has, or when the folder's name uses characters other than letters, digits, hyphens, underscores and dots.
+- When the styles folder does not exist or is not a folder, the server prints a message and exits with code 2.
+
+The page asks for `/local-styles/index.json` only when it runs on `127.0.0.1` or `localhost`. Without a styles folder the server answers 404 and the page shows the repository's styles.
+
+`buildLocalIndex` and `mergeStyleLists` in [`src/local-styles.js`](../src/local-styles.js) build the list and merge it into the picker. The render check takes a manifest path, so it runs on a local style the same way: `node bin/render-check.js ../my-styles/marker/manifest.json`.

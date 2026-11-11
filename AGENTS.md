@@ -26,6 +26,8 @@ npm run check    # render check on each style in styles/index.json, has to end w
 npm start        # builder page at http://127.0.0.1:4173/web/, open it when you change web/
 ```
 
+`npm start -- --styles <folder>` also lists the style folders inside `<folder>` in the builder. Use it to look at a style that is not in this repository.
+
 To check one style, pass its manifest: `node bin/render-check.js path/to/manifest.json`. Exit code 0 means it passed, 1 means it found issues and 2 means it could not run.
 
 ## How to work here
@@ -61,7 +63,7 @@ The builder page and the render check draw with `compositeLayers` from `src/comp
 
 ### 4. No generated images
 
-The app draws the layer files a manifest names and nothing else. No image-generation API, no model call, and no network request other than loading the style index, the manifests it lists and their layers from the same origin.
+The app draws the layer files a manifest names and nothing else. No image-generation API, no model call, and no network request other than loading a style index (`styles/index.json`, and `/local-styles/index.json` on the local server), the manifests it lists and their layers from the same origin.
 
 - **Where:** `web/`, `src/`, `bin/`, `styles/` and the dependencies in `package.json`.
 - **Why:** I pick and cut each option before it goes in the builder. A user only gets art I've looked at.
