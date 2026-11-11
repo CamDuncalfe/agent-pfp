@@ -8,6 +8,7 @@ import {
   resolveSelection,
   randomSelection,
   isSafeRelativePath,
+  resolveLayerUrl,
 } from '../src/manifest.js';
 
 async function loadShapes() {
@@ -70,9 +71,44 @@ test('bleed only accepts the four edges', async () => {
 });
 
 test('layer paths cannot leave the style folder', () => {
-  assert.equal(isSafeRelativePath('layers/eyes/dots.png'), true);
-  for (const src of ['../secret.png', '/etc/passwd', 'a//b.png', './a.png', 'https://x.test/a.png', 'a\\b.png', 'a.png?x=1', '', 5]) {
-    assert.equal(isSafeRelativePath(src), false, String(src));
+  for (const src of ['layers/eyes/dots.png', 'a.png', 'Layers_2/eyes-01/dots.v2.png']) {
+    assert.equal(isSafeRelativePath(src), true, src);
+  }
+  const bad = [
+    '../secret.png',
+    'layers/../../secret.png',
+    '/etc/passwd',
+    'a//b.png',
+    './a.png',
+    '.hidden/a.png',
+    'https://x.test/a.png',
+    'a\\b.png',
+    'a.png?x=1',
+    'a.png#top',
+    'my layer.png',
+    '',
+    5,
+    // A URL parser reads these as "..", so the browser would leave the folder.
+    '%2e%2e/broken/layers/background/grey.png',
+    '%2E%2E/a.png',
+    '.%2e/a.png',
+    'layers%2f..%2f..%2fa.png',
+  ];
+  for (const src of bad) assert.equal(isSafeRelativePath(src), false, String(src));
+});
+
+test('resolveLayerUrl stays inside the folder of the manifest', () => {
+  const manifestUrl = 'http://127.0.0.1:4173/fixtures/shapes/manifest.json';
+  assert.equal(
+    resolveLayerUrl('layers/eyes/dots.png', manifestUrl).href,
+    'http://127.0.0.1:4173/fixtures/shapes/layers/eyes/dots.png',
+  );
+  assert.equal(
+    resolveLayerUrl('a.png', new URL('file:///styles/marker/manifest.json')).href,
+    'file:///styles/marker/a.png',
+  );
+  for (const src of ['%2e%2e/broken/layers/background/grey.png', '../broken/a.png', '//other.test/a.png', 'https://other.test/a.png']) {
+    assert.throws(() => resolveLayerUrl(src, manifestUrl), /layer path/, src);
   }
 });
 
