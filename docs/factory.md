@@ -7,11 +7,11 @@ The code is in [`factory/`](../factory): `tick.sh` is what the job runs, `tick.j
 ## What one run does
 
 1. It takes the lowest-numbered open issue with `ready-for-agent`. I have to be the one who opened the issue and the one who added the label. The run skips any other issue and logs why.
-2. A ticket needs a numbered list under an "Acceptance criteria" heading. Without one, the ticket gets `agent-needs-help` and the agent doesn't start. A collapsed `<details>` block doesn't count, so I can keep a ticket's first wording in one.
+2. A ticket needs a numbered list under an "Acceptance criteria" heading. Without one, the ticket gets `agent-needs-help` and the agent doesn't start. A collapsed `<details>` block doesn't count, so I can keep a ticket's first wording in one. The block opens where a line starts with the tag. The tag named in a sentence, in inline code or in a fenced code block opens nothing.
 3. The run swaps the label for `agent-working` and makes a git worktree on a new branch from `origin/main`. The branch is the ticket number and a short form of the title, like `3-style-picker`.
-4. It starts Claude Code with `claude -p` in that worktree. The agent reads the ticket with `gh issue view`, reads AGENTS.md, makes the change, runs `npm test` and `npm run check`, commits, and writes the pull request description.
+4. It starts Claude Code with `claude -p` in that worktree. The prompt holds the ticket's acceptance criteria as the runner read them in step 2. The agent reads the rest of the ticket with `gh issue view`, reads AGENTS.md, makes the change, runs `npm test` and `npm run check`, commits, and writes the pull request description.
 5. The runner looks at the result itself. It wants a commit, a clean tree, no change in `factory/` or `.github/`, and both checks passing when it runs them again.
-6. The runner pushes the branch and opens the pull request. It writes `Closes #<ticket>` and the ticket's acceptance criteria at the top itself, and the agent's description goes below.
+6. The runner pushes the branch and opens the pull request. It writes `Closes #<ticket>` and the ticket's acceptance criteria at the top itself, the same list the agent got in its prompt, and the agent's description goes below.
 7. It waits for CI and for Qodo's review of the newest commit. With open findings, the agent gets them as text, fixes the ones it confirms and writes an answer. The runner checks again, pushes and posts the answer on the pull request. Then it waits for the next review.
 8. With CI green and no open finding, the ticket gets `agent-review` and a comment. The pull request waits for me. The runner never merges.
 

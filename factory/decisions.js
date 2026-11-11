@@ -142,19 +142,35 @@ export function labelledBy(events, label) {
  * numbered lines under a heading that reads "Acceptance criteria". A
  * collapsed <details> block is left out with its headings, because a ticket
  * keeps wording there that no longer counts, such as its first version.
+ *
+ * A block opens where a line starts with the <details> tag. The tag named in
+ * a sentence, in `inline code` or in a fenced code block opens nothing, so a
+ * ticket can write about the tag and keep its criteria.
  * @param {string} body
  */
 export function acceptanceCriteria(body) {
   const criteria = [];
   let inSection = false;
   let collapsed = 0;
+  let fence = null;
   for (const line of String(body ?? '').split(/\r?\n/)) {
-    const opened = (line.match(/<details[\s>]/gi) ?? []).length;
-    const closed = (line.match(/<\/details\s*>/gi) ?? []).length;
-    if (collapsed > 0 || opened > 0) {
-      collapsed = Math.max(0, collapsed + opened - closed);
-      continue;
+    const mark = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      // A fence ends on a line of the same marks, at least as many, and nothing after them.
+      if (mark && mark[1][0] === fence[0] && mark[1].length >= fence.length && !mark[2].trim()) fence = null;
+    } else if (mark && !(mark[1][0] === '`' && mark[2].includes('`'))) {
+      fence = mark[1];
+    } else {
+      const tags = line.replace(/(`+).*?\1/g, '');
+      const opens = collapsed > 0 || /^ {0,3}<details(?=[\s>]|$)/i.test(tags);
+      const opened = opens ? (tags.match(/<details(?=[\s>]|$)/gi) ?? []).length : 0;
+      const closed = collapsed > 0 || opened > 0 ? (tags.match(/<\/details\s*>/gi) ?? []).length : 0;
+      if (collapsed > 0 || opened > 0) {
+        collapsed = Math.max(0, collapsed + opened - closed);
+        continue;
+      }
     }
+    if (collapsed > 0) continue;
     const heading = /^#{1,6}\s+(.*?)\s*$/.exec(line);
     if (heading) {
       inSection = /^acceptance criteria$/i.test(heading[1]);
@@ -215,13 +231,23 @@ export function lockCommand(platform, lockFile) {
 }
 
 /**
+ * The criteria as a numbered list, one per line. The build prompt and the
+ * pull request description both get this text, so the agent is asked to meet
+ * the list the description shows, under the same numbers.
+ * @param {string[]} criteria
+ */
+export function criteriaList(criteria) {
+  return criteria.map((criterion, i) => `${i + 1}. ${criterion}`).join('\n');
+}
+
+/**
  * The pull request description: the ticket it closes, the ticket's
  * acceptance criteria word for word, then what the agent wrote.
  */
 export function prBody(number, criteria, description) {
   return [
     `Closes #${number}`,
-    `## Acceptance criteria from the ticket\n\n${criteria.map((criterion, i) => `${i + 1}. ${criterion}`).join('\n')}`,
+    `## Acceptance criteria from the ticket\n\n${criteriaList(criteria)}`,
     String(description).trim(),
   ].join('\n\n') + '\n';
 }
@@ -348,11 +374,15 @@ export function fillPrompt(template, values) {
  * prompt through this, so the test that fills the files with it sees what a
  * run sees.
  * @param {'build.md' | 'failed-check.md' | 'fix.md'} file
- * @param {{ number: number, repo: string, branch: string, notes: string, check?: string, output?: string, pr?: number }} run
+ * @param {{ number: number, repo: string, branch: string, notes: string, criteria?: string[], check?: string, output?: string, pr?: number }} run
  */
 export function promptValues(file, run) {
   const base = { number: run.number, branch: run.branch, notes: run.notes };
-  if (file === 'build.md') return { ...base, repo: run.repo };
+  if (file === 'build.md') {
+    // ticketProblems lets no ticket start without criteria, so an empty list here is a mistake in the runner.
+    if (!run.criteria?.length) throw new Error('The runner has no acceptance criteria for the build prompt.');
+    return { ...base, repo: run.repo, criteria: criteriaList(run.criteria) };
+  }
   if (file === 'failed-check.md') return { ...base, check: run.check, output: run.output };
   if (file === 'fix.md') return { ...base, pr: run.pr };
   throw new Error(`The runner has no prompt file named "${file}".`);

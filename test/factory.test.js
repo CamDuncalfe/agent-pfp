@@ -15,6 +15,7 @@ import {
   branchFor,
   candidates,
   ciState,
+  criteriaList,
   fillPrompt,
   findingsText,
   guardedFiles,
@@ -204,6 +205,61 @@ test('acceptanceCriteria: the list carries on after a collapsed block, and a blo
     '</details>',
     '2. Two',
     '<details><summary>On one line</summary> 9. Dropped </details>',
+    '3. Three',
+  ].join('\n');
+  assert.deepEqual(acceptanceCriteria(body), ['One', 'Two', 'Three']);
+});
+
+test('acceptanceCriteria: the tag named in a sentence, in inline code or in a code block opens nothing', () => {
+  const criteria = ['## Acceptance criteria', '', '1. It locks.', '2. `npm test` passes.'];
+  const kept = ['It locks.', '`npm test` passes.'];
+  const sentence = ['Keep the old wording in a `<details>` block.', 'A <details> tag in the middle of a line opens nothing either.', '', ...criteria];
+  assert.deepEqual(acceptanceCriteria(sentence.join('\n')), kept);
+  assert.deepEqual(ticketProblems({ title: 'Lock a trait', body: sentence.join('\n') }), []);
+  for (const marks of ['```', '~~~', '````']) {
+    const fenced = [`${marks}html`, '<details>', '<summary>Old</summary>', marks, '', ...criteria];
+    assert.deepEqual(acceptanceCriteria(fenced.join('\n')), kept, marks);
+  }
+  // Three backticks around code on one line are inline code and start no code block.
+  assert.deepEqual(acceptanceCriteria(['```<details>``` is the tag.', '', ...criteria].join('\n')), kept);
+});
+
+test('acceptanceCriteria: a criterion that names the tag is kept, and so are the ones after it', () => {
+  const body = [
+    '## Acceptance criteria',
+    '',
+    '1. A `<details>` block adds no criteria.',
+    '2. Text between `<details>` and `</details>` is left out.',
+    '3. A line that says <details> without backticks counts too.',
+    '4. `npm test` passes.',
+  ].join('\n');
+  assert.deepEqual(acceptanceCriteria(body), [
+    'A `<details>` block adds no criteria.',
+    'Text between `<details>` and `</details>` is left out.',
+    'A line that says <details> without backticks counts too.',
+    '`npm test` passes.',
+  ]);
+});
+
+test('acceptanceCriteria: inside a collapsed block, the tag in code neither opens nor closes it', () => {
+  const body = [
+    '## Acceptance criteria',
+    '1. One',
+    '<details>',
+    '<summary>Original wording</summary>',
+    '',
+    'Put the old list in a `<details>` block and end it with `</details>`.',
+    '',
+    '```html',
+    '</details>',
+    '```',
+    '',
+    '2. Dropped',
+    '</details>',
+    '2. Two',
+    '   <details open>',
+    '3. Dropped too',
+    '   </details>',
     '3. Three',
   ].join('\n');
   assert.deepEqual(acceptanceCriteria(body), ['One', 'Two', 'Three']);
@@ -400,7 +456,7 @@ test('findingsText: what the agent reads in a fix round', () => {
 });
 
 test('each prompt file is filled by the values the runner passes for it', async () => {
-  const run = { number: 8, repo: 'owner/repo', branch: '8-lock', notes: '.factory-run', check: 'npm test', output: 'not ok 1', pr: 11 };
+  const run = { number: 8, repo: 'owner/repo', branch: '8-lock', notes: '.factory-run', criteria: ['It locks.'], check: 'npm test', output: 'not ok 1', pr: 11 };
   const files = (await readdir(new URL('../factory/prompts/', import.meta.url))).sort();
   assert.deepEqual(files, ['build.md', 'failed-check.md', 'fix.md']);
   for (const file of files) {
@@ -415,13 +471,51 @@ test('each prompt file is filled by the values the runner passes for it', async 
 });
 
 test('promptValues: each file gets its own values, and an unknown file is an error', () => {
-  const run = { number: 8, repo: 'owner/repo', branch: '8-lock', notes: '.factory-run' };
-  assert.deepEqual(promptValues('build.md', { ...run, pr: 11 }), { number: 8, branch: '8-lock', notes: '.factory-run', repo: 'owner/repo' });
+  const run = { number: 8, repo: 'owner/repo', branch: '8-lock', notes: '.factory-run', criteria: ['Each group has a lock.', '`npm test` passes.'] };
+  assert.deepEqual(promptValues('build.md', { ...run, pr: 11 }), {
+    number: 8,
+    branch: '8-lock',
+    notes: '.factory-run',
+    repo: 'owner/repo',
+    criteria: '1. Each group has a lock.\n2. `npm test` passes.',
+  });
+  // A build prompt without criteria would ask the agent to meet an empty list.
+  assert.throws(() => promptValues('build.md', { ...run, criteria: [] }), /no acceptance criteria/);
+  assert.throws(() => promptValues('build.md', { ...run, criteria: undefined }), /no acceptance criteria/);
   assert.deepEqual(promptValues('fix.md', { ...run, pr: 11 }), { number: 8, branch: '8-lock', notes: '.factory-run', pr: 11 });
   assert.deepEqual(Object.keys(promptValues('failed-check.md', run)), ['number', 'branch', 'notes', 'check', 'output']);
   // The pull request number doesn't exist before the first push, and a prompt that needs it fails to fill.
   assert.throws(() => fillPrompt('PR #{{pr}}', promptValues('build.md', run)), /asks for "pr"/);
   assert.throws(() => promptValues('merge.md', run), /no prompt file named "merge.md"/);
+});
+
+test('the build prompt and the pull request description carry the same criteria, without the collapsed ones', async () => {
+  // The shape of ticket #18 again: the list that counts, then the first wording in a collapsed block.
+  const ticket = [
+    '## Acceptance criteria',
+    '',
+    '1. A Size picker next to Download lists Full size first.',
+    '2. The file name for GitHub ends with `$&-500.png`.',
+    '',
+    '<details>',
+    '<summary>Original wording</summary>',
+    '',
+    '## Acceptance criteria',
+    '',
+    '1. A Size picker offers GitHub, Slack and Full size.',
+    '',
+    '</details>',
+  ].join('\n');
+  const criteria = acceptanceCriteria(ticket);
+  const list = criteriaList(criteria);
+  assert.equal(list, '1. A Size picker next to Download lists Full size first.\n2. The file name for GitHub ends with `$&-500.png`.');
+  const template = await readFile(new URL('../factory/prompts/build.md', import.meta.url), 'utf8');
+  const prompt = fillPrompt(template, promptValues('build.md', { number: 18, repo: 'owner/repo', branch: '18-size', notes: '.factory-run', criteria }));
+  const description = prBody(18, criteria, 'It adds a picker.');
+  assert.ok(prompt.includes(`\n\n${list}\n\n`));
+  assert.ok(description.includes(`\n\n${list}\n\n`));
+  assert.doesNotMatch(prompt, /Slack/);
+  assert.doesNotMatch(description, /Slack/);
 });
 
 test('promptPlaces: the names a prompt asks for, each once', () => {
