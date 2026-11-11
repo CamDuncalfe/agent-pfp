@@ -114,9 +114,9 @@ button:focus-visible {
 
 #preview {
   display: block;
+  /* No fixed aspect ratio: the canvas takes its shape from the manifest's canvas size. */
   width: 100%;
   height: auto;
-  aspect-ratio: 1;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   /* Small fixture images are scaled up, so keep their pixels sharp. */
