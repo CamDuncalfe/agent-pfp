@@ -21,7 +21,16 @@
 
       <div class="layout">
         <section aria-label="Preview">
-          <canvas id="preview" width="64" height="64" role="img" aria-label="Profile picture preview"></canvas>
+          <div class="previews">
+            <canvas id="preview" width="64" height="64" role="img" aria-label="Profile picture preview"></canvas>
+            <canvas
+              id="round-preview"
+              width="64"
+              height="64"
+              role="img"
+              aria-label="Profile picture preview in a circle, the way GitHub shows it"
+            ></canvas>
+          </div>
           <div class="actions">
             <button type="button" id="randomize" disabled>Randomize</button>
             <label class="size-picker">

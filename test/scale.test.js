@@ -117,6 +117,75 @@ test('the picture passed in is left as it is, and the same size gives a copy', (
   assert.deepEqual(Array.from(copy.data), before);
 });
 
+/** A rectangle of a picture, copied out pixel by pixel. */
+function cut(picture, part) {
+  const out = createRaster(part.width, part.height);
+  for (let y = 0; y < part.height; y += 1) {
+    for (let x = 0; x < part.width; x += 1) {
+      setPixel(out, x, y, pixel(picture, part.x + x, part.y + y));
+    }
+  }
+  return out;
+}
+
+test('scaling a part of a picture gives the same pixels as cutting the part out first', () => {
+  const picture = noisy(60, 40);
+  // Some see-through pixels inside the part and right outside it.
+  setPixel(picture, 12, 5, [10, 20, 30, 0]);
+  setPixel(picture, 13, 5, [10, 20, 30, 90]);
+  setPixel(picture, 9, 3, [255, 255, 255, 0]);
+  for (const [part, to] of [
+    [{ x: 10, y: 0, width: 40, height: 40 }, [19, 19]],
+    [{ x: 10, y: 0, width: 40, height: 40 }, [40, 40]],
+    [{ x: 0, y: 0, width: 60, height: 40 }, [7, 5]],
+    [{ x: 3, y: 7, width: 11, height: 30 }, [4, 9]],
+    [{ x: 59, y: 39, width: 1, height: 1 }, [1, 1]],
+  ]) {
+    const out = scaleDown(picture, to[0], to[1], part);
+    assert.equal(out.width, to[0]);
+    assert.equal(out.height, to[1]);
+    assert.deepEqual(Array.from(out.data), Array.from(scaleDown(cut(picture, part), to[0], to[1]).data), JSON.stringify(part));
+  }
+});
+
+test('the whole picture as the part gives the same pixels as no part', () => {
+  const picture = noisy(31, 17);
+  const whole = { x: 0, y: 0, width: 31, height: 17 };
+  assert.deepEqual(Array.from(scaleDown(picture, 9, 5, whole).data), Array.from(scaleDown(picture, 9, 5).data));
+});
+
+test('pixels outside the part add nothing to the result', () => {
+  const picture = solid(20, 10, [255, 0, 0, 255]);
+  const part = { x: 5, y: 0, width: 10, height: 10 };
+  for (let y = 0; y < 10; y += 1) {
+    for (let x = 5; x < 15; x += 1) setPixel(picture, x, y, [0, 0, 255, 255]);
+  }
+  const out = scaleDown(picture, 3, 3, part);
+  for (let i = 0; i < out.data.length; i += 4) {
+    assert.deepEqual(Array.from(out.data.slice(i, i + 4)), [0, 0, 255, 255]);
+  }
+});
+
+test('scaleDown refuses a part that is not a rectangle inside the picture, and a size bigger than the part', () => {
+  const picture = solid(8, 6, [1, 2, 3, 255]);
+  for (const part of [
+    { x: -1, y: 0, width: 4, height: 4 },
+    { x: 0, y: -1, width: 4, height: 4 },
+    { x: 5, y: 0, width: 4, height: 4 },
+    { x: 0, y: 3, width: 4, height: 4 },
+    { x: 0, y: 0, width: 0, height: 4 },
+    { x: 0, y: 0, width: 4, height: 0 },
+    { x: 0.5, y: 0, width: 4, height: 4 },
+    { x: 0, y: 0, width: 4 },
+    {},
+  ]) {
+    assert.throws(() => scaleDown(picture, 2, 2, part), RangeError, JSON.stringify(part));
+  }
+  // The part is 4x4, so 5 px is bigger than it even though the picture is 8 px wide.
+  assert.throws(() => scaleDown(picture, 5, 4, { x: 0, y: 0, width: 4, height: 4 }), RangeError);
+  assert.throws(() => scaleDown(picture, 4, 5, { x: 0, y: 0, width: 4, height: 4 }), RangeError);
+});
+
 test('scaleDown refuses a bigger size, a bad size and something that is not a raster', () => {
   const picture = solid(4, 4, [1, 2, 3, 255]);
   assert.throws(() => scaleDown(picture, 5, 4), RangeError);
