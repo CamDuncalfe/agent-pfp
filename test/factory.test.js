@@ -23,6 +23,8 @@ import {
   labelledBy,
   lockCommand,
   lowFindingsText,
+  fixRoundText,
+  readyComment,
   nextStep,
   parseQodoReview,
   prBody,
@@ -529,12 +531,102 @@ test('nextStep: Low findings alone end the run for my review, they never start a
   assert.match(nextStep({ ci: 'passed', review: mixed, round: 2, waitedMs: 0 }).reason, /^1 High or Medium Qodo finding is still open/);
 });
 
-test('lowFindingsText: the Low findings listed for me on the ticket, or nothing', () => {
+test('lowFindingsText: the Low findings listed for me on the ticket with title, type and file, or nothing', () => {
   assert.equal(lowFindingsText([]), '');
   assert.equal(
-    lowFindingsText([{ number: 3, title: 'Comment says 3 rounds', kind: '📘 Rule violation', severity: 'Low' }]),
-    'Low findings for you. The agent left this code as it is:\n\n- 3. Comment says 3 rounds (Low, 📘 Rule violation)',
+    lowFindingsText([
+      { number: 3, title: 'Comment says 3 rounds', kind: '📘 Rule violation', severity: 'Low', files: ['factory/tick.js'] },
+      { number: 4, title: 'Odd name', kind: '🐞 Bug', severity: 'Low', files: [] },
+    ]),
+    'Low findings for you. The agent left this code as it is:\n\n' +
+      '- 3. Comment says 3 rounds (Low, 📘 Rule violation). File: `factory/tick.js`\n' +
+      '- 4. Odd name (Low, 🐞 Bug). File: not named in the review',
   );
+});
+
+test('parseQodoReview: a finding\'s files are the paths its agent prompt names, or else its links', () => {
+  const [finding] = parseQodoReview(reviewBody({ open: ['A bug'] })).findings;
+  assert.deepEqual(finding.files, ['src/styles.js']);
+  const linked = parseQodoReview(
+    groupedReview([['Low', [['Odd name', '<code>🐞 Bug</code>']]]]).replace(
+      '<hr/>',
+      '<a href="https://github.com/owner/repo/blob/06714e664e0923d7a2037d1f87b59def4553a0ca/factory/tick.js#L10-L12">factory/tick.js[10-12]</a>\n<hr/>',
+    ),
+  );
+  assert.deepEqual(linked.findings[0].files, ['factory/tick.js']);
+  assert.deepEqual(parseQodoReview(groupedReview([['Low', [['Bare', '<code>🐞 Bug</code>']]]])).findings[0].files, []);
+});
+
+test('parseQodoReview: inline code in a title stays in the title and never closes the finding', () => {
+  const review = parseQodoReview(
+    groupedReview([
+      [
+        'High',
+        [
+          ['Check <code>isResolved</code> before the push', '<code>🐞 Bug</code> <code>⭐ New</code>'],
+          ['Rename <code>wasDismissed</code>', '<code>📘 Rule violation</code>'],
+        ],
+      ],
+    ]),
+  );
+  assert.deepEqual(
+    review.findings.map((f) => [f.title, f.kind, f.severity, f.resolved]),
+    [
+      ['Check isResolved before the push', '🐞 Bug', 'High', false],
+      ['Rename wasDismissed', '📘 Rule violation', 'High', false],
+    ],
+  );
+  assert.equal(reviewOf([qodo(groupedReview([['High', [['Check <code>isResolved</code>', '<code>🐞 Bug</code>']]]]))], SHA_A).blocking.length, 1);
+});
+
+test('parseQodoReview: a badge or heading quoted inside a finding does not change the next finding\'s group', () => {
+  const quoting = groupedReview([
+    [
+      'High',
+      [
+        ['Badge parser', '<code>🐞 Bug</code>'],
+        ['Lock can be skipped', '<code>🐞 Bug</code>'],
+      ],
+    ],
+  ]).replace(
+    '>Badge parser happens.',
+    '>Badge parser happens on img.shields.io/badge/Low-634FD1 and on <summary>View low (1)</summary> and\n>' +
+      '<summary>Resolved findings</summary>',
+  );
+  const quotedPrompt = quoting.replace(
+    '<hr/>',
+    '> <details>\n><summary>Agent prompt</summary>\n>```\n>See img.shields.io/badge/Low-634FD1\n>```\n></details>\n<hr/>',
+  );
+  for (const body of [quoting, quotedPrompt]) {
+    const review = reviewOf([qodo(body)], SHA_A);
+    assert.deepEqual(review.findings.map((f) => f.severity), ['High', 'High']);
+    assert.deepEqual(review.blocking.map((f) => f.title), ['Badge parser', 'Lock can be skipped']);
+    assert.equal(review.low.length, 0);
+  }
+});
+
+test('fixRoundText: the agent gets the High and Medium findings and never a Low one', () => {
+  const review = reviewOf(
+    [qodo(groupedReview([['Medium', [['Lock can be skipped', '<code>🐞 Bug</code>']]], ['Low', [['Comment says 3 rounds', '<code>📘 Rule violation</code>']]]]))],
+    SHA_A,
+  );
+  const text = fixRoundText(review);
+  assert.match(text, /^## 1\. Lock can be skipped \(Medium, 🐞 Bug\)/);
+  assert.doesNotMatch(text, /Comment says 3 rounds/);
+});
+
+test('readyComment: the agent-review comment names the checks and lists the open Low findings', () => {
+  const review = reviewOf([qodo(groupedReview([['Low', [['Comment says 3 rounds', '<code>📘 Rule violation</code>']]]]))], SHA_A);
+  const text = readyComment({ pr: 26, head: SHA_A, found: 2, round: 1, low: review.low });
+  const [ready, low] = text.split('\n\n');
+  assert.equal(
+    ready,
+    `Pull request #26 is ready for you. \`npm test\`, \`npm run check\` and CI pass on ${SHA_A.slice(0, 7)}. Qodo raised 2 High or Medium findings and none are open. Fix rounds used: 1 of ${LIMITS.fixRounds}. It is not merged.`,
+  );
+  assert.equal(low, 'Low findings for you. The agent left this code as it is:');
+  assert.match(text, /\n- 1\. Comment says 3 rounds \(Low, 📘 Rule violation\)\. File: not named in the review$/);
+  const clean = readyComment({ pr: 26, head: SHA_A, found: 0, round: 0, low: [] });
+  assert.match(clean, /Qodo had no High or Medium findings\. Fix rounds used: 0 of \d+\. It is not merged\.$/);
 });
 
 test('the fix prompt and AGENTS.md name the same quality gate', async () => {

@@ -289,8 +289,25 @@ function severityName(marker) {
   return known ?? marker;
 }
 
+/**
+ * The comment with each finding's own text blanked out: its numbered title,
+ * the quoted lines under it (description and agent prompt), `<pre>` blocks and
+ * fenced code. Each character keeps its place, so an index in the result is
+ * the same index in the comment. A badge or heading a finding quotes is not a
+ * group marker.
+ */
+function outsideFindings(text) {
+  const blank = (match) => match.replace(/[^\n]/g, ' ');
+  return text
+    .replace(/<summary>\s*\d+\.\s+[\s\S]*?<\/summary>/g, blank)
+    .replace(/<pre>[\s\S]*?<\/pre>/g, blank)
+    .replace(/```[\s\S]*?```/g, blank)
+    .replace(/^>.*$/gm, blank);
+}
+
 /** Each place a severity group starts in a review comment, in order. */
-function severityMarkers(text) {
+function severityMarkers(comment) {
+  const text = outsideFindings(comment);
   const markers = [
     ...[...text.matchAll(/img\.shields\.io\/badge\/([A-Za-z][A-Za-z ]*?)-[0-9A-Fa-f]{3,8}\b/g)].map((m) => ({ index: m.index, name: m[1] })),
     ...[...text.matchAll(/<summary>(?:\s*<[^>]+>)*\s*View ([A-Za-z][A-Za-z ]*?) \(\d+\)/g)].map((m) => ({ index: m.index, name: m[1] })),
@@ -300,10 +317,42 @@ function severityMarkers(text) {
   return markers.sort((a, b) => a.index - b.index);
 }
 
-/** The labels after a finding's title that say it no longer needs action. */
-const CLOSED_LABEL = /Resolved|Dismissed|Outdated/;
-/** Labels after a title that are not the finding's type. */
-const NOT_A_TYPE = /New|Resolved|Dismissed|Outdated/;
+/** A status label after a finding's title, the whole label. */
+const STATUS_LABEL = /^\W*(?:New|Resolved|Dismissed|Outdated)$/u;
+/** The status labels that say a finding no longer needs action. */
+const CLOSED_LABEL = /^\W*(?:Resolved|Dismissed|Outdated)$/u;
+/** A type label, the whole label: "🐞 Bug", "📘 Rule violation", "📎 Requirement gap". */
+const TYPE_LABEL = /^\W*(?:Bug|Rule violation|Requirement gap)s?$/iu;
+/** One `<code>` element that holds no other one. */
+const CODE = /<code>((?:(?!<\/?code>)[\s\S])*)<\/code>/g;
+
+/**
+ * Split a finding's summary line into its title and the labels after it. The
+ * labels are the `<code>` elements at the end of the line, from the first one
+ * that names a type or a status. Inline code in the title stays in the title.
+ */
+function titleAndLabels(summary) {
+  const trailing = /(?:\s*<code>(?:(?!<\/?code>)[\s\S])*<\/code>)+\s*$/.exec(summary);
+  if (!trailing) return { title: summary, labels: [] };
+  const codes = [...trailing[0].matchAll(CODE)];
+  const known = codes.findIndex((m) => STATUS_LABEL.test(plainText(m[1])) || TYPE_LABEL.test(plainText(m[1])));
+  const first = known === -1 ? 0 : known;
+  return {
+    title: summary.slice(0, trailing.index + codes[first].index),
+    labels: codes.slice(first).map((m) => plainText(m[1])),
+  };
+}
+
+/**
+ * The files a finding is about: the paths in its agent prompt's "Fix Focus
+ * Areas" list, or else the files its links on GitHub point at.
+ */
+function filesOf(prompt, section) {
+  const focus = /## Fix Focus Areas\n([\s\S]*?)(?=\n## |$)/.exec(prompt);
+  const listed = focus ? [...focus[1].matchAll(/^\s*-\s+(\S+?)(?:\[[^\]]*\])?\s*$/gm)].map((m) => m[1]) : [];
+  const linked = [...section.matchAll(/https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/blob\/[0-9a-f]{7,40}\/([^\s#?"'<>)]+)/g)].map((m) => m[1]);
+  return [...new Set(listed.length ? listed : linked)];
+}
 
 /**
  * Read one of Qodo's "Code Review" comments: the commit it reviewed and its
@@ -312,10 +361,11 @@ const NOT_A_TYPE = /New|Resolved|Dismissed|Outdated/;
  *
  * A finding's severity is the group it is listed under ("High", "Medium",
  * "Low"), or null when no group comes before it or it is listed under
- * "Resolved findings". Its kind is its type label,
- * for example "🐞 Bug" or "📘 Rule violation".
+ * "Resolved findings". A badge or heading quoted inside a finding's own text
+ * doesn't start a group. Its kind is its type label, for example "🐞 Bug" or
+ * "📘 Rule violation". Its files are the paths its agent prompt names.
  * @param {string} body
- * @returns {{ commit: string | null, findings: Array<{ number: number, title: string, kind: string, severity: string | null, resolved: boolean, description: string, prompt: string }> } | null}
+ * @returns {{ commit: string | null, findings: Array<{ number: number, title: string, kind: string, severity: string | null, resolved: boolean, description: string, prompt: string, files: string[] }> } | null}
  */
 export function parseQodoReview(body) {
   const text = String(body ?? '');
@@ -329,20 +379,20 @@ export function parseQodoReview(body) {
   const findings = heads.map((head, i) => {
     const end = i + 1 < heads.length ? heads[i + 1].index : text.length;
     const section = unquote(text.slice(head.index + head[0].length, end));
-    const labels = [...head[2].matchAll(/<code>([\s\S]*?)<\/code>/g)].map((m) => plainText(m[1]));
-    const firstLabel = head[2].search(/<code>/);
-    const title = firstLabel === -1 ? head[2] : head[2].slice(0, firstLabel);
+    const { title, labels } = titleAndLabels(head[2]);
     const group = markers.filter((marker) => marker.index < head.index).pop();
     const description = /<summary>Description<\/summary>[\s\S]*?<pre>([\s\S]*?)<\/pre>/.exec(section);
     const prompt = /<summary>Agent prompt<\/summary>[\s\S]*?```\n([\s\S]*?)\n```/.exec(section);
+    const promptText = prompt ? prompt[1].trim() : '';
     return {
       number: Number(head[1]),
       title: plainText(title),
-      kind: labels.find((label) => !NOT_A_TYPE.test(label)) ?? '',
+      kind: labels.find((label) => TYPE_LABEL.test(label)) ?? labels.find((label) => !STATUS_LABEL.test(label)) ?? '',
       severity: group?.name ? severityName(group.name) : null,
-      resolved: /<s>/.test(head[2]) || labels.some((label) => CLOSED_LABEL.test(label)),
+      resolved: /^\s*<s>/.test(head[2]) || labels.some((label) => CLOSED_LABEL.test(label)),
       description: description ? plainText(description[1]) : '',
-      prompt: prompt ? prompt[1].trim() : '',
+      prompt: promptText,
+      files: filesOf(promptText, section),
     };
   });
   return { commit, findings };
@@ -473,12 +523,40 @@ export function findingsText(findings) {
 }
 
 /**
+ * The text the agent gets in a fix round: the review's High and Medium
+ * findings and none of its Low ones.
+ * @param {{ blocking: Array<{ number: number, title: string, kind: string, severity: string | null, description: string, prompt: string }> }} review
+ */
+export function fixRoundText(review) {
+  return findingsText(review.blocking);
+}
+
+/**
  * The part of the runner's last comment on a ticket that lists the open Low
- * findings for me. Empty when there are none.
- * @param {Array<{ number: number, title: string, kind: string, severity: string | null }>} findings
+ * findings for me, each with its title, type and file. Empty when there are
+ * none.
+ * @param {Array<{ number: number, title: string, kind: string, severity: string | null, files?: string[] }>} findings
  */
 export function lowFindingsText(findings) {
   if (findings.length === 0) return '';
-  const lines = findings.map((finding) => `- ${finding.number}. ${finding.title}${labelsOf(finding)}`);
+  const lines = findings.map((finding) => {
+    const files = finding.files?.length ? finding.files.map((file) => `\`${file}\``).join(', ') : 'not named in the review';
+    return `- ${finding.number}. ${finding.title}${labelsOf(finding)}. File: ${files}`;
+  });
   return `Low findings for you. The agent left this code as it is:\n\n${lines.join('\n')}`;
+}
+
+/**
+ * The runner's comment on a ticket when the run ends with `agent-review`:
+ * the pull request, the checks, the High and Medium findings it fixed, the
+ * fix rounds used, then the open Low findings for me.
+ * @param {{ pr: number, head: string, found: number, round: number, low: Array<{ number: number, title: string, kind: string, severity: string | null, files?: string[] }> }} run
+ */
+export function readyComment({ pr, head, found, round, low }, limits = LIMITS) {
+  const findings =
+    found === 0
+      ? 'Qodo had no High or Medium findings.'
+      : `Qodo raised ${found} High or Medium ${found === 1 ? 'finding' : 'findings'} and none are open.`;
+  const ready = `Pull request #${pr} is ready for you. \`npm test\`, \`npm run check\` and CI pass on ${head.slice(0, 7)}. ${findings} Fix rounds used: ${round} of ${limits.fixRounds}. It is not merged.`;
+  return [ready, lowFindingsText(low)].filter(Boolean).join('\n\n');
 }

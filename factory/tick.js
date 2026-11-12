@@ -27,8 +27,8 @@ import {
   candidates,
   ciState,
   fillPrompt,
-  findingsText,
-  lowFindingsText,
+  fixRoundText,
+  readyComment,
   guardedFiles,
   labelledBy,
   lockCommand,
@@ -280,7 +280,7 @@ async function work(repo, ticket) {
     round += 1;
     found += next.review.blocking.length;
     await log(`Fix round ${round} of ${LIMITS.fixRounds}: ${next.review.blocking.map((finding) => finding.title).join('; ')}`);
-    await writeFile(join(worktree, NOTES, 'findings.md'), findingsText(next.review.blocking));
+    await writeFile(join(worktree, NOTES, 'findings.md'), fixRoundText(next.review));
     await rm(join(worktree, NOTES, 'reply.md'), { force: true });
     const before = state.head;
     agent = await callAgent(worktree, await promptFor('fix.md', { pr }), agent.session);
@@ -295,12 +295,7 @@ async function work(repo, ticket) {
   }
 
   await setLabel(repo, number, LABELS.working, LABELS.review);
-  const findings =
-    found === 0
-      ? 'Qodo had no High or Medium findings.'
-      : `Qodo raised ${found} High or Medium ${found === 1 ? 'finding' : 'findings'} and none are open.`;
-  const ready = `Pull request #${pr} is ready for you. \`npm test\`, \`npm run check\` and CI pass on ${state.head.slice(0, 7)}. ${findings} Fix rounds used: ${round} of ${LIMITS.fixRounds}. It is not merged.`;
-  await comment(repo, 'issue', number, [ready, lowFindingsText(low)].filter(Boolean).join('\n\n'));
+  await comment(repo, 'issue', number, readyComment({ pr, head: state.head, found, round, low }));
   await log(`Done: #${pr} is ready for review.`);
 }
 
