@@ -32,6 +32,8 @@ npm run check    # render check on each style in styles/index.json
 npm start        # builder page at http://127.0.0.1:4173/web/
 ```
 
+To build the builder as a static site for GitHub Pages, run `npm run build:site`. It empties `_site/` and writes the builder page, its code, `styles/index.json` and the manifests and layers that index lists there. `_site/index.html` takes you to the builder, and each link in the site is relative, so it works from a sub-path like `https://camduncalfe.github.io/agent-pfp/`. The build exits with 1 and says what is wrong when the index or a manifest isn't valid or a file it names is missing. [docs/styles.md](docs/styles.md#the-static-site) has the details.
+
 To check another style, pass its manifest: `node bin/render-check.js path/to/manifest.json`.
 
 To look at a style that isn't in this repository yet, start the server with the folder that holds its style folder: `npm start -- --styles ../my-styles`. The Style picker lists it with "(local)" after its name. [docs/styles.md](docs/styles.md) has the details.
