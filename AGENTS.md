@@ -26,6 +26,8 @@ npm run check    # render check on each style in styles/index.json, has to end w
 npm start        # builder page at http://127.0.0.1:4173/web/, open it when you change web/
 ```
 
+`npm run build:site` writes the builder as a static site to `_site/`, for GitHub Pages. It holds `web/`, `src/`, `styles/index.json` and the manifests and layers that index lists, and `_site/index.html` takes the visitor to `web/`. Keep each path in the site relative, because Pages serves it from a sub-path. The build exits with 1 when the index or a manifest isn't valid or a file it names is missing. Run it when you change what the builder loads.
+
 `npm start -- --styles <folder>` also lists the style folders inside `<folder>` in the builder. Use it to look at a style that is not in this repository.
 
 To check one style, pass its manifest: `node bin/render-check.js path/to/manifest.json`. Exit code 0 means it passed, 1 means it found issues and 2 means it could not run.
