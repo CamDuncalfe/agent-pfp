@@ -6,9 +6,9 @@ Each style is a fixed set of layers prepared ahead of time. The app does not gen
 
 I'm building it during the [Qodo Software Factory Hackathon](https://hackathon.qodo.ai/). Coding agents write the code and Qodo reviews each pull request before I merge it.
 
-![The builder page showing a picture made from the fixture shapes](docs/img/builder.png)
+![The builder page showing the alien in a cowboy hat, heart shades and a purple hoodie](docs/img/builder.png)
 
-The picture in the screenshot is made from test shapes.
+The alien in the screenshot is the first style I've drawn. Its layers aren't in this repository yet, so the builder lists it as a local style.
 
 ## What works today
 
