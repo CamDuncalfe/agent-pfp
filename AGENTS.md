@@ -88,6 +88,8 @@ A pull request corrects each sentence in AGENTS.md, README.md, `docs/` or a code
 
 Qodo puts each finding in a severity group, High, Medium or Low, and gives it a type: Bug, Rule violation or Requirement gap. This is what you do with them, on a pull request and on a local review of uncommitted code.
 
+Qodo's review comment on a pull request lists each finding under its group. Its command line and its skills give the same severity as `action_level`: `action_required` is High, `remediation_recommended` is Medium and `informational` is Low.
+
 - Fix each valid High and Medium finding, whatever its type. Check it against the code and the ticket first. When the problem is real in this change, fix it, with a test when the fix changes what the code does.
 - Leave the code of a Low finding as it is, Low Rule violations included. List each Low finding for me with its title, type and file.
 - A finding you think is wrong stays open. Write your evidence next to it: the file and line, and the test or command that shows it. I decide.
