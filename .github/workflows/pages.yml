@@ -35,6 +35,8 @@ jobs:
 
   deploy:
     needs: build
+    # A run started by hand on another branch builds and checks it, but only main deploys.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       pages: write
