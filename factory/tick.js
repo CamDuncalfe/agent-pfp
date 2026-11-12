@@ -28,6 +28,7 @@ import {
   ciState,
   fillPrompt,
   findingsText,
+  lowFindingsText,
   guardedFiles,
   labelledBy,
   lockCommand,
@@ -200,7 +201,7 @@ async function waitForReview(repo, pr, head, round) {
     const next = nextStep({ ci, review, round, waitedMs: Date.now() - started });
     if (next.step !== 'wait') {
       const waited = ((Date.now() - started) / 60000).toFixed(1);
-      await log(`CI ${ci}, Qodo ${review ? `${review.findings.length} findings, ${review.open.length} open` : 'no review'} on ${head.slice(0, 7)} after ${waited} min.`);
+      await log(`CI ${ci}, Qodo ${review ? `${review.findings.length} findings, ${review.blocking.length} High or Medium open, ${review.low.length} Low open` : 'no review'} on ${head.slice(0, 7)} after ${waited} min.`);
       return { ...next, review };
     }
     await sleep(LIMITS.pollMs);
@@ -266,15 +267,20 @@ async function work(repo, ticket) {
   pr = Number(url.split('/').pop());
   await log(`Opened ${url}`);
 
-  // Review, fix, review again.
+  // Review, fix, review again, until the quality gate in AGENTS.md is met:
+  // no High or Medium finding open on the newest commit.
+  let low = [];
   for (;;) {
     const next = await waitForReview(repo, pr, state.head, round);
     if (next.step === 'help') return stop(next.reason);
-    if (next.step === 'review') break;
+    if (next.step === 'review') {
+      low = next.review.low;
+      break;
+    }
     round += 1;
-    found += next.review.open.length;
-    await log(`Fix round ${round} of ${LIMITS.fixRounds}: ${next.review.open.map((finding) => finding.title).join('; ')}`);
-    await writeFile(join(worktree, NOTES, 'findings.md'), findingsText(next.review.open));
+    found += next.review.blocking.length;
+    await log(`Fix round ${round} of ${LIMITS.fixRounds}: ${next.review.blocking.map((finding) => finding.title).join('; ')}`);
+    await writeFile(join(worktree, NOTES, 'findings.md'), findingsText(next.review.blocking));
     await rm(join(worktree, NOTES, 'reply.md'), { force: true });
     const before = state.head;
     agent = await callAgent(worktree, await promptFor('fix.md', { pr }), agent.session);
@@ -289,8 +295,12 @@ async function work(repo, ticket) {
   }
 
   await setLabel(repo, number, LABELS.working, LABELS.review);
-  const findings = found === 0 ? 'Qodo had no findings.' : `Qodo raised ${found} ${found === 1 ? 'finding' : 'findings'} and none are open.`;
-  await comment(repo, 'issue', number, `Pull request #${pr} is ready for you. \`npm test\`, \`npm run check\` and CI pass on ${state.head.slice(0, 7)}. ${findings} Fix rounds used: ${round} of ${LIMITS.fixRounds}. It is not merged.`);
+  const findings =
+    found === 0
+      ? 'Qodo had no High or Medium findings.'
+      : `Qodo raised ${found} High or Medium ${found === 1 ? 'finding' : 'findings'} and none are open.`;
+  const ready = `Pull request #${pr} is ready for you. \`npm test\`, \`npm run check\` and CI pass on ${state.head.slice(0, 7)}. ${findings} Fix rounds used: ${round} of ${LIMITS.fixRounds}. It is not merged.`;
+  await comment(repo, 'issue', number, [ready, lowFindingsText(low)].filter(Boolean).join('\n\n'));
   await log(`Done: #${pr} is ready for review.`);
 }
 

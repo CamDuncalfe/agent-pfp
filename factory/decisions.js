@@ -276,12 +276,46 @@ function unquote(block) {
     .join('\n');
 }
 
+/** The severities the quality gate in AGENTS.md knows, lowest last. */
+export const SEVERITIES = Object.freeze(['High', 'Medium', 'Low']);
+
+/**
+ * The severity named by one of Qodo's group markers: a badge image such as
+ * `img.shields.io/badge/Medium-634FD1` or a "View medium (2)" heading. A name
+ * the gate doesn't know is kept as it is, and `blocks` treats it as High.
+ */
+function severityName(marker) {
+  const known = SEVERITIES.find((name) => name.toLowerCase() === marker.toLowerCase());
+  return known ?? marker;
+}
+
+/** Each place a severity group starts in a review comment, in order. */
+function severityMarkers(text) {
+  const markers = [
+    ...[...text.matchAll(/img\.shields\.io\/badge\/([A-Za-z][A-Za-z ]*?)-[0-9A-Fa-f]{3,8}\b/g)].map((m) => ({ index: m.index, name: m[1] })),
+    ...[...text.matchAll(/<summary>(?:\s*<[^>]+>)*\s*View ([A-Za-z][A-Za-z ]*?) \(\d+\)/g)].map((m) => ({ index: m.index, name: m[1] })),
+    // The "Resolved findings" section ends the last severity group.
+    ...[...text.matchAll(/<summary>(?:\s*<[^>]+>)*\s*Resolved findings/g)].map((m) => ({ index: m.index, name: null })),
+  ];
+  return markers.sort((a, b) => a.index - b.index);
+}
+
+/** The labels after a finding's title that say it no longer needs action. */
+const CLOSED_LABEL = /Resolved|Dismissed|Outdated/;
+/** Labels after a title that are not the finding's type. */
+const NOT_A_TYPE = /New|Resolved|Dismissed|Outdated/;
+
 /**
  * Read one of Qodo's "Code Review" comments: the commit it reviewed and its
  * numbered findings. Null when the comment is something else, for example
  * Qodo's summary of the pull request.
+ *
+ * A finding's severity is the group it is listed under ("High", "Medium",
+ * "Low"), or null when no group comes before it or it is listed under
+ * "Resolved findings". Its kind is its type label,
+ * for example "🐞 Bug" or "📘 Rule violation".
  * @param {string} body
- * @returns {{ commit: string | null, findings: Array<{ number: number, title: string, kind: string, resolved: boolean, description: string, prompt: string }> } | null}
+ * @returns {{ commit: string | null, findings: Array<{ number: number, title: string, kind: string, severity: string | null, resolved: boolean, description: string, prompt: string }> } | null}
  */
 export function parseQodoReview(body) {
   const text = String(body ?? '');
@@ -290,19 +324,23 @@ export function parseQodoReview(body) {
   const commits = [...text.matchAll(/<!--\s*https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/commit\/([0-9a-f]{40})\s*-->/g)];
   const commit = commits.length ? commits[commits.length - 1][1] : null;
 
+  const markers = severityMarkers(text);
   const heads = [...text.matchAll(/<summary>\s*(\d+)\.\s+([\s\S]*?)<\/summary>/g)];
   const findings = heads.map((head, i) => {
     const end = i + 1 < heads.length ? heads[i + 1].index : text.length;
     const section = unquote(text.slice(head.index + head[0].length, end));
-    const kind = /<code>([\s\S]*?)<\/code>\s*$/.exec(head[2]);
-    const title = kind ? head[2].slice(0, kind.index) : head[2];
+    const labels = [...head[2].matchAll(/<code>([\s\S]*?)<\/code>/g)].map((m) => plainText(m[1]));
+    const firstLabel = head[2].search(/<code>/);
+    const title = firstLabel === -1 ? head[2] : head[2].slice(0, firstLabel);
+    const group = markers.filter((marker) => marker.index < head.index).pop();
     const description = /<summary>Description<\/summary>[\s\S]*?<pre>([\s\S]*?)<\/pre>/.exec(section);
     const prompt = /<summary>Agent prompt<\/summary>[\s\S]*?```\n([\s\S]*?)\n```/.exec(section);
     return {
       number: Number(head[1]),
       title: plainText(title),
-      kind: kind ? plainText(kind[1]) : '',
-      resolved: /<s>/.test(head[2]) || /Resolved/.test(kind?.[1] ?? ''),
+      kind: labels.find((label) => !NOT_A_TYPE.test(label)) ?? '',
+      severity: group?.name ? severityName(group.name) : null,
+      resolved: /<s>/.test(head[2]) || labels.some((label) => CLOSED_LABEL.test(label)),
       description: description ? plainText(description[1]) : '',
       prompt: prompt ? prompt[1].trim() : '',
     };
@@ -311,9 +349,21 @@ export function parseQodoReview(body) {
 }
 
 /**
+ * Whether an open finding holds a task back under the quality gate in
+ * AGENTS.md: High and Medium do, Low doesn't. A finding whose severity the
+ * runner can't read counts as High.
+ * @param {{ severity: string | null }} finding
+ */
+export function blocks(finding) {
+  return finding.severity !== 'Low';
+}
+
+/**
  * Qodo's review of one commit, from the pull request's comments. Null while
  * the newest review is still for an older commit. A comment only counts when
- * the Qodo app wrote it.
+ * the Qodo app wrote it. `open` is each finding that still needs action,
+ * `blocking` the open ones the gate says the agent fixes and `low` the open
+ * ones that come to me.
  * @param {Array<{ body: string, user?: { login: string, type?: string } }>} comments
  * @param {string} head the full SHA of the commit to look for
  */
@@ -325,7 +375,8 @@ export function reviewOf(comments, head) {
     if (review && review.commit === head) found = review;
   }
   if (!found) return null;
-  return { ...found, open: found.findings.filter((finding) => !finding.resolved) };
+  const open = found.findings.filter((finding) => !finding.resolved);
+  return { ...found, open, blocking: open.filter(blocks), low: open.filter((finding) => !blocks(finding)) };
 }
 
 /**
@@ -341,8 +392,9 @@ export function ciState(checkRuns) {
 }
 
 /**
- * What the runner does next with an open pull request.
- * @param {{ ci: 'pending' | 'passed' | 'failed', review: { open: unknown[] } | null, round: number, waitedMs: number }} state
+ * What the runner does next with an open pull request. Only the findings the
+ * quality gate blocks on start a fix round or stop the run. Low ones don't.
+ * @param {{ ci: 'pending' | 'passed' | 'failed', review: { blocking: unknown[] } | null, round: number, waitedMs: number }} state
  *   round is the number of fix rounds already used
  * @returns {{ step: 'wait' | 'fix' | 'review' | 'help', reason?: string }}
  */
@@ -356,12 +408,12 @@ export function nextStep({ ci, review, round, waitedMs }, limits = LIMITS) {
     }
     return { step: 'wait' };
   }
-  if (review.open.length === 0) return { step: 'review' };
+  if (review.blocking.length === 0) return { step: 'review' };
   if (round >= limits.fixRounds) {
-    const count = review.open.length;
+    const count = review.blocking.length;
     return {
       step: 'help',
-      reason: `${count} Qodo ${count === 1 ? 'finding is' : 'findings are'} still open after ${limits.fixRounds} fix rounds.`,
+      reason: `${count} High or Medium Qodo ${count === 1 ? 'finding is' : 'findings are'} still open after ${limits.fixRounds} fix rounds.`,
     };
   }
   return { step: 'fix' };
@@ -399,12 +451,18 @@ export function promptPlaces(template) {
   return [...new Set([...template.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]))];
 }
 
+/** A finding's labels as one bracket: its severity and its type. */
+function labelsOf(finding) {
+  const labels = [finding.severity, finding.kind].filter(Boolean).join(', ');
+  return labels ? ` (${labels})` : '';
+}
+
 /** Open findings as the text the agent gets in a fix round. */
 export function findingsText(findings) {
   return findings
     .map((finding) =>
       [
-        `## ${finding.number}. ${finding.title}${finding.kind ? ` (${finding.kind})` : ''}`,
+        `## ${finding.number}. ${finding.title}${labelsOf(finding)}`,
         finding.description,
         finding.prompt ? `Qodo's suggested prompt:\n\n${finding.prompt}` : '',
       ]
@@ -412,4 +470,15 @@ export function findingsText(findings) {
         .join('\n\n'),
     )
     .join('\n\n');
+}
+
+/**
+ * The part of the runner's last comment on a ticket that lists the open Low
+ * findings for me. Empty when there are none.
+ * @param {Array<{ number: number, title: string, kind: string, severity: string | null }>} findings
+ */
+export function lowFindingsText(findings) {
+  if (findings.length === 0) return '';
+  const lines = findings.map((finding) => `- ${finding.number}. ${finding.title}${labelsOf(finding)}`);
+  return `Low findings for you. The agent left this code as it is:\n\n${lines.join('\n')}`;
 }

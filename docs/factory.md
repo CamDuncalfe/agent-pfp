@@ -12,8 +12,8 @@ The code is in [`factory/`](../factory): `tick.sh` is what the job runs, `tick.j
 4. It starts Claude Code with `claude -p` in that worktree. The prompt holds the ticket's acceptance criteria as the runner read them in step 2. The agent reads the rest of the ticket with `gh issue view`, reads AGENTS.md, makes the change, runs `npm test` and `npm run check`, commits, and writes the pull request description.
 5. The runner looks at the result itself. It wants a commit, a clean tree, no change in `factory/` or `.github/`, and both checks passing when it runs them again.
 6. The runner pushes the branch and opens the pull request. It writes `Closes #<ticket>` and the ticket's acceptance criteria at the top itself, the same list the agent got in its prompt, and the agent's description goes below.
-7. It waits for CI and for Qodo's review of the newest commit. With open findings, the agent gets them as text, fixes the ones it confirms and writes an answer. The runner checks again, pushes and posts the answer on the pull request. Then it waits for the next review.
-8. With CI green and no open finding, the ticket gets `agent-review` and a comment. The pull request waits for me. The runner never merges.
+7. It waits for CI and for Qodo's review of the newest commit. It reads each finding's severity from the group Qodo lists it under, and follows the quality gate in [AGENTS.md](../AGENTS.md#quality-gate). With an open High or Medium finding, the agent gets those findings as text, fixes the ones it confirms and writes an answer. A finding with a severity the runner can't read counts as High. The runner checks again, pushes and posts the answer on the pull request. Then it waits for the next review.
+8. With CI green and no High or Medium finding open, the ticket gets `agent-review` and a comment. Low findings don't start a fix round, and the comment lists the ones still open for me. The pull request waits for me. The runner never merges.
 
 ## Labels
 
@@ -36,7 +36,7 @@ To send a ticket through again, fix what the comment names, delete the branch wh
 | One agent call | 20 minutes |
 | Waiting for CI and Qodo on one commit | 15 minutes |
 
-A run that hits a limit ends with `agent-needs-help`. So does a failed check after the last round, an agent that finishes without a commit, and a branch that is on GitHub already.
+A run that hits a limit ends with `agent-needs-help`. So does a High or Medium finding still open after the last round, a failed check after the last round, an agent that finishes without a commit, and a branch that is on GitHub already.
 
 ## What the agent can do
 
