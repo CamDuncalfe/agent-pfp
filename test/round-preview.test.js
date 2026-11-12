@@ -178,7 +178,21 @@ test('a bigger square picture is averaged down to 192 px with scaleDown', () => 
   }
 });
 
-test('a big wide picture is cut to its middle square first and then scaled down', () => {
+test('a big tall picture comes out as its middle square scaled down', () => {
+  const picture = numbered(300, 500);
+  const middle = createRaster(300, 300);
+  for (let y = 0; y < 300; y += 1) {
+    for (let x = 0; x < 300; x += 1) {
+      middle.data.set(pixel(picture, x, y + 100), (y * 300 + x) * 4);
+    }
+  }
+  const round = roundPreviewPicture(picture);
+  assert.equal(round.width, 192);
+  assert.equal(round.height, 192);
+  assert.deepEqual(Array.from(round.data), Array.from(scaleDown(middle, 192, 192).data));
+});
+
+test('a big wide picture comes out as its middle square scaled down', () => {
   const picture = numbered(600, 400);
   const middle = createRaster(400, 400);
   for (let y = 0; y < 400; y += 1) {
@@ -222,10 +236,21 @@ test('a big square picture goes straight to scaleDown, with no full-size copy', 
   assert.notEqual(round.data.buffer, picture.data.buffer);
 });
 
-test('a big picture that is not square is still cut to its middle square before the scaling', () => {
-  const picture = numbered(600, 400);
-  const lengths = buffersMadeBy(() => roundPreviewPicture(picture));
-  assert.deepEqual(lengths, [400 * 400 * 4, 192 * 192 * 4]);
+test('a big picture that is not square gets no full-size copy of its middle square either', () => {
+  for (const [width, height] of [[600, 400], [400, 600], [193, 2000]]) {
+    const picture = numbered(width, height);
+    const lengths = buffersMadeBy(() => roundPreviewPicture(picture));
+    assert.deepEqual(lengths, [192 * 192 * 4], `${width}x${height}`);
+  }
+});
+
+test('the biggest buffer made is 192 px a side, whatever the size of the canvas', () => {
+  for (const [width, height] of [[64, 64], [96, 64], [192, 192], [1024, 1024], [1500, 1000]]) {
+    const picture = createRaster(width, height);
+    const lengths = buffersMadeBy(() => roundPreviewPicture(picture));
+    assert.equal(lengths.length, 1, `${width}x${height} makes one buffer`);
+    assert.ok(lengths[0] <= 192 * 192 * 4, `${width}x${height}`);
+  }
 });
 
 test('a square picture of 192 px or less is still copied, so the round preview never shares pixels with Download', () => {
