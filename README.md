@@ -8,7 +8,7 @@ I'm building it during the [Qodo Software Factory Hackathon](https://hackathon.q
 
 ![The builder page showing the alien in a cowboy hat, heart shades and a purple hoodie](docs/img/builder.png)
 
-The alien in the screenshot is the first style I've drawn. Its layers aren't in this repository yet, so the builder lists it as a local style.
+The alien in the screenshot is the first style I've drawn. Its layers are in [styles/alien/](styles/alien/), and the builder doesn't list it yet. I own the artwork, and no license on the code covers it. [styles/alien/NOTICE.md](styles/alien/NOTICE.md) says what you can do with it.
 
 ## What works today
 
@@ -19,7 +19,7 @@ The alien in the screenshot is the first style I've drawn. Its layers aren't in 
 - A builder page with a Style picker. It loads the style's manifest, shows one picker per group, previews the picture and downloads it as a PNG. Next to the preview a second one shows the picture the way GitHub shows a profile picture: in a circle 96 px wide, cut from the middle square of the picture when the canvas isn't square. [src/round-preview.js](src/round-preview.js) cuts the square and scales it down to 192 px when it is bigger than that. A Size picker on the line above Download offers Full size, which is the style's canvas, and GitHub (500 x 500), which is the finished picture scaled down. A style whose canvas isn't square or is smaller than 500 px offers Full size only. The file is named `agent-pfp-<style id>.png`, or `agent-pfp-<style id>-500.png` for the GitHub size. The sizes are decided in [src/download.js](src/download.js) and the scaling is in [src/scale.js](src/scale.js).
 - A style index, [styles/index.json](styles/index.json), that lists the styles the builder offers. It is documented in [docs/styles.md](docs/styles.md).
 
-No artwork is in this repository yet. The files under `fixtures/` are plain shapes used as test data.
+The alien in `styles/alien/` is the one style with real artwork. The files under `fixtures/` are plain shapes used as test data.
 
 ## Run it
 
@@ -43,7 +43,7 @@ To look at a style that isn't in this repository yet, start the server with the 
 | `src/` | Code shared by the builder page and the command line tools |
 | `web/` | The builder page |
 | `bin/` | Command line tools |
-| `styles/` | The style index the builder reads |
+| `styles/` | The style index the builder reads, and the alien's manifest and layers |
 | `fixtures/` | Test data: manifests and plain-shape layers |
 | `factory/` | The runner that starts the coding agent on a ticket with the `ready-for-agent` label, see [docs/factory.md](docs/factory.md) |
 | `docs/` | Format and runner documentation |
