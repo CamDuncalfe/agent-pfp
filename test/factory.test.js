@@ -12,6 +12,7 @@ import {
   QODO_BOT,
   acceptanceCriteria,
   agentArgs,
+  blocks,
   branchFor,
   candidates,
   ciState,
@@ -21,6 +22,9 @@ import {
   guardedFiles,
   labelledBy,
   lockCommand,
+  lowFindingsText,
+  fixRoundText,
+  readyComment,
   nextStep,
   parseQodoReview,
   prBody,
@@ -442,6 +446,198 @@ test('reviewOf: a comment that copies the review format is ignored unless the Qo
   assert.equal(reviewOf([real, { body: clean, user: { login: 'visitor', type: 'User' } }], SHA_A).open.length, 1);
 });
 
+/**
+ * A review comment the way Qodo groups findings today: a severity badge, then
+ * the findings under it, then the resolved ones in their own section.
+ * @param {Array<[string, Array<[string, string]>]>} groups severity name, then [title, labels] for each finding
+ */
+function groupedReview(groups, resolved = []) {
+  let n = 0;
+  const finding = (title, labels) => {
+    n += 1;
+    return `<details>\n<summary>  ${n}.  ${title} ${labels}</summary>\n\n> <details>\n><summary>Description</summary>\n><br/>\n>\n><pre>\n>${title} happens.\n></pre>\n></details>\n\n<hr/>\n</details>\n`;
+  };
+  const body = groups
+    .map(([severity, items]) => `<img src="https://img.shields.io/badge/${severity}-634FD1?style=flat-square" height="20px" alt="${severity}">\n\n${items.map(([title, labels]) => finding(title, labels)).join('\n')}`)
+    .join('\n');
+  const done = resolved.length
+    ? `<details><summary><strong>Resolved findings</strong></summary>\n\n${resolved.map((title) => finding(`<s>${title}</s>`, '<code>✓ Resolved</code>')).join('\n')}</details>\n`
+    : '';
+  return `<h3>Code Review by Qodo</h3>\n\n<code>🐞 Bugs (1)</code> <code>📘 Rule violations (1)</code>\n\n${body}\n${done}\n<!-- https://github.com/owner/repo/commit/${SHA_A} -->\n`;
+}
+
+test('parseQodoReview: each finding has the severity of the group it is under, and its type', () => {
+  const review = parseQodoReview(
+    groupedReview(
+      [
+        ['High', [['Lock can be skipped', '<code>🐞 Bug</code> <code>⭐ New</code>']]],
+        ['Medium', [['Ticket asks for a log line', '<code>📎 Requirement gap</code>']]],
+        ['Low', [['Comment says 3 rounds', '<code>📘 Rule violation</code> <code>⭐ New</code>']]],
+      ],
+      ['Old bug'],
+    ),
+  );
+  assert.deepEqual(
+    review.findings.map((f) => [f.number, f.title, f.severity, f.kind, f.resolved]),
+    [
+      [1, 'Lock can be skipped', 'High', '🐞 Bug', false],
+      [2, 'Ticket asks for a log line', 'Medium', '📎 Requirement gap', false],
+      [3, 'Comment says 3 rounds', 'Low', '📘 Rule violation', false],
+      [4, 'Old bug', null, '', true],
+    ],
+  );
+});
+
+test('parseQodoReview: the older "View medium" heading names a severity too, and a name the gate does not know is kept', () => {
+  assert.equal(parseQodoReview(reviewBody({ open: ['A bug'] })).findings[0].severity, 'Medium');
+  const odd = parseQodoReview(groupedReview([['Critical', [['Keys in the log', '<code>🐞 Bug</code>']]]]));
+  assert.equal(odd.findings[0].severity, 'Critical');
+  const none = parseQodoReview(`<h3>Code Review by Qodo</h3>\n<details>\n<summary>  1.  Bare <code>🐞 Bug</code></summary>\n</details>`);
+  assert.equal(none.findings[0].severity, null);
+  // Dismissed and outdated findings need no action, like resolved ones.
+  const closed = parseQodoReview(groupedReview([['Medium', [['Gone', '<code>✗ Dismissed</code>'], ['Moved', '<code>⊖ Outdated</code>']]]]));
+  assert.deepEqual(closed.findings.map((f) => f.resolved), [true, true]);
+});
+
+test('blocks: High, Medium and a severity the runner cannot read hold a task back, Low does not', () => {
+  assert.equal(blocks({ severity: 'High' }), true);
+  assert.equal(blocks({ severity: 'Medium' }), true);
+  assert.equal(blocks({ severity: 'Critical' }), true);
+  assert.equal(blocks({ severity: null }), true);
+  assert.equal(blocks({ severity: 'Low' }), false);
+});
+
+test('reviewOf: splits the open findings into the ones the agent fixes and the Low ones for me', () => {
+  const body = groupedReview(
+    [
+      ['Medium', [['Lock can be skipped', '<code>🐞 Bug</code>']]],
+      ['Low', [['Comment says 3 rounds', '<code>📘 Rule violation</code>']]],
+    ],
+    ['Old bug'],
+  );
+  const review = reviewOf([qodo(body)], SHA_A);
+  assert.deepEqual(review.open.map((f) => f.title), ['Lock can be skipped', 'Comment says 3 rounds']);
+  assert.deepEqual(review.blocking.map((f) => f.title), ['Lock can be skipped']);
+  assert.deepEqual(review.low.map((f) => f.title), ['Comment says 3 rounds']);
+});
+
+test('nextStep: Low findings alone end the run for my review, they never start a fix round', () => {
+  const lowOnly = reviewOf([qodo(groupedReview([['Low', [['Comment says 3 rounds', '<code>📘 Rule violation</code>']]]]))], SHA_A);
+  assert.equal(lowOnly.open.length, 1);
+  assert.deepEqual(nextStep({ ci: 'passed', review: lowOnly, round: 0, waitedMs: 0 }), { step: 'review' });
+  assert.deepEqual(nextStep({ ci: 'passed', review: lowOnly, round: 2, waitedMs: 0 }), { step: 'review' });
+  const mixed = reviewOf([qodo(groupedReview([['High', [['A', '<code>🐞 Bug</code>']]], ['Low', [['B', '<code>🐞 Bug</code>']]]]))], SHA_A);
+  assert.deepEqual(nextStep({ ci: 'passed', review: mixed, round: 0, waitedMs: 0 }), { step: 'fix' });
+  assert.match(nextStep({ ci: 'passed', review: mixed, round: 2, waitedMs: 0 }).reason, /^1 High or Medium Qodo finding is still open/);
+});
+
+test('lowFindingsText: the Low findings listed for me on the ticket with title, type and file, or nothing', () => {
+  assert.equal(lowFindingsText([]), '');
+  assert.equal(
+    lowFindingsText([
+      { number: 3, title: 'Comment says 3 rounds', kind: '📘 Rule violation', severity: 'Low', files: ['factory/tick.js'] },
+      { number: 4, title: 'Odd name', kind: '🐞 Bug', severity: 'Low', files: [] },
+    ]),
+    'Low findings for you. The agent left this code as it is:\n\n' +
+      '- 3. Comment says 3 rounds (Low, 📘 Rule violation). File: `factory/tick.js`\n' +
+      '- 4. Odd name (Low, 🐞 Bug). File: not named in the review',
+  );
+});
+
+test('parseQodoReview: a finding\'s files are the paths its agent prompt names, or else its links', () => {
+  const [finding] = parseQodoReview(reviewBody({ open: ['A bug'] })).findings;
+  assert.deepEqual(finding.files, ['src/styles.js']);
+  const linked = parseQodoReview(
+    groupedReview([['Low', [['Odd name', '<code>🐞 Bug</code>']]]]).replace(
+      '<hr/>',
+      '<a href="https://github.com/owner/repo/blob/06714e664e0923d7a2037d1f87b59def4553a0ca/factory/tick.js#L10-L12">factory/tick.js[10-12]</a>\n<hr/>',
+    ),
+  );
+  assert.deepEqual(linked.findings[0].files, ['factory/tick.js']);
+  assert.deepEqual(parseQodoReview(groupedReview([['Low', [['Bare', '<code>🐞 Bug</code>']]]])).findings[0].files, []);
+});
+
+test('parseQodoReview: inline code in a title stays in the title and never closes the finding', () => {
+  const review = parseQodoReview(
+    groupedReview([
+      [
+        'High',
+        [
+          ['Check <code>isResolved</code> before the push', '<code>🐞 Bug</code> <code>⭐ New</code>'],
+          ['Rename <code>wasDismissed</code>', '<code>📘 Rule violation</code>'],
+        ],
+      ],
+    ]),
+  );
+  assert.deepEqual(
+    review.findings.map((f) => [f.title, f.kind, f.severity, f.resolved]),
+    [
+      ['Check isResolved before the push', '🐞 Bug', 'High', false],
+      ['Rename wasDismissed', '📘 Rule violation', 'High', false],
+    ],
+  );
+  assert.equal(reviewOf([qodo(groupedReview([['High', [['Check <code>isResolved</code>', '<code>🐞 Bug</code>']]]]))], SHA_A).blocking.length, 1);
+});
+
+test('parseQodoReview: a badge or heading quoted inside a finding does not change the next finding\'s group', () => {
+  const quoting = groupedReview([
+    [
+      'High',
+      [
+        ['Badge parser', '<code>🐞 Bug</code>'],
+        ['Lock can be skipped', '<code>🐞 Bug</code>'],
+      ],
+    ],
+  ]).replace(
+    '>Badge parser happens.',
+    '>Badge parser happens on img.shields.io/badge/Low-634FD1 and on <summary>View low (1)</summary> and\n>' +
+      '<summary>Resolved findings</summary>',
+  );
+  const quotedPrompt = quoting.replace(
+    '<hr/>',
+    '> <details>\n><summary>Agent prompt</summary>\n>```\n>See img.shields.io/badge/Low-634FD1\n>```\n></details>\n<hr/>',
+  );
+  for (const body of [quoting, quotedPrompt]) {
+    const review = reviewOf([qodo(body)], SHA_A);
+    assert.deepEqual(review.findings.map((f) => f.severity), ['High', 'High']);
+    assert.deepEqual(review.blocking.map((f) => f.title), ['Badge parser', 'Lock can be skipped']);
+    assert.equal(review.low.length, 0);
+  }
+});
+
+test('fixRoundText: the agent gets the High and Medium findings and never a Low one', () => {
+  const review = reviewOf(
+    [qodo(groupedReview([['Medium', [['Lock can be skipped', '<code>🐞 Bug</code>']]], ['Low', [['Comment says 3 rounds', '<code>📘 Rule violation</code>']]]]))],
+    SHA_A,
+  );
+  const text = fixRoundText(review);
+  assert.match(text, /^## 1\. Lock can be skipped \(Medium, 🐞 Bug\)/);
+  assert.doesNotMatch(text, /Comment says 3 rounds/);
+});
+
+test('readyComment: the agent-review comment names the checks and lists the open Low findings', () => {
+  const review = reviewOf([qodo(groupedReview([['Low', [['Comment says 3 rounds', '<code>📘 Rule violation</code>']]]]))], SHA_A);
+  const text = readyComment({ pr: 26, head: SHA_A, found: 2, round: 1, low: review.low });
+  const [ready, low] = text.split('\n\n');
+  assert.equal(
+    ready,
+    `Pull request #26 is ready for you. \`npm test\`, \`npm run check\` and CI pass on ${SHA_A.slice(0, 7)}. Qodo raised 2 High or Medium findings and none are open. Fix rounds used: 1 of ${LIMITS.fixRounds}. It is not merged.`,
+  );
+  assert.equal(low, 'Low findings for you. The agent left this code as it is:');
+  assert.match(text, /\n- 1\. Comment says 3 rounds \(Low, 📘 Rule violation\)\. File: not named in the review$/);
+  const clean = readyComment({ pr: 26, head: SHA_A, found: 0, round: 0, low: [] });
+  assert.match(clean, /Qodo had no High or Medium findings\. Fix rounds used: 0 of \d+\. It is not merged\.$/);
+});
+
+test('the fix prompt and AGENTS.md name the same quality gate', async () => {
+  const fix = await readFile(new URL('../factory/prompts/fix.md', import.meta.url), 'utf8');
+  const agents = await readFile(new URL('../AGENTS.md', import.meta.url), 'utf8');
+  assert.match(fix, /quality gate in `AGENTS\.md`/);
+  assert.match(agents, /^## Quality gate$/m);
+  const gate = agents.slice(agents.indexOf('## Quality gate'));
+  for (const word of ['High', 'Medium', 'Low']) assert.match(gate, new RegExp(`\\b${word}\\b`));
+});
+
 test('ciState: pending until each check run finished', () => {
   const done = (conclusion) => ({ status: 'completed', conclusion });
   assert.equal(ciState([]), 'pending');
@@ -453,7 +649,7 @@ test('ciState: pending until each check run finished', () => {
 });
 
 test('nextStep: waits for CI and the review, then stops after 15 minutes', () => {
-  const clean = { open: [] };
+  const clean = { blocking: [] };
   assert.deepEqual(nextStep({ ci: 'pending', review: null, round: 0, waitedMs: 0 }), { step: 'wait' });
   assert.deepEqual(nextStep({ ci: 'passed', review: null, round: 0, waitedMs: 60000 }), { step: 'wait' });
   assert.deepEqual(nextStep({ ci: 'pending', review: clean, round: 0, waitedMs: 60000 }), { step: 'wait' });
@@ -464,21 +660,21 @@ test('nextStep: waits for CI and the review, then stops after 15 minutes', () =>
 });
 
 test('nextStep: failed CI stops the run, a clean review ends it', () => {
-  assert.equal(nextStep({ ci: 'failed', review: { open: [] }, round: 0, waitedMs: 0 }).step, 'help');
+  assert.equal(nextStep({ ci: 'failed', review: { blocking: [] }, round: 0, waitedMs: 0 }).step, 'help');
   assert.equal(nextStep({ ci: 'failed', review: null, round: 0, waitedMs: 0 }).step, 'help');
-  assert.deepEqual(nextStep({ ci: 'passed', review: { open: [] }, round: 0, waitedMs: 0 }), { step: 'review' });
-  assert.deepEqual(nextStep({ ci: 'passed', review: { open: [] }, round: 2, waitedMs: 0 }), { step: 'review' });
+  assert.deepEqual(nextStep({ ci: 'passed', review: { blocking: [] }, round: 0, waitedMs: 0 }), { step: 'review' });
+  assert.deepEqual(nextStep({ ci: 'passed', review: { blocking: [] }, round: 2, waitedMs: 0 }), { step: 'review' });
 });
 
-test('nextStep: the agent gets 2 fix rounds for open findings', () => {
-  const one = { open: [{}] };
+test('nextStep: the agent gets 2 fix rounds for open High and Medium findings', () => {
+  const one = { blocking: [{}] };
   assert.equal(LIMITS.fixRounds, 2);
   assert.deepEqual(nextStep({ ci: 'passed', review: one, round: 0, waitedMs: 0 }), { step: 'fix' });
   assert.deepEqual(nextStep({ ci: 'passed', review: one, round: 1, waitedMs: 0 }), { step: 'fix' });
   const stopped = nextStep({ ci: 'passed', review: one, round: 2, waitedMs: 0 });
   assert.equal(stopped.step, 'help');
-  assert.equal(stopped.reason, '1 Qodo finding is still open after 2 fix rounds.');
-  assert.match(nextStep({ ci: 'passed', review: { open: [{}, {}] }, round: 2, waitedMs: 0 }).reason, /^2 Qodo findings are/);
+  assert.equal(stopped.reason, '1 High or Medium Qodo finding is still open after 2 fix rounds.');
+  assert.match(nextStep({ ci: 'passed', review: { blocking: [{}, {}] }, round: 2, waitedMs: 0 }).reason, /^2 High or Medium Qodo findings are/);
 });
 
 test('fillPrompt: fills each place and refuses a name it has no value for', () => {
@@ -490,7 +686,7 @@ test('fillPrompt: fills each place and refuses a name it has no value for', () =
 test('findingsText: what the agent reads in a fix round', () => {
   const { findings } = parseQodoReview(reviewBody({ open: ['A bug', 'Another bug'] }));
   const text = findingsText(findings);
-  assert.match(text, /^## 1\. A bug \(🐞 Bug\)\n\npickStyle reads/);
+  assert.match(text, /^## 1\. A bug \(Medium, 🐞 Bug\)\n\npickStyle reads/);
   assert.match(text, /## 2\. Another bug/);
   assert.match(text, /Qodo's suggested prompt:\n\n## Issue description\nFix Another bug\./);
   assert.equal(findingsText([{ number: 1, title: 'Bare', kind: '', description: '', prompt: '' }]), '## 1. Bare');

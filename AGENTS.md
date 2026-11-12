@@ -33,7 +33,7 @@ To check one style, pass its manifest: `node bin/render-check.js path/to/manifes
 ## How to work here
 
 - One branch and one pull request per change. Nobody pushes to `main`.
-- Qodo reviews each pull request. Answer each finding on the pull request with the commit that fixes it or with what you did about it.
+- Qodo reviews each pull request. Answer each finding on the pull request with the commit that fixes it or with what you did about it. The quality gate at the end of this file says which findings you fix and when a task is done.
 - I merge. An agent never merges its own pull request.
 - A ticket with the `ready-for-agent` label is started by the factory runner on my Mac. [docs/factory.md](docs/factory.md) has the labels and the limits. The runner pushes the branch and opens the pull request, so an agent it starts commits and stops there. Leave `factory/` and `.github/` alone in such a run.
 - The one dependency is `pngjs`. Ask in the pull request before you add another.
@@ -83,3 +83,24 @@ A pull request corrects each sentence in AGENTS.md, README.md, `docs/` or a code
 
 - **Where:** `AGENTS.md`, `README.md`, `docs/`, the comments in code and the pull request description.
 - **Why:** A sentence that is no longer true sends the next agent or reviewer the wrong way. Qodo's review of [pull request #5](https://github.com/CamDuncalfe/agent-pfp/pull/5#issuecomment-6804310388) found that the page had started to load `styles/index.json` while rule 4 still said the manifest and its layers were the only requests allowed. Its review of [pull request #1](https://github.com/CamDuncalfe/agent-pfp/pull/1#issuecomment-6799376654) found a comment in `src/composite.js` that said the page and the check use identical pixels.
+
+## Quality gate
+
+Qodo puts each finding in a severity group, High, Medium or Low, and gives it a type: Bug, Rule violation or Requirement gap. This is what you do with them, on a pull request and on a local review of uncommitted code.
+
+Qodo's review comment on a pull request lists each finding under its group. Its command line and its skills give the same severity as `action_level`: `action_required` is High, `remediation_recommended` is Medium and `informational` is Low.
+
+- Fix each valid High and Medium finding, whatever its type. Check it against the code and the ticket first. When the problem is real in this change, fix it, with a test when the fix changes what the code does.
+- Leave the code of a Low finding as it is, Low Rule violations included. List each Low finding for me with its title, type and file.
+- A finding you think is wrong stays open. Write your evidence next to it: the file and line, and the test or command that shows it. I decide.
+- A finding whose severity you can't read counts as High. When you can't tell its type or whether the ticket covers it, ask me in your report.
+
+A task is done when all three are true:
+
+1. `npm test` and `npm run check` pass on the newest commit. On a pull request, CI passes too.
+2. The newest Qodo review is complete and covers the newest code. Locally, that is a review you ran after your last change. On a pull request, the commit Qodo's review comment names is the head of the branch.
+3. No High or Medium finding is open.
+
+When one of them isn't true, the task is not done. Your report says which one, lists the findings still open and says what you need from me. You get two fix rounds. If a High or Medium finding is still open after the second, stop and report.
+
+The factory runner follows this gate. It sends the agent the High and Medium findings, never starts a fix round for a Low one, and lists the open Low findings in its last comment on the ticket.
