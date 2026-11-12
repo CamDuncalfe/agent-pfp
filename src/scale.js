@@ -1,6 +1,7 @@
 /**
  * Scaling a finished picture down. Download uses it to make a smaller file
- * from the picture compositeLayers drew at canvas size. It is never used on
+ * from the picture compositeLayers drew at canvas size, and the round
+ * preview uses it on the middle square of that picture. It is never used on
  * a layer: layers are drawn at full size (AGENTS.md rule 1).
  *
  * This module has no Node or browser dependencies.

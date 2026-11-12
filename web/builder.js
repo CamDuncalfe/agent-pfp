@@ -14,6 +14,7 @@ import {
 } from '../src/locks.js';
 import { compositeLayers } from '../src/composite.js';
 import { pictureToSave, planDownload, sizePicker } from '../src/download.js';
+import { roundPreviewPicture, roundPreviewSide } from '../src/round-preview.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
 
 import {
@@ -38,6 +39,7 @@ const randomizeEl = document.querySelector('#randomize');
 const downloadEl = document.querySelector('#download');
 const sizeEl = document.querySelector('#size');
 const previewEl = document.querySelector('#preview');
+const roundPreviewEl = document.querySelector('#round-preview');
 
 /**
  * The style on screen: its manifest and the function that redraws it. It is
@@ -62,6 +64,29 @@ function setFinished(picture) {
   finished = picture;
   downloadEl.disabled = picture === null;
   sizeEl.disabled = picture === null;
+}
+
+/** Put a picture's pixels on a canvas of the picture's size. */
+function putPicture(canvasEl, picture) {
+  canvasEl.getContext('2d').putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+}
+
+/**
+ * Show a finished picture in both previews. The round one gets the middle
+ * square of the same picture, scaled down when it is big. No layer is drawn
+ * for it.
+ * @param {import('../src/composite.js').Raster} picture
+ */
+function showPicture(picture) {
+  putPicture(previewEl, picture);
+  putPicture(roundPreviewEl, roundPreviewPicture(picture));
+}
+
+/** Empty both previews. */
+function clearPreviews() {
+  for (const canvasEl of [previewEl, roundPreviewEl]) {
+    canvasEl.getContext('2d').clearRect(0, 0, canvasEl.width, canvasEl.height);
+  }
 }
 
 function setStatus(message, isError = false) {
@@ -241,7 +266,7 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
       if (ticket !== latest || !isOnScreen()) return;
       const { width, height } = manifest.canvas;
       const picture = compositeLayers(width, height, rasters);
-      previewEl.getContext('2d').putImageData(new ImageData(picture.data, width, height), 0, 0);
+      showPicture(picture);
       setFinished(picture);
       setStatus('');
     } catch (error) {
@@ -276,7 +301,7 @@ function canvasToSave(plan) {
   const canvas = document.createElement('canvas');
   canvas.width = picture.width;
   canvas.height = picture.height;
-  canvas.getContext('2d').putImageData(new ImageData(picture.data, picture.width, picture.height), 0, 0);
+  putPicture(canvas, picture);
   return canvas;
 }
 
@@ -309,7 +334,7 @@ function clearStyle() {
   setFinished(null);
   controlsEl.replaceChildren();
   selectionEl.replaceChildren();
-  previewEl.getContext('2d').clearRect(0, 0, previewEl.width, previewEl.height);
+  clearPreviews();
 }
 
 function showStyleInAddress(id) {
@@ -339,6 +364,10 @@ function createSwitcher() {
       previewEl.width = manifest.canvas.width;
       previewEl.height = manifest.canvas.height;
       previewEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
+      // The round canvas is the size of the picture roundPreviewPicture gives. CSS sets its size on screen.
+      const side = roundPreviewSide(manifest.canvas);
+      roundPreviewEl.width = side;
+      roundPreviewEl.height = side;
       buildControls(manifest);
       buildSizePicker(manifest);
       const render = createRenderer(manifest, url, isOnScreen);

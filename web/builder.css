@@ -24,8 +24,12 @@ body {
   background: var(--paper);
 }
 
+/*
+ * Wide enough for both columns at their widest: 24 px of padding, 432 px,
+ * the 32 px gap, 320 px and 24 px of padding.
+ */
 main {
-  max-width: 720px;
+  max-width: 832px;
   margin: 0 auto;
   padding: 40px 24px 64px;
 }
@@ -65,9 +69,14 @@ h2 {
   color: #a4262c;
 }
 
+/*
+ * The left column holds the big preview, the 16 px gap and the round preview
+ * side by side when it is 432 px wide (320 + 16 + 96). The right column holds
+ * the pickers and is 320 px wide at most.
+ */
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 432px) minmax(0, 320px);
   gap: 32px;
   align-items: start;
 }
@@ -144,10 +153,24 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
+/*
+ * The two previews side by side when the column has room for both. When it
+ * doesn't, the round one wraps to the line under the big one, on the left.
+ */
+.previews {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+
 #preview {
   display: block;
+  flex: none;
+  /* 320 px wide, or the width of the column when the column is narrower. */
+  width: 320px;
+  max-width: 100%;
   /* No fixed aspect ratio: the canvas takes its shape from the manifest's canvas size. */
-  width: 100%;
   height: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -159,11 +182,28 @@ button:focus-visible {
 }
 
 /*
+ * The picture the way GitHub shows it: small and in a circle. Its canvas
+ * holds the middle square of the picture, 192 px a side at most, so one
+ * width and one height fit each style. src/round-preview.js has the same
+ * 96. The ring is a shadow, so it takes nothing from the 96 px.
+ */
+#round-preview {
+  display: block;
+  flex: none;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/*
  * One column, so each control under the preview has a line of its own at
- * each window width: Randomize, then the Size picker, then Download.
+ * each window width: Randomize, then the Size picker, then Download. They
+ * are as wide as the big preview at most, so they line up with it.
  */
 .actions {
   display: grid;
+  max-width: 320px;
   grid-template-columns: minmax(0, 1fr);
   justify-items: start;
   gap: 8px;
