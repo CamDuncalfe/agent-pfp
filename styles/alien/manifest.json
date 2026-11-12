@@ -1,0 +1,372 @@
+{
+  "version": 1,
+  "style": "alien",
+  "name": "Alien",
+  "canvas": {
+    "width": 1024,
+    "height": 1024,
+    "opaque": true
+  },
+  "groups": [
+    {
+      "id": "background",
+      "label": "Background",
+      "base": true,
+      "bleed": [
+        "top",
+        "right",
+        "bottom",
+        "left"
+      ],
+      "options": [
+        {
+          "id": "yellow",
+          "label": "Yellow",
+          "src": "layers/background/yellow.png"
+        },
+        {
+          "id": "butter",
+          "label": "Butter",
+          "src": "layers/background/butter.png"
+        },
+        {
+          "id": "peach",
+          "label": "Peach",
+          "src": "layers/background/peach.png"
+        },
+        {
+          "id": "cream",
+          "label": "Cream",
+          "src": "layers/background/cream.png"
+        },
+        {
+          "id": "pink",
+          "label": "Pink",
+          "src": "layers/background/pink.png"
+        },
+        {
+          "id": "tomato",
+          "label": "Tomato",
+          "src": "layers/background/tomato.png"
+        },
+        {
+          "id": "lilac",
+          "label": "Lilac",
+          "src": "layers/background/lilac.png"
+        },
+        {
+          "id": "sky",
+          "label": "Sky",
+          "src": "layers/background/sky.png"
+        },
+        {
+          "id": "mint",
+          "label": "Mint",
+          "src": "layers/background/mint.png"
+        },
+        {
+          "id": "sage",
+          "label": "Sage",
+          "src": "layers/background/sage.png"
+        }
+      ]
+    },
+    {
+      "id": "character",
+      "label": "Character",
+      "base": true,
+      "bleed": [
+        "bottom"
+      ],
+      "options": [
+        {
+          "id": "alien",
+          "label": "Alien",
+          "src": "layers/character/alien.png"
+        }
+      ]
+    },
+    {
+      "id": "clothes",
+      "label": "Clothes",
+      "bleed": [
+        "bottom",
+        "left",
+        "right"
+      ],
+      "zone": {
+        "x": 3,
+        "y": 759,
+        "width": 1018,
+        "height": 265
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "White tee",
+          "src": "layers/clothes/default.png"
+        },
+        {
+          "id": "hoodie",
+          "label": "Hoodie",
+          "src": "layers/clothes/hoodie.png"
+        },
+        {
+          "id": "hawaiian-shirt",
+          "label": "Hawaiian shirt",
+          "src": "layers/clothes/hawaiian-shirt.png"
+        },
+        {
+          "id": "suit",
+          "label": "Suit",
+          "src": "layers/clothes/suit.png"
+        },
+        {
+          "id": "varsity-jacket",
+          "label": "Varsity jacket",
+          "src": "layers/clothes/varsity-jacket.png"
+        },
+        {
+          "id": "turtleneck",
+          "label": "Turtleneck",
+          "src": "layers/clothes/turtleneck.png"
+        },
+        {
+          "id": "denim-jacket",
+          "label": "Denim jacket",
+          "src": "layers/clothes/denim-jacket.png"
+        },
+        {
+          "id": "striped-tee",
+          "label": "Striped tee",
+          "src": "layers/clothes/striped-tee.png"
+        },
+        {
+          "id": "space-suit",
+          "label": "Space suit",
+          "src": "layers/clothes/space-suit.png"
+        }
+      ]
+    },
+    {
+      "id": "mouth",
+      "label": "Mouth",
+      "zone": {
+        "x": 536,
+        "y": 604,
+        "width": 284,
+        "height": 130
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "Flat",
+          "src": "layers/mouth/default.png"
+        },
+        {
+          "id": "smirk",
+          "label": "Smirk",
+          "src": "layers/mouth/smirk.png"
+        },
+        {
+          "id": "grin",
+          "label": "Grin",
+          "src": "layers/mouth/grin.png"
+        },
+        {
+          "id": "tongue-out",
+          "label": "Tongue out",
+          "src": "layers/mouth/tongue-out.png"
+        },
+        {
+          "id": "laugh",
+          "label": "Laugh",
+          "src": "layers/mouth/laugh.png"
+        },
+        {
+          "id": "surprised",
+          "label": "Surprised",
+          "src": "layers/mouth/surprised.png"
+        },
+        {
+          "id": "fangs",
+          "label": "Fangs",
+          "src": "layers/mouth/fangs.png"
+        },
+        {
+          "id": "frown",
+          "label": "Frown",
+          "src": "layers/mouth/frown.png"
+        },
+        {
+          "id": "buck-teeth",
+          "label": "Buck teeth",
+          "src": "layers/mouth/buck-teeth.png"
+        },
+        {
+          "id": "toothpick",
+          "label": "Toothpick",
+          "src": "layers/mouth/toothpick.png"
+        }
+      ]
+    },
+    {
+      "id": "eyes",
+      "label": "Eyes",
+      "zone": {
+        "x": 416,
+        "y": 416,
+        "width": 383,
+        "height": 130
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "Almond",
+          "src": "layers/eyes/default.png"
+        },
+        {
+          "id": "sleepy",
+          "label": "Sleepy",
+          "src": "layers/eyes/sleepy.png"
+        },
+        {
+          "id": "wide",
+          "label": "Wide",
+          "src": "layers/eyes/wide.png"
+        },
+        {
+          "id": "closed",
+          "label": "Closed",
+          "src": "layers/eyes/closed.png"
+        },
+        {
+          "id": "angry",
+          "label": "Angry",
+          "src": "layers/eyes/angry.png"
+        },
+        {
+          "id": "wink",
+          "label": "Wink",
+          "src": "layers/eyes/wink.png"
+        },
+        {
+          "id": "hearts",
+          "label": "Hearts",
+          "src": "layers/eyes/hearts.png"
+        },
+        {
+          "id": "spiral",
+          "label": "Spiral",
+          "src": "layers/eyes/spiral.png"
+        },
+        {
+          "id": "side-eye",
+          "label": "Side-eye",
+          "src": "layers/eyes/side-eye.png"
+        },
+        {
+          "id": "red-eyes",
+          "label": "Red eyes",
+          "src": "layers/eyes/red-eyes.png"
+        }
+      ]
+    },
+    {
+      "id": "eyewear",
+      "label": "Eyewear",
+      "optional": true,
+      "over": [
+        "eyes"
+      ],
+      "options": [
+        {
+          "id": "wayfarers",
+          "label": "Wayfarers",
+          "src": "layers/eyewear/wayfarers.png"
+        },
+        {
+          "id": "round-shades",
+          "label": "Round shades",
+          "src": "layers/eyewear/round-shades.png"
+        },
+        {
+          "id": "clear-glasses",
+          "label": "Clear glasses",
+          "src": "layers/eyewear/clear-glasses.png"
+        },
+        {
+          "id": "heart-shades",
+          "label": "Heart shades",
+          "src": "layers/eyewear/heart-shades.png"
+        },
+        {
+          "id": "x-3d-glasses",
+          "label": "3D glasses",
+          "src": "layers/eyewear/3d-glasses.png"
+        },
+        {
+          "id": "visor",
+          "label": "Visor",
+          "src": "layers/eyewear/visor.png"
+        },
+        {
+          "id": "aviators",
+          "label": "Aviators",
+          "src": "layers/eyewear/aviators.png"
+        }
+      ]
+    },
+    {
+      "id": "headwear",
+      "label": "Headwear",
+      "optional": true,
+      "over": [
+        "eyes",
+        "eyewear"
+      ],
+      "options": [
+        {
+          "id": "cap",
+          "label": "Cap",
+          "src": "layers/headwear/cap.png"
+        },
+        {
+          "id": "beanie",
+          "label": "Beanie",
+          "src": "layers/headwear/beanie.png"
+        },
+        {
+          "id": "cowboy-hat",
+          "label": "Cowboy hat",
+          "src": "layers/headwear/cowboy-hat.png"
+        },
+        {
+          "id": "tinfoil-hat",
+          "label": "Tinfoil hat",
+          "src": "layers/headwear/tinfoil-hat.png"
+        },
+        {
+          "id": "propeller-cap",
+          "label": "Propeller cap",
+          "src": "layers/headwear/propeller-cap.png"
+        },
+        {
+          "id": "party-hat",
+          "label": "Party hat",
+          "src": "layers/headwear/party-hat.png"
+        },
+        {
+          "id": "crown",
+          "label": "Crown",
+          "src": "layers/headwear/crown.png"
+        },
+        {
+          "id": "sweatband",
+          "label": "Sweatband",
+          "src": "layers/headwear/sweatband.png"
+        }
+      ]
+    }
+  ]
+}
