@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, lstat, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,18 @@ async function makeRoot() {
   await writeFile(join(root, 'styles', 'notes.txt'), 'x');
   await writeFile(join(root, 'fixtures', 'shapes', 'layers', 'unused.png'), 'x');
   return root;
+}
+
+const outsideDirs = [];
+test.after(() => Promise.all(outsideDirs.map((dir) => rm(dir, { recursive: true, force: true }))));
+
+/** A file outside the given root, which a site must never hold. */
+async function outsideFile() {
+  const dir = await mkdtemp(join(tmpdir(), 'agent-pfp-outside-'));
+  outsideDirs.push(dir);
+  const path = join(dir, 'secret.txt');
+  await writeFile(path, 'not for the site');
+  return path;
 }
 
 async function writeJson(path, value) {
@@ -134,6 +146,27 @@ test('the build of this repository holds each file the builder asks for', async 
     assert.ok(files.has('fixtures/blocks/manifest.json'));
   } finally {
     await rm(out, { recursive: true, force: true });
+  }
+});
+
+test('a layer that is a symlink to another file in the repository is copied as that file', async () => {
+  const root = await makeRoot();
+  try {
+    const manifest = JSON.parse(await readFile(join(root, 'fixtures', 'blocks', 'manifest.json'), 'utf8'));
+    const [first, second] = manifest.groups[0].options.map((option) => option.src);
+    const layer = join(root, 'fixtures', 'blocks', ...first.split('/'));
+    await rm(layer);
+    await symlink(join(root, 'fixtures', 'blocks', ...second.split('/')), layer);
+    const { code, stderr } = await runBuild(root);
+    assert.equal(code, 0, stderr);
+    const copied = await lstat(join(root, '_site', 'fixtures', 'blocks', ...first.split('/')));
+    assert.ok(copied.isFile(), 'the site holds a file, not a symlink');
+    assert.deepEqual(
+      await readFile(join(root, '_site', 'fixtures', 'blocks', ...first.split('/'))),
+      await readFile(join(root, 'fixtures', 'blocks', ...second.split('/'))),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 
@@ -239,7 +272,7 @@ test('the build says what is wrong and exits 1 when the index, a manifest or a f
     {
       name: 'an index that is missing',
       change: (root) => rm(join(root, 'styles', 'index.json')),
-      says: /Could not read the style index/,
+      says: /the style index .*index\.json is missing/,
     },
     {
       name: 'a manifest path that leaves the site',
@@ -253,7 +286,7 @@ test('the build says what is wrong and exits 1 when the index, a manifest or a f
     {
       name: 'a manifest that is missing',
       change: (root) => rm(join(root, 'fixtures', 'blocks', 'manifest.json')),
-      says: /Could not read the manifest .*blocks.manifest\.json/,
+      says: /the manifest .*blocks.manifest\.json is missing/,
     },
     {
       name: 'a manifest that is not valid',
@@ -294,6 +327,63 @@ test('the build says what is wrong and exits 1 when the index, a manifest or a f
         await writeJson(path, manifest);
       },
       says: /is not a file/,
+    },
+    {
+      name: 'a layer that is a symlink to a file outside the repository',
+      change: async (root) => {
+        const manifest = JSON.parse(await readFile(join(root, 'fixtures', 'blocks', 'manifest.json'), 'utf8'));
+        const layer = join(root, 'fixtures', 'blocks', ...manifest.groups[0].options[0].src.split('/'));
+        await rm(layer);
+        await symlink(await outsideFile(root), layer);
+      },
+      says: /layer ".*" .* leads to .*secret\.txt, which is outside/,
+    },
+    {
+      name: 'a manifest in a folder that is a symlink out of the repository',
+      change: async (root) => {
+        const outside = await mkdtemp(join(tmpdir(), 'agent-pfp-outside-'));
+        outsideDirs.push(outside);
+        await cp(join(root, 'fixtures', 'blocks'), outside, { recursive: true });
+        await rm(join(root, 'fixtures', 'blocks'), { recursive: true });
+        await symlink(outside, join(root, 'fixtures', 'blocks'));
+      },
+      says: /the manifest .*blocks.manifest\.json leads to .*, which is outside/,
+    },
+    {
+      name: 'an index that is a symlink to a file outside the repository',
+      change: async (root) => {
+        const outside = await outsideFile(root);
+        await writeFile(outside, await readFile(join(root, 'styles', 'index.json')));
+        await rm(join(root, 'styles', 'index.json'));
+        await symlink(outside, join(root, 'styles', 'index.json'));
+      },
+      says: /the style index .* leads to .*secret\.txt, which is outside/,
+    },
+    {
+      name: 'a symlink inside web/',
+      change: async (root) => symlink(await outsideFile(root), join(root, 'web', 'secret.txt')),
+      says: /web.secret\.txt is a symlink/,
+    },
+    {
+      name: 'a missing src/ folder, after web/ would have been copied',
+      change: (root) => rm(join(root, 'src'), { recursive: true }),
+      says: /src is missing/,
+    },
+    {
+      name: 'a layer at index.html, where the build writes its own page',
+      change: async (root) => {
+        const manifest = JSON.parse(await readFile(join(root, 'fixtures', 'shapes', 'manifest.json'), 'utf8'));
+        for (const group of manifest.groups) {
+          for (const option of group.options) option.src = `fixtures/shapes/${option.src}`;
+        }
+        manifest.groups[0].options[0].src = 'index.html';
+        await writeJson(join(root, 'manifest.json'), manifest);
+        await writeFile(join(root, 'index.html'), 'a layer');
+        const index = JSON.parse(await readFile(join(root, 'styles', 'index.json'), 'utf8'));
+        index.styles[0].manifest = 'manifest.json';
+        await writeJson(join(root, 'styles', 'index.json'), index);
+      },
+      says: /manifest\.json: layer ".*" is index\.html, which the build writes itself/,
     },
   ];
   for (const { name, change, says } of cases) {

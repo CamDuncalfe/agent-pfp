@@ -12,8 +12,8 @@
  * Exit code 0: the site is written. 1: the index, a manifest or a file it
  * names is wrong, and nothing but an empty _site/ is left.
  */
-import { copyFile, cp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { copyFile, cp, lstat, mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { resolveLayerUrl, validateManifest } from '../src/manifest.js';
@@ -23,6 +23,8 @@ export const SITE_DIR = '_site';
 export const STYLE_INDEX = 'styles/index.json';
 /** Folders copied whole, without their dotfiles. */
 export const CODE_DIRS = Object.freeze(['web', 'src']);
+/** Files the build writes itself. No style file may take their place. */
+export const GENERATED_FILES = Object.freeze(['index.html']);
 
 /** The page at the site's address. Relative links, so it works from a sub-path. */
 export const REDIRECT_PAGE = `<!doctype html>
@@ -55,7 +57,18 @@ async function readJson(path, what) {
   }
 }
 
-async function requireFile(path, what) {
+function isInside(root, path) {
+  const rel = relative(root, path);
+  return rel !== '' && !isAbsolute(rel) && !rel.split(sep).includes('..');
+}
+
+/**
+ * Check that a file exists, is a file, and is inside the root once each
+ * symlink on its way is followed, so the site never takes in a file from
+ * outside the repository.
+ * @param {string} realRoot the root with its own symlinks followed
+ */
+async function requireFile(realRoot, path, what) {
   let info;
   try {
     info = await stat(path);
@@ -63,15 +76,17 @@ async function requireFile(path, what) {
     throw new SiteError(`${what} ${path} is missing`);
   }
   if (!info.isFile()) throw new SiteError(`${what} ${path} is not a file`);
+  const real = await realpath(path);
+  if (!isInside(realRoot, real)) {
+    throw new SiteError(`${what} ${path} leads to ${real}, which is outside ${realRoot}`);
+  }
 }
 
 /** The path of a file URL relative to the root, with forward slashes. */
 function insideRoot(root, url) {
-  const path = relative(root, fileURLToPath(url));
-  if (path === '' || path.startsWith('..') || path.split(sep).includes('..')) {
-    throw new SiteError(`${fileURLToPath(url)} is outside ${root}`);
-  }
-  return path.split(sep).join('/');
+  const path = fileURLToPath(url);
+  if (!isInside(root, path)) throw new SiteError(`${path} is outside ${root}`);
+  return relative(root, path).split(sep).join('/');
 }
 
 /**
@@ -83,7 +98,9 @@ function insideRoot(root, url) {
  * @returns {Promise<string[]>}
  */
 export async function collectStyleFiles(root) {
+  const realRoot = await realpath(root);
   const indexPath = join(root, ...STYLE_INDEX.split('/'));
+  await requireFile(realRoot, indexPath, 'the style index');
   const index = await readJson(indexPath, 'the style index');
   const indexResult = validateStyleIndex(index);
   if (!indexResult.ok) {
@@ -100,6 +117,7 @@ export async function collectStyleFiles(root) {
       throw new SiteError(`${indexPath}: ${error.message}`);
     }
     const manifestPath = fileURLToPath(manifestUrl);
+    await requireFile(realRoot, manifestPath, 'the manifest');
     const manifest = await readJson(manifestPath, 'the manifest');
     const result = validateManifest(manifest);
     if (!result.ok) throw new SiteError(`${manifestPath} is not a valid manifest: ${result.errors.join('; ')}`);
@@ -115,8 +133,13 @@ export async function collectStyleFiles(root) {
         } catch (error) {
           throw new SiteError(`${manifestPath}: ${error.message}`);
         }
-        await requireFile(fileURLToPath(layerUrl), `layer "${group.id}/${option.id}"`);
-        files.add(insideRoot(root, layerUrl));
+        const what = `layer "${group.id}/${option.id}"`;
+        await requireFile(realRoot, fileURLToPath(layerUrl), what);
+        const file = insideRoot(root, layerUrl);
+        if (GENERATED_FILES.includes(file)) {
+          throw new SiteError(`${manifestPath}: ${what} is ${file}, which the build writes itself`);
+        }
+        files.add(file);
       }
     }
   }
@@ -133,20 +156,43 @@ export async function buildSite({ root, out = join(root, SITE_DIR) }) {
   await mkdir(out, { recursive: true });
 
   const styleFiles = await collectStyleFiles(root);
-  for (const dir of CODE_DIRS) {
-    const from = join(root, dir);
-    await cp(from, join(out, dir), {
-      recursive: true,
-      filter: (source) => !relative(from, source).split(sep).some((part) => part.startsWith('.')),
-    });
+  try {
+    for (const dir of CODE_DIRS) await copyCodeDir(root, dir, out);
+    for (const file of styleFiles) {
+      const target = join(out, ...file.split('/'));
+      await mkdir(dirname(target), { recursive: true });
+      await copyFile(join(root, ...file.split('/')), target);
+    }
+    await writeFile(join(out, 'index.html'), REDIRECT_PAGE);
+  } catch (error) {
+    // A failed build leaves an empty _site/, never part of a site.
+    await rm(out, { recursive: true, force: true });
+    await mkdir(out, { recursive: true });
+    if (error instanceof SiteError) throw error;
+    throw new SiteError(`Could not write the site: ${error.message}`);
   }
-  for (const file of styleFiles) {
-    const target = join(out, ...file.split('/'));
-    await mkdir(dirname(target), { recursive: true });
-    await copyFile(join(root, ...file.split('/')), target);
-  }
-  await writeFile(join(out, 'index.html'), REDIRECT_PAGE);
   return styleFiles;
+}
+
+/**
+ * Copy web/ or src/ without its dotfiles. A symlink is refused, because the
+ * file it points to could be outside the repository.
+ */
+async function copyCodeDir(root, dir, out) {
+  const from = join(root, dir);
+  const info = await lstat(from).catch(() => null);
+  if (!info) throw new SiteError(`${from} is missing`);
+  if (!info.isDirectory()) throw new SiteError(`${from} is not a folder`);
+  await cp(from, join(out, dir), {
+    recursive: true,
+    filter: async (source) => {
+      if (relative(from, source).split(sep).some((part) => part.startsWith('.'))) return false;
+      if ((await lstat(source)).isSymbolicLink()) {
+        throw new SiteError(`${source} is a symlink, and the site takes none from ${dir}/`);
+      }
+      return true;
+    },
+  });
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

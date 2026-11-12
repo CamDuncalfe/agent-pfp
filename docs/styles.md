@@ -43,7 +43,7 @@ It exits with 0 when each style passes, 1 when a check found issues and 2 when i
 
 ## The static site
 
-`npm run build:site` runs `bin/build-site.js`, which writes the builder to `_site/` for GitHub Pages. It copies `web/`, `src/`, the index, each manifest the index lists and each layer those manifests name, and nothing else. It finds the manifests and layers with `resolveManifestUrl` and `resolveLayerUrl`, the rule the builder page uses. When the index or a manifest isn't valid, or a file it names is missing, it says what is wrong and exits with 1.
+`npm run build:site` runs `bin/build-site.js`, which writes the builder to `_site/` for GitHub Pages. It copies `web/`, `src/`, the index, each manifest the index lists and each layer those manifests name, and nothing else. It finds the manifests and layers with `resolveManifestUrl` and `resolveLayerUrl`, the rule the builder page uses. When the index or a manifest isn't valid, or a file it names is missing, it says what is wrong and exits with 1. It also exits with 1 when one of these files is a symlink that leads outside the repository, when `web/` or `src/` holds a symlink, or when a layer is at `index.html`, the page the build writes itself. A failed build leaves `_site/` empty.
 
 ## Styles kept outside the repository
 
