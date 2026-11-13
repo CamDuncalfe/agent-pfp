@@ -9,6 +9,7 @@ import {
   SWATCH_GROUP_ID,
   baseLayers,
   basePicture,
+  CHARACTER_TAB,
   COMING_SOON_TAG,
   characterKeyMove,
   characterTabOpens,
@@ -18,12 +19,15 @@ import {
   canReset,
   choiceLabel,
   defaultSelection,
+  focusAfterReset,
   resetState,
   swatchGroup,
+  tabAfterFailedStyle,
   tabAfterKey,
   tabGroups,
+  tabToOpen,
 } from '../src/builder-layout.js';
-import { randomizeUnlocked, startingLocks } from '../src/locks.js';
+import { canRandomize, randomizeUnlocked, startingLocks } from '../src/locks.js';
 import { resolveSelection } from '../src/manifest.js';
 import { NONE_LABEL, THUMBNAIL_MAX_SIDE, thumbnailPicture, traitTiles } from '../src/thumbnails.js';
 
@@ -274,4 +278,44 @@ test('Randomize and Reset work from the manifest of the style on screen, which n
       assert.ok(!comingIds.includes(choice), String(choice));
     }
   }
+});
+
+test('the tab that opens with a style is Character or the first trait tab, and Character when it is the only tab', () => {
+  assert.equal(CHARACTER_TAB, 0);
+  // The alien alone, with its five trait tabs: the first trait tab, the one after Character.
+  assert.equal(tabToOpen({ styleCount: 1, firstStyle: true, tabCount: 6 }), 1);
+  // More than one style to pick, or a switch from the Character tab: Character.
+  assert.equal(tabToOpen({ styleCount: 2, firstStyle: true, tabCount: 6 }), 0);
+  assert.equal(tabToOpen({ styleCount: 1, firstStyle: false, tabCount: 6 }), 0);
+  // A style with no trait tab has the Character tab alone, so it opens whatever characterTabOpens says.
+  assert.equal(tabToOpen({ styleCount: 1, firstStyle: true, tabCount: 1 }), 0);
+  assert.equal(tabToOpen({ styleCount: 4, firstStyle: false, tabCount: 1 }), 0);
+  // It agrees with characterTabOpens for each state with a trait tab.
+  for (const styleCount of [1, 2, 12]) {
+    for (const firstStyle of [true, false]) {
+      assert.equal(tabToOpen({ styleCount, firstStyle, tabCount: 2 }), characterTabOpens({ styleCount, firstStyle }) ? 0 : 1);
+    }
+  }
+});
+
+test('after a style that failed to load the Character tab opens, so another style can be picked', () => {
+  assert.equal(tabAfterFailedStyle(), CHARACTER_TAB);
+});
+
+test('the focus goes from Reset to Randomize when Reset turns itself off under it', () => {
+  // Reset had the focus and the reset turned it off: Randomize takes the focus.
+  assert.equal(focusAfterReset({ resetHadFocus: true, resetDisabled: true, randomizeDisabled: false }), 'randomize');
+  // The focus was somewhere else, so it stays there.
+  assert.equal(focusAfterReset({ resetHadFocus: false, resetDisabled: true, randomizeDisabled: false }), null);
+  // Reset is still on, so it keeps the focus.
+  assert.equal(focusAfterReset({ resetHadFocus: true, resetDisabled: false, randomizeDisabled: false }), null);
+  // A button that is off can't take the focus.
+  assert.equal(focusAfterReset({ resetHadFocus: true, resetDisabled: true, randomizeDisabled: true }), null);
+});
+
+test('after Reset on the alien, Reset is off and Randomize is on, so the focus has somewhere to go', async () => {
+  const manifest = await alien();
+  const { selection, locks } = resetState(manifest);
+  assert.equal(canReset(manifest, selection, locks), false);
+  assert.equal(canRandomize(manifest, locks), true);
 });

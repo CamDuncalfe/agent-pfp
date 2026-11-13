@@ -15,13 +15,15 @@ import {
   COMING_SOON_TAG,
   canReset,
   characterKeyMove,
-  characterTabOpens,
   characterTiles,
   choiceLabel,
+  focusAfterReset,
   resetState,
   swatchGroup,
+  tabAfterFailedStyle,
   tabAfterKey,
   tabGroups,
+  tabToOpen,
 } from '../src/builder-layout.js';
 import { NAME, pageTitle } from '../src/brand.js';
 import { compositeLayers } from '../src/composite.js';
@@ -724,10 +726,9 @@ function createSwitcher(styleCount) {
       previewEl.height = manifest.canvas.height;
       previewEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
       buildControls(manifest);
-      // The Character tab is the first tab. Which tab opens is characterTabOpens in src/builder-layout.js.
-      // styleCount is the styles that can be picked: a coming-soon tile is not one.
-      const characterOpens = characterTabOpens({ styleCount, firstStyle: !shownBefore });
-      openTab(characterOpens || tabsEl.children.length === 1 ? 0 : 1, false);
+      // Which tab opens is tabToOpen in src/builder-layout.js. styleCount is the styles that can be picked:
+      // a coming-soon tile is not one.
+      openTab(tabToOpen({ styleCount, firstStyle: !shownBefore, tabCount: tabsEl.children.length }), false);
       shownBefore = true;
       buildSizePicker(manifest);
       const render = createRenderer(manifest, url, isOnScreen);
@@ -736,6 +737,8 @@ function createSwitcher(styleCount) {
     },
     fail(entry, error) {
       clearStyle();
+      // The Character tab opens, so another style can be picked, with the keyboard too.
+      openTab(tabAfterFailedStyle(), false);
       setStatus(`Could not open ${entry.name}. ${reason(error)}`, true);
     },
   });
@@ -828,7 +831,11 @@ async function start() {
       const { selection, locks } = resetState(manifest);
       writeSelection(manifest, selection);
       writeLocks(manifest, locks);
+      const resetHadFocus = document.activeElement === resetEl;
+      // The render turns Reset off before it waits for a layer, so the buttons are read right after the call.
       current.render({ settle: true });
+      const target = focusAfterReset({ resetHadFocus, resetDisabled: resetEl.disabled, randomizeDisabled: randomizeEl.disabled });
+      if (target === 'randomize') randomizeEl.focus();
     });
     downloadEl.addEventListener('click', () => {
       if (current) download(current.manifest);

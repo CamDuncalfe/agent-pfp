@@ -214,7 +214,11 @@ test('the Character tab is the first tab, with one tile per style in the index, 
   assert.doesNotMatch(js, /tabsEl\.replaceChildren\(|panelsEl\.replaceChildren\(/);
   // Which tab opens comes from src/builder-layout.js.
   // It counts the styles, never the tiles, so eleven coming-soon tiles don't change which tab opens.
-  assert.match(js, /const characterOpens = characterTabOpens\(\{ styleCount, firstStyle: !shownBefore \}\);\n\s*openTab\(characterOpens \|\| tabsEl\.children\.length === 1 \? 0 : 1, false\);/);
+  // The page passes what it sees and opens the tab it gets back: it holds no tab position of its own.
+  assert.match(js, /openTab\(tabToOpen\(\{ styleCount, firstStyle: !shownBefore, tabCount: tabsEl\.children\.length \}\), false\);/);
+  assert.doesNotMatch(js, /characterTabOpens|\? 0 : 1/);
+  // A style that fails to load leaves the Character tab open, so its tiles can be reached to pick another.
+  assert.match(js, /fail\(entry, error\) \{\n\s*clearStyle\(\);\n[^\n]*\n\s*openTab\(tabAfterFailedStyle\(\), false\);/);
   assert.match(js, /const switcher = createSwitcher\(index\.styles\.length\);/);
   assert.doesNotMatch(js, /basesEl\.children\.length/);
   // A tile shows the picture the style opens with. The page asks the thumbnail worker for it after the
@@ -562,4 +566,13 @@ test('on a phone Reset wraps to its own line before the buttons overlap', async 
   assert.match(phone, /#download\s*\{\s*flex: 1 1 auto;/);
   // A button is never wider than its row.
   assert.equal(Object.fromEntries(declarations(css, '.button'))['max-width'], '100%');
+});
+
+test('Reset hands the focus to Randomize when it turns itself off, and the decision is focusAfterReset', async () => {
+  const js = await read('builder.js');
+  const reset = /resetEl\.addEventListener\('click', \(\) => \{([\s\S]*?)\n    \}\);/.exec(js)[1];
+  // Whether Reset has the focus is read before the render turns it off, and the buttons after.
+  assert.match(reset, /const resetHadFocus = document\.activeElement === resetEl;[\s\S]*current\.render\(\{ settle: true \}\);\n\s*const target = focusAfterReset\(\{ resetHadFocus, resetDisabled: resetEl\.disabled, randomizeDisabled: randomizeEl\.disabled \}\);\n\s*if \(target === 'randomize'\) randomizeEl\.focus\(\);/);
+  // render turns Reset off in its first step, before it waits for a layer.
+  assert.match(js, /const selection = readSelection\(manifest\);\n\s*showPicks\(manifest, selection\);\n\s*updateButtons\(\);\n\s*const layers = resolveSelection\(manifest, selection\);\n\s*const rasters = await/);
 });

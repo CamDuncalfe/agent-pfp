@@ -10,7 +10,9 @@
  *   and turns each Lock off (resetState).
  * - Each style is a tile in the Character tab, the first tab of the panel,
  *   showing the picture the style opens with (basePicture). Which tab
- *   opens with a style is characterTabOpens.
+ *   opens with a style is tabToOpen, and after a style that failed to load
+ *   it is tabAfterFailedStyle.
+ * - Reset turns itself off, and focusAfterReset says where the focus goes.
  * - After the styles, the Character tab shows each coming-soon character
  *   as a tile that can't be picked (characterTiles, characterKeyMove).
  *
@@ -253,4 +255,44 @@ export function characterKeyMove(tiles, index, key, modified = false) {
       return null;
   }
   return { index: next, pick: !tiles[next].comingSoon };
+}
+
+/** The position of the Character tab in the panel's tablist: it is the first tab. */
+export const CHARACTER_TAB = 0;
+
+/**
+ * The tab that is open when a style goes on screen, as its position in the
+ * tablist. It is the Character tab when characterTabOpens says so, and also
+ * when the style has no trait tab, because then it is the only tab.
+ * Otherwise it is the first trait tab, the one after Character.
+ * @param {{ styleCount: number, firstStyle: boolean, tabCount: number }} state styleCount and firstStyle as in
+ *   characterTabOpens, and tabCount is the number of tabs in the tablist, the Character tab included
+ * @returns {number}
+ */
+export function tabToOpen({ styleCount, firstStyle, tabCount }) {
+  if (tabCount <= 1) return CHARACTER_TAB;
+  return characterTabOpens({ styleCount, firstStyle }) ? CHARACTER_TAB : CHARACTER_TAB + 1;
+}
+
+/**
+ * The tab that is open after a style failed to load: the Character tab, so
+ * another style can be picked. An open tab is the tablist's Tab stop and its
+ * panel is on screen, so a keyboard user reaches the tiles too.
+ * @returns {number}
+ */
+export function tabAfterFailedStyle() {
+  return CHARACTER_TAB;
+}
+
+/**
+ * Where the focus goes after Reset. Reset is off while the picks and the
+ * Locks are the ones the style opens with, so a press turns it off. A button
+ * that is off can't hold the focus, and a keyboard user would lose their
+ * place on the page. The focus goes to Randomize, the button beside it.
+ * @param {{ resetHadFocus: boolean, resetDisabled: boolean, randomizeDisabled: boolean }} state
+ *   resetHadFocus is read before the reset, and the other two after it
+ * @returns {'randomize' | null} null when the focus stays where it is
+ */
+export function focusAfterReset({ resetHadFocus, resetDisabled, randomizeDisabled }) {
+  return resetHadFocus && resetDisabled && !randomizeDisabled ? 'randomize' : null;
 }
