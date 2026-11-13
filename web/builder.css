@@ -10,6 +10,8 @@
    * In em, so the column grows with the text when the user enlarges it.
    */
   --lock-column: 4.5em;
+  /* How wide a thumbnail is. src/thumbnails.js has the same 56. */
+  --thumbnail: 56px;
   color-scheme: light;
 }
 
@@ -72,7 +74,7 @@ h2 {
 /*
  * The left column holds the big preview, the 16 px gap and the round preview
  * side by side when it is 432 px wide (320 + 16 + 96). The right column holds
- * the pickers and is 320 px wide at most.
+ * the thumbnail grids and is 320 px wide at most.
  */
 .layout {
   display: grid;
@@ -100,10 +102,107 @@ label {
 
 .trait {
   display: grid;
-  /* The picker takes what is left. The lock column never sizes to its text. */
+  gap: 8px;
+  min-width: 0;
+}
+
+/* The group's name and its Lock on one line, above the group's thumbnails. */
+.trait-heading {
+  display: grid;
+  /* The name takes what is left. The lock column never sizes to its text. */
   grid-template-columns: minmax(0, 1fr) var(--lock-column);
-  align-items: end;
+  align-items: center;
   gap: 12px;
+}
+
+.trait-heading h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The tiles wrap to the next line when the column is full. */
+.tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+label.tile {
+  display: block;
+  position: relative;
+  padding: 2px;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  line-height: 0;
+  cursor: pointer;
+}
+
+/*
+ * The radio button is hidden on screen and stays in the page, so it keeps
+ * focus, the arrow keys and its accessible name.
+ */
+label.tile input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.thumb {
+  display: block;
+  width: var(--thumbnail);
+  height: var(--thumbnail);
+  border-radius: 4px;
+}
+
+.thumb.pixel-art {
+  image-rendering: pixelated;
+}
+
+/*
+ * The picked tile has a thick dark frame and a check mark, so it doesn't
+ * show by colour alone.
+ */
+label.tile:has(input:checked) {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+label.tile:has(input:checked)::after {
+  content: '✓';
+  position: absolute;
+  /* Inside the tile, so a tile at the end of a line never reaches past the column. */
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+label.tile:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
+/* The option's label, for screen readers. The tile's title shows it on hover. */
+.tile-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 label.lock {

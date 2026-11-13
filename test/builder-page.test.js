@@ -57,21 +57,22 @@ function tracks(value) {
  */
 const FIXED_LENGTH = /^\d+(\.\d+)?(em|rem)$/;
 
-test('each trait row uses the same two columns and the lock column has one width that grows with the text', async () => {
+test('each trait heading uses the same two columns and the lock column has one width that grows with the text', async () => {
   const css = await read('builder.css');
 
-  // One rule sets the columns of a trait row, so each row gets the same ones.
+  // One rule sets the columns of a trait heading, so each heading gets the same ones.
   const columnRules = rules(css).filter(
-    (rule) => rule.selectors.some((item) => /\.trait\b/.test(item)) && /(^|;)\s*grid[\w-]*\s*:/.test(rule.body),
+    (rule) =>
+      rule.selectors.some((item) => /\.trait-heading\b/.test(item)) && /(^|;)\s*grid-template[\w-]*\s*:/.test(rule.body),
   );
-  assert.equal(columnRules.length, 1, 'one rule sets the grid of .trait');
-  assert.deepEqual(columnRules[0].selectors, ['.trait']);
+  assert.equal(columnRules.length, 1, 'one rule sets the columns of .trait-heading');
+  assert.deepEqual(columnRules[0].selectors, ['.trait-heading']);
 
-  const trait = Object.fromEntries(declarations(css, '.trait'));
+  const trait = Object.fromEntries(declarations(css, '.trait-heading'));
   assert.equal(trait.display, 'grid');
-  const [picker, lock, ...rest] = tracks(trait['grid-template-columns']);
+  const [name, lock, ...rest] = tracks(trait['grid-template-columns']);
   assert.deepEqual(rest, [], 'two columns');
-  assert.equal(picker, 'minmax(0, 1fr)', 'the picker takes the width that is left');
+  assert.equal(name, 'minmax(0, 1fr)', 'the name takes the width that is left');
 
   // The lock column is a length, straight or through one custom property.
   // "auto", "max-content", "min-content" and "fit-content()" would size it to the text.
@@ -183,5 +184,106 @@ test('compositeLayers draws the picture once and nothing else stacks layers', as
   for (const name of ['download.js', 'scale.js']) {
     const source = await readFile(new URL(`../src/${name}`, import.meta.url), 'utf8');
     assert.doesNotMatch(source, /compositeLayers\(|^import[^;]*compositeLayers/m, name);
+  }
+});
+
+test('each group gets a grid of tiles and no dropdown', async () => {
+  const js = await read('builder.js');
+  const html = await read('index.html');
+  // The two dropdowns on the page are the Style picker and the Size picker.
+  assert.deepEqual([...html.matchAll(/<select id="([^"]+)"/g)].map((match) => match[1]), ['style', 'size']);
+  assert.equal(js.match(/createElement\('select'\)/g), null, 'the page makes no dropdown');
+  // One tile per entry of traitTiles, each a radio button named after its group.
+  assert.match(js, /traitTiles\(group\)\.forEach\(\(tile, index\) =>/);
+  assert.match(js, /input\.type = 'radio';\n\s*input\.name = group\.id;\n\s*input\.value = tile\.value;/);
+  assert.match(js, /grid\.className = 'tiles';/);
+});
+
+test('each grid is a radio group named by its heading, and each tile is named by its option label', async () => {
+  const js = await read('builder.js');
+  const css = await read('builder.css');
+  assert.match(js, /grid\.setAttribute\('role', 'radiogroup'\);/);
+  assert.match(js, /grid\.setAttribute\('aria-labelledby', title\.id\);/);
+  assert.match(js, /title\.id = `trait-\$\{group\.id\}`;/);
+  // The radio button sits in the tile's label with the option's label as its text. The canvas is hidden from screen readers.
+  assert.match(js, /name\.textContent = tile\.label;/);
+  assert.match(js, /label\.append\(input, thumb, name\);/);
+  assert.match(js, /thumb\.setAttribute\('aria-hidden', 'true'\);/);
+  // The radio button is hidden by opacity, not display or visibility, so Tab and the arrow keys still reach it.
+  const input = Object.fromEntries(declarations(css, 'label.tile input'));
+  assert.equal(input.opacity, '0');
+  assert.equal(input.display, undefined);
+  assert.equal(input.visibility, undefined);
+  const name = Object.fromEntries(declarations(css, '.tile-name'));
+  assert.equal(name.display, undefined, 'the hidden label stays in the accessibility tree');
+  assert.equal(name.visibility, undefined);
+});
+
+test('a click on a tile redraws the preview, the round preview and the layer list', async () => {
+  const js = await read('builder.js');
+  // A radio change renders. Only a lock checkbox skips the render.
+  assert.match(
+    js,
+    /if \(event\.target instanceof HTMLInputElement && event\.target\.type === 'checkbox'\) updateRandomize\(\);\n\s*else current\?\.render\(\);/,
+  );
+  // The render reads the picked tiles and writes both previews and the list.
+  assert.match(js, /const selection = readSelection\(manifest\);\n\s*const layers = resolveSelection\(manifest, selection\);\n\s*showSelection\(layers\);/);
+  assert.match(js, /putPicture\(previewEl, picture\);\n\s*putPicture\(roundPreviewEl, roundPreviewPicture\(picture\)\);/);
+  assert.match(js, /picked \? choiceFromValue\(picked\.value\) : null/);
+});
+
+test('the thumbnails are drawn by src/thumbnails.js after each render', async () => {
+  const js = await read('builder.js');
+  assert.match(js, /drawThumbnail\(\{ manifest, selection, group, choice: tile\.choice, pixelsOf, boundsOf \}\)/);
+  assert.match(js, /drawThumbnails\(selection, ticket\)/);
+  assert.match(js, /thumbnailKey\(manifest, selection, group\.id\)/);
+});
+
+test('Lock sits in the heading row of its group and Randomize checks the tiles it picks', async () => {
+  const js = await read('builder.js');
+  assert.match(js, /heading\.className = 'trait-heading';/);
+  assert.match(js, /heading\.append\(title, lock\);/);
+  assert.match(js, /row\.append\(heading, grid\);/);
+  // Randomize keeps the locked groups, then checks the tile of each choice and redraws.
+  assert.match(
+    js,
+    /writeSelection\(manifest, randomizeUnlocked\(manifest, readSelection\(manifest\), locks\)\);\n\s*current\.render\(\);/,
+  );
+  assert.match(js, /for \(const input of tileInputs\(group\)\) input\.checked = input\.value === value;/);
+});
+
+test('the picked tile shows a check mark and a second ring, not only another colour', async () => {
+  const css = await read('builder.css');
+  const picked = Object.fromEntries(declarations(css, 'label.tile:has(input:checked)'));
+  assert.ok(picked['box-shadow'], 'a second ring around the frame');
+  const mark = Object.fromEntries(declarations(css, 'label.tile:has(input:checked)::after'));
+  assert.equal(mark.content, "'✓'");
+  assert.equal(mark.position, 'absolute');
+  // The mark sits inside the tile, so it never sticks out of the column.
+  assert.ok(Number.parseFloat(mark.top) >= 0 && Number.parseFloat(mark.right) >= 0);
+  const focus = Object.fromEntries(declarations(css, 'label.tile:has(input:focus-visible)'));
+  assert.match(focus.outline ?? '', /solid/, 'a focused tile has an outline');
+});
+
+test('at 390 px the tiles wrap inside the column', async () => {
+  const css = await read('builder.css');
+  const tiles = Object.fromEntries(declarations(css, '.tiles'));
+  assert.equal(tiles.display, 'flex');
+  assert.equal(tiles['flex-wrap'], 'wrap');
+  // Under 560 px the page has one column: 390 px less 24 px of padding a side.
+  assert.match(css, /@media \(max-width: 560px\)\s*\{\s*\.layout\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
+  assert.equal(Object.fromEntries(declarations(css, 'main')).padding, '40px 24px 64px');
+  const column = 390 - 2 * 24;
+  // A tile is the thumbnail, 2 px of padding and a 2 px border a side.
+  const thumbnail = Number.parseFloat(Object.fromEntries(declarations(css, ':root'))['--thumbnail']);
+  const tile = Object.fromEntries(declarations(css, 'label.tile'));
+  assert.equal(tile.padding, '2px');
+  assert.match(tile.border, /^2px /);
+  assert.ok(thumbnail + 8 <= column, 'a tile fits the column at 390 px');
+  // Nothing in a trait row sets a width that could push past the column.
+  for (const selector of ['.trait', '.trait-heading', '.tiles', 'label.tile']) {
+    const rule = Object.fromEntries(declarations(css, selector));
+    assert.equal(rule.width, undefined, selector);
+    assert.equal(rule['min-width'] ?? '0', '0', selector);
   }
 });

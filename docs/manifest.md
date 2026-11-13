@@ -20,7 +20,7 @@ A style is a folder that holds one `manifest.json` and the layer images it names
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string | Unique id, same character rules as `style`. |
-| `label` | string | Name shown next to the picker. |
+| `label` | string | Name shown above the group's thumbnails. |
 | `optional` | boolean, optional | When `true`, the user can leave the group empty. |
 | `base` | boolean, optional | When `true`, any group drawn later may cover this one. Backgrounds and bodies are base groups. |
 | `bleed` | array, optional | Canvas edges this group may touch: `top`, `right`, `bottom`, `left`. A layer that touches an edge its group does not list counts as clipped. |
@@ -35,7 +35,7 @@ Two groups that are not base groups may only share pixels when the later one lis
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `id` | string | Unique within the group. |
-| `label` | string | Name shown in the picker. |
+| `label` | string | Name of the option's thumbnail: a screen reader reads it and it shows when the pointer rests on the thumbnail. |
 | `src` | string | Path of the layer image, relative to the manifest, with forward slashes. Each part of the path may use letters, digits, hyphens, underscores and dots, and may not start with a dot. A path cannot leave the style folder. |
 
 ## Selections

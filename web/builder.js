@@ -1,9 +1,13 @@
+import { validateManifest, resolveSelection, resolveLayerUrl } from '../src/manifest.js';
 import {
-  validateManifest,
-  groupChoices,
-  resolveSelection,
-  resolveLayerUrl,
-} from '../src/manifest.js';
+  choiceFromValue,
+  choiceValue,
+  drawThumbnail,
+  layerBounds,
+  thumbnailKey,
+  thumbnailSources,
+  traitTiles,
+} from '../src/thumbnails.js';
 import {
   canRandomize,
   lockAccessibleName,
@@ -28,7 +32,6 @@ import {
 const STYLE_INDEX = '../styles/index.json';
 /** The local preview server lists style folders kept outside the repository here. */
 const LOCAL_STYLE_INDEX = `../${LOCAL_STYLES_PREFIX}/index.json`;
-const NONE = '';
 
 const statusEl = document.querySelector('#status');
 const noticeEl = document.querySelector('#notice');
@@ -140,18 +143,26 @@ async function loadManifest(entry, url) {
   return manifest;
 }
 
+/** The radio buttons of a group's tiles, in order. */
+function tileInputs(group) {
+  return [...controlsEl.querySelectorAll(`input[type="radio"][name="${group.id}"]`)];
+}
+
+/** The picked tile of each group. */
 function readSelection(manifest) {
   const selection = {};
   for (const group of manifest.groups) {
-    const value = controlsEl.elements.namedItem(group.id).value;
-    selection[group.id] = value === NONE ? null : value;
+    const picked = tileInputs(group).find((input) => input.checked);
+    selection[group.id] = picked ? choiceFromValue(picked.value) : null;
   }
   return selection;
 }
 
+/** Check the tile of each group's choice in `selection`, so the grids match the preview. */
 function writeSelection(manifest, selection) {
   for (const group of manifest.groups) {
-    controlsEl.elements.namedItem(group.id).value = selection[group.id] ?? NONE;
+    const value = choiceValue(selection[group.id] ?? null);
+    for (const input of tileInputs(group)) input.checked = input.value === value;
   }
 }
 
@@ -168,23 +179,25 @@ function updateRandomize() {
   randomizeEl.disabled = !current || !canRandomize(current.manifest, readLocks(current.manifest));
 }
 
+/**
+ * One section per group: a heading row with the group's name and its Lock,
+ * then a grid of tiles. Each tile is a radio button with the option's
+ * label as its name, so the grid is a radio group: Tab reaches the picked
+ * tile and the arrow keys move the pick. The first tile starts picked.
+ */
 function buildControls(manifest) {
   controlsEl.replaceChildren();
   const locks = startingLocks(manifest);
+  const pixelArt = isPixelArt(manifest.canvas.width);
   for (const group of manifest.groups) {
     const row = document.createElement('div');
     row.className = 'trait';
-    const label = document.createElement('label');
-    label.append(group.label);
-    const select = document.createElement('select');
-    select.name = group.id;
-    for (const choice of groupChoices(group)) {
-      const option = document.createElement('option');
-      option.value = choice ?? NONE;
-      option.textContent = choice === null ? 'None' : group.options.find((item) => item.id === choice).label;
-      select.append(option);
-    }
-    label.append(select);
+
+    const heading = document.createElement('div');
+    heading.className = 'trait-heading';
+    const title = document.createElement('h2');
+    title.id = `trait-${group.id}`;
+    title.textContent = group.label;
 
     const lock = document.createElement('label');
     lock.className = 'lock';
@@ -195,10 +208,51 @@ function buildControls(manifest) {
     // The visible text is the same in each row. The aria-label names the group.
     checkbox.setAttribute('aria-label', lockAccessibleName(group));
     lock.append(checkbox, lockText());
+    heading.append(title, lock);
 
-    row.append(label, lock);
+    const grid = document.createElement('div');
+    grid.className = 'tiles';
+    grid.setAttribute('role', 'radiogroup');
+    grid.setAttribute('aria-labelledby', title.id);
+    traitTiles(group).forEach((tile, index) => {
+      const label = document.createElement('label');
+      label.className = 'tile';
+      label.title = tile.label;
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = group.id;
+      input.value = tile.value;
+      input.checked = index === 0;
+      const thumb = document.createElement('canvas');
+      thumb.className = pixelArt ? 'thumb pixel-art' : 'thumb';
+      thumb.width = 1;
+      thumb.height = 1;
+      thumb.dataset.group = group.id;
+      thumb.dataset.value = tile.value;
+      thumb.setAttribute('aria-hidden', 'true');
+      // The option's label is the radio button's accessible name. It is hidden on screen.
+      const name = document.createElement('span');
+      name.className = 'tile-name';
+      name.textContent = tile.label;
+      label.append(input, thumb, name);
+      grid.append(label);
+    });
+
+    row.append(heading, grid);
     controlsEl.append(row);
   }
+}
+
+/** The thumbnail canvas of one tile. */
+function thumbCanvas(groupId, value) {
+  return [...controlsEl.querySelectorAll('canvas.thumb')].find(
+    (canvasEl) => canvasEl.dataset.group === groupId && canvasEl.dataset.value === value,
+  );
+}
+
+/** Yield to the browser between thumbnails, so the page keeps answering while they are drawn. */
+function nextTask() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function showSelection(layers) {
@@ -255,11 +309,49 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
     return cache.get(src);
   }
 
+  /** layerBounds of each layer, by its src. A layer's bounds never change. */
+  const bounds = new Map();
+  /** The thumbnailKey each group's thumbnails were last drawn for. */
+  const drawnKeys = new Map();
+
+  /**
+   * Redraw the thumbnails of each group whose thumbnails show another
+   * picture now. A newer render stops this one between two thumbnails.
+   */
+  async function drawThumbnails(selection, ticket) {
+    const stale = () => ticket !== latest || !isOnScreen();
+    for (const group of manifest.groups) {
+      const key = thumbnailKey(manifest, selection, group.id);
+      if (drawnKeys.get(group.id) === key) continue;
+      const sources = thumbnailSources(manifest, selection, group);
+      const loaded = new Map(await Promise.all(sources.map(async (src) => [src, await pixelsFor(src)])));
+      if (stale()) return;
+      const pixelsOf = (src) => loaded.get(src);
+      const boundsOf = (src) => {
+        if (!bounds.has(src)) bounds.set(src, layerBounds(loaded.get(src)));
+        return bounds.get(src);
+      };
+      for (const tile of traitTiles(group)) {
+        const thumbnail = drawThumbnail({ manifest, selection, group, choice: tile.choice, pixelsOf, boundsOf });
+        const canvasEl = thumbCanvas(group.id, tile.value);
+        if (canvasEl) {
+          canvasEl.width = thumbnail.width;
+          canvasEl.height = thumbnail.height;
+          putPicture(canvasEl, thumbnail);
+        }
+        await nextTask();
+        if (stale()) return;
+      }
+      drawnKeys.set(group.id, key);
+    }
+  }
+
   return async function render() {
     const ticket = (latest += 1);
     setFinished(null);
     try {
-      const layers = resolveSelection(manifest, readSelection(manifest));
+      const selection = readSelection(manifest);
+      const layers = resolveSelection(manifest, selection);
       showSelection(layers);
       const rasters = await Promise.all(layers.map(({ option }) => pixelsFor(option.src)));
       // A newer selection or another style started while these layers were loading.
@@ -269,6 +361,10 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
       showPicture(picture);
       setFinished(picture);
       setStatus('');
+      drawThumbnails(selection, ticket).catch((error) => {
+        if (ticket !== latest || !isOnScreen()) return;
+        setStatus(`Could not draw the thumbnails. ${reason(error)}`, true);
+      });
     } catch (error) {
       if (ticket !== latest || !isOnScreen()) return;
       setStatus(reason(error), true);
@@ -402,7 +498,8 @@ async function start() {
     });
     controlsEl.addEventListener('change', (event) => {
       // A lock changes what Randomize does next. The picture stays as it is.
-      if (event.target instanceof HTMLInputElement) updateRandomize();
+      // A tile's radio button changes the picture.
+      if (event.target instanceof HTMLInputElement && event.target.type === 'checkbox') updateRandomize();
       else current?.render();
     });
     randomizeEl.addEventListener('click', () => {
