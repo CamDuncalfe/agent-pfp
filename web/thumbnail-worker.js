@@ -9,15 +9,35 @@
  *
  * The answer is { type: 'tiles', ticket, groupId, key, tiles } with tiles
  * as { value, width, height, data }, or { type: 'error', ticket, message }.
+ *
+ * The page also asks for the picture on each style's tile in the Character
+ * tab: { kind: 'base', id, manifest, manifestUrl }. The worker draws it with
+ * basePicture and answers { type: 'base', id, width, height, data }, or
+ * { type: 'base-error', id, message }. These requests have no ticket and are
+ * never dropped. The style on screen reuses the layers its thumbnails
+ * loaded; another style gets a loader of its own that goes when its picture
+ * is done.
+ *
+ * Trait thumbnails come first. Character pictures wait in a queue of their
+ * own and run in a loop of their own, so a trait request doesn't wait behind
+ * the queue of them. A character picture loads its layers alongside the
+ * thumbnails, and waits to composite until no thumbnail request is running
+ * or waiting. It looks every BASE_POLL_MS, and after BASE_WAIT_LIMIT_MS it
+ * composites between two trait thumbnails, so a tile never stays blank while
+ * trait changes keep coming (mayDrawBase in src/builder-layout.js).
  */
 import { drawThumbnail, layerBounds, thumbnailSources, traitTiles } from '../src/thumbnails.js';
+import { BASE_POLL_MS, baseLayers, basePicture, mayDrawBase, reusesThumbnailLayers } from '../src/builder-layout.js';
 import { THUMBNAIL_LAYER_BYTES } from '../src/layer-cache.js';
 import { createLayerLoader } from './layers.js';
 
 let latest = 0;
-/** @type {object[]} */
+/** The trait thumbnail requests. @type {object[]} */
 const queue = [];
 let running = false;
+/** The character picture requests, behind every trait request. @type {object[]} */
+const baseQueue = [];
+let basesRunning = false;
 
 /** The layers and their bounds of the style the last request was for. */
 let style = null;
@@ -32,6 +52,11 @@ function styleFor(manifest, manifestUrl) {
 /** Let the next message in, so a newer request can stop this one. */
 function nextTask() {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/** Sleep, so a wait doesn't wake the worker in a tight loop. */
+function pause(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function drawGroup(request) {
@@ -56,6 +81,35 @@ async function drawGroup(request) {
   return request.ticket < latest ? null : tiles;
 }
 
+/** The picture on a style's tile in the Character tab. */
+async function drawBase(request) {
+  const { manifest, manifestUrl } = request;
+  const layers = reusesThumbnailLayers(style?.manifestUrl ?? null, manifestUrl)
+    ? style.layers
+    : createLayerLoader(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES);
+  const sources = baseLayers(manifest).map(({ option }) => option.src);
+  const loaded = new Map(await Promise.all(sources.map(async (src) => [src, await layers.get(src)])));
+  // Trait thumbnails go first: composite while none is running or waiting, or once the wait has reached its limit.
+  const waitingSince = performance.now();
+  while (!mayDrawBase({ running, waiting: queue.length, waitedMs: performance.now() - waitingSince })) await pause(BASE_POLL_MS);
+  return basePicture(manifest, (src) => loaded.get(src));
+}
+
+async function runBases() {
+  basesRunning = true;
+  while (baseQueue.length > 0) {
+    const request = baseQueue.shift();
+    try {
+      const { width, height, data } = await drawBase(request);
+      self.postMessage({ type: 'base', id: request.id, width, height, data }, [data.buffer]);
+    } catch (error) {
+      self.postMessage({ type: 'base-error', id: request.id, message: error instanceof Error ? error.message : String(error) });
+    }
+    await nextTask();
+  }
+  basesRunning = false;
+}
+
 async function run() {
   running = true;
   while (queue.length > 0) {
@@ -76,6 +130,11 @@ async function run() {
 
 self.addEventListener('message', (event) => {
   const request = event.data;
+  if (request.kind === 'base') {
+    baseQueue.push(request);
+    if (!basesRunning) runBases();
+    return;
+  }
   latest = Math.max(latest, request.ticket);
   queue.push(request);
   if (!running) run();

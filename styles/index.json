@@ -6,5 +6,62 @@
       "name": "Alien",
       "manifest": "styles/alien/manifest.json"
     }
+  ],
+  "comingSoon": [
+    {
+      "id": "bear",
+      "name": "Bear",
+      "picture": "styles/coming-soon/bear.png"
+    },
+    {
+      "id": "fox",
+      "name": "Fox",
+      "picture": "styles/coming-soon/fox.png"
+    },
+    {
+      "id": "cat",
+      "name": "Cat",
+      "picture": "styles/coming-soon/cat.png"
+    },
+    {
+      "id": "duck",
+      "name": "Duck",
+      "picture": "styles/coming-soon/duck.png"
+    },
+    {
+      "id": "penguin",
+      "name": "Penguin",
+      "picture": "styles/coming-soon/penguin.png"
+    },
+    {
+      "id": "raccoon",
+      "name": "Raccoon",
+      "picture": "styles/coming-soon/raccoon.png"
+    },
+    {
+      "id": "owl",
+      "name": "Owl",
+      "picture": "styles/coming-soon/owl.png"
+    },
+    {
+      "id": "rabbit",
+      "name": "Rabbit",
+      "picture": "styles/coming-soon/rabbit.png"
+    },
+    {
+      "id": "frog",
+      "name": "Frog",
+      "picture": "styles/coming-soon/frog.png"
+    },
+    {
+      "id": "skeleton",
+      "name": "Skeleton",
+      "picture": "styles/coming-soon/skeleton.png"
+    },
+    {
+      "id": "cyclops",
+      "name": "Cyclops",
+      "picture": "styles/coming-soon/cyclops.png"
+    }
   ]
 }

@@ -3,54 +3,78 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Agent PFP builder</title>
+    <title>Profile picture builder</title>
+    <!-- Owners Narrow (headings and the wordmark) and Neue Haas Grotesk Text (the page) from Adobe Fonts, LayerTwo's subscription. -->
+    <link rel="stylesheet" href="https://use.typekit.net/dll3tpt.css" />
     <link rel="stylesheet" href="builder.css" />
   </head>
   <body>
+    <header class="topbar">
+      <p id="wordmark" class="wordmark"></p>
+    </header>
+
     <main>
-      <header>
-        <h1>Agent PFP builder</h1>
-        <label class="style-picker">
-          Style
-          <select id="style" disabled></select>
-        </label>
-        <p id="notice" class="muted" role="status"></p>
-      </header>
+      <div class="intro">
+        <h1>Give your agent a face</h1>
+        <p class="lede">Pick each trait, or let Randomize pick. Download it when it looks right.</p>
+        <p id="notice" class="notice" role="status"></p>
+      </div>
 
-      <p id="status" role="status"></p>
-
-      <div class="layout">
-        <section class="preview-column" aria-label="Preview">
-          <div class="previews">
-            <canvas id="preview" width="64" height="64" role="img" aria-label="Profile picture preview"></canvas>
-            <canvas
-              id="round-preview"
-              width="64"
-              height="64"
-              role="img"
-              aria-label="Profile picture preview in a circle, the way GitHub shows it"
-            ></canvas>
+      <form id="controls" class="layout" aria-label="Profile picture">
+        <section class="stage-column" aria-label="Preview">
+          <div class="stage-row">
+            <div id="swatches" class="swatches"></div>
+            <div class="stage-card">
+              <div class="stage">
+                <canvas id="preview" width="64" height="64" role="img" aria-label="Profile picture preview"></canvas>
+              </div>
+              <div class="sparkles" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+              <label class="circle-switch">
+                <input type="checkbox" id="circle" />
+                <span>Circle</span>
+              </label>
+            </div>
           </div>
+
           <div class="actions">
-            <button type="button" id="randomize" disabled>Randomize</button>
-            <label class="size-picker">
-              Size
-              <select id="size" disabled>
-                <option value="full">Full size</option>
-              </select>
-            </label>
-            <button type="button" id="download" class="primary" disabled>Download PNG</button>
+            <button type="button" id="randomize" class="button primary" disabled>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.1 6.4 6.4 2.1-6.4 2.1L12 19.5l-2.1-6.4-6.4-2.1 6.4-2.1z" /></svg>
+              Randomize
+            </button>
+            <button type="button" id="download" class="button" disabled>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19.5h14" /></svg>
+              Download image
+            </button>
+            <button type="button" id="reset" class="button quiet" disabled>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4v4h4" /></svg>
+              Reset
+            </button>
           </div>
+
+          <fieldset id="size" class="size-picker" hidden disabled>
+            <legend>Size</legend>
+          </fieldset>
+
+          <p id="status" class="status" role="status"></p>
         </section>
 
-        <div>
-          <form id="controls" aria-label="Layers"></form>
-          <section aria-labelledby="selection-heading">
-            <h2 id="selection-heading">Layers, bottom first</h2>
-            <ol id="selection"></ol>
-          </section>
-        </div>
-      </div>
+        <section class="panel" aria-label="Traits">
+          <div id="tabs" class="tabs" role="tablist" aria-label="Character and traits">
+            <button type="button" id="character-tab" class="tab" role="tab" aria-controls="character-panel" aria-selected="false" tabindex="-1">Character</button>
+          </div>
+          <div id="panels">
+            <div id="character-panel" class="trait" role="tabpanel" aria-labelledby="character-tab" hidden>
+              <div class="trait-heading">
+                <h2 id="character-heading">Character</h2>
+                <p id="character-pick" class="pick"></p>
+              </div>
+              <div id="bases" class="tiles characters" role="radiogroup" aria-labelledby="character-heading"></div>
+            </div>
+          </div>
+        </section>
+      </form>
     </main>
     <script type="module" src="builder.js"></script>
   </body>

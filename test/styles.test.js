@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,8 +10,11 @@ import { promisify } from 'node:util';
 import { validateManifest } from '../src/manifest.js';
 import {
   chooseStyle,
+  comingSoonEntries,
+  comingSoonNotice,
   createStyleSwitcher,
   resolveManifestUrl,
+  resolvePictureUrl,
   styleFromSearch,
   styleMismatch,
   styleRootUrl,
@@ -363,4 +366,108 @@ test('check-styles exits 1 when a listed style fails and 2 when it cannot run', 
   assert.equal((await runCli([join(folder, 'missing.json')])).code, 2);
   assert.equal((await runCli(['--nope'])).code, 2);
   assert.equal((await runCli([indexPath, '--nope'])).code, 2);
+});
+
+/** The characters styles/index.json names as coming soon, in the order of the Character tab. */
+const COMING_SOON = ['Bear', 'Fox', 'Cat', 'Duck', 'Penguin', 'Raccoon', 'Owl', 'Rabbit', 'Frog', 'Skeleton', 'Cyclops'];
+
+test('styles/index.json names eleven coming-soon characters after the alien, each with a picture and no manifest', async () => {
+  const index = await loadIndex();
+  const coming = comingSoonEntries(index);
+  assert.deepEqual(
+    coming,
+    COMING_SOON.map((name) => ({ id: name.toLowerCase(), name, picture: `styles/coming-soon/${name.toLowerCase()}.png` })),
+  );
+  // The alien is still the one style, so the check, the site build and the page open nothing else.
+  assert.deepEqual(index.styles.map((entry) => entry.id), ['alien']);
+  for (const entry of coming) assert.equal('manifest' in entry, false, entry.id);
+  // The folder holds those eleven pictures and its notice, and no style: no manifest and no layers.
+  const folder = await readdir(new URL('styles/coming-soon/', rootUrl));
+  assert.deepEqual(folder.sort(), ['NOTICE.md', ...coming.map((entry) => `${entry.id}.png`)].sort());
+});
+
+test('each coming-soon picture is a square PNG twice the widest picture a character tile shows', async () => {
+  const css = await readFile(new URL('web/builder.css', rootUrl), 'utf8');
+  // A tile is --character-tile wide at most, with a 2 px border on each side.
+  const tile = Number(/--character-tile: (\d+)px;/.exec(css)[1]);
+  const side = (tile - 4) * 2;
+  for (const entry of comingSoonEntries(await loadIndex())) {
+    const file = await readFile(new URL(entry.picture, rootUrl));
+    assert.equal(file.subarray(1, 4).toString('latin1'), 'PNG', entry.id);
+    // The size is in the PNG's first chunk. The test reads no pixel of the art.
+    assert.deepEqual([file.readUInt32BE(16), file.readUInt32BE(20)], [side, side], entry.id);
+    // Colour type 6 is RGB with alpha: the character is cut out, and the tile's ground shows around it.
+    assert.equal(file[25], 6, entry.id);
+  }
+});
+
+test('an index without comingSoon has no coming-soon characters', async () => {
+  assert.deepEqual(comingSoonEntries(await loadFixtureIndex()), []);
+  assert.deepEqual(comingSoonEntries({ version: 1, styles: [] }), []);
+});
+
+test('each coming-soon entry needs an id, a name and a safe picture path, and no manifest', () => {
+  const styles = [{ id: 'a', name: 'A', manifest: 'a/manifest.json' }];
+  const ok = { version: 1, styles, comingSoon: [{ id: 'b', name: 'B', picture: 'styles/coming-soon/b.png' }] };
+  assert.deepEqual(validateStyleIndex(ok), { ok: true, errors: [] });
+  assert.deepEqual(validateStyleIndex({ version: 1, styles, comingSoon: [] }), { ok: true, errors: [] });
+  assert.deepEqual(validateStyleIndex({ version: 1, styles, comingSoon: {} }).errors, ['comingSoon must be a list when it is there']);
+  const { errors } = validateStyleIndex({
+    version: 1,
+    styles,
+    comingSoon: [
+      { id: 'Not An Id', name: 'B', picture: 'b.png' },
+      { id: 'c', name: ' ', picture: 'c.png' },
+      { id: 'd', name: 'D', picture: '../d.png' },
+      { id: 'e', name: 'E', picture: 'https://example.com/e.png' },
+      { id: 'f', name: 'F', picture: 'f.json' },
+      { id: 'g', name: 'G' },
+      'h',
+      // A style's id can't be a coming-soon character's too.
+      { id: 'a', name: 'A again', picture: 'a.png' },
+      // An entry with a manifest is a style, and belongs in styles.
+      { id: 'i', name: 'I', picture: 'i.png', manifest: 'i/manifest.json' },
+    ],
+  });
+  assert.equal(errors.length, 9);
+  assert.match(errors[0], /comingSoon\[0\]\.id/);
+  assert.match(errors[1], /comingSoon\[1\]\.name/);
+  for (const position of [2, 3, 4, 5]) assert.match(errors[position], new RegExp(`comingSoon\\[${position}\\]\\.picture`));
+  assert.match(errors[6], /comingSoon\[6\] must be an object/);
+  assert.equal(errors[7], 'comingSoon[7].id "a" is used twice');
+  assert.equal(errors[8], 'comingSoon[8] has a manifest, so it belongs in styles');
+});
+
+test('a coming-soon picture resolves against the folder that holds the index folder and cannot leave the site', () => {
+  const indexUrl = 'https://example.com/agent-pfp/styles/index.json';
+  assert.equal(
+    resolvePictureUrl({ id: 'bear', name: 'Bear', picture: 'styles/coming-soon/bear.png' }, indexUrl).href,
+    'https://example.com/agent-pfp/styles/coming-soon/bear.png',
+  );
+  for (const picture of ['../bear.png', '/bear.png', 'https://example.org/bear.png', 'styles/%2e%2e/%2e%2e/bear.png', '']) {
+    assert.throws(() => resolvePictureUrl({ id: 'bear', name: 'Bear', picture }, indexUrl), /picture path/, picture);
+  }
+});
+
+test('a coming-soon character in the address opens the first style and the notice says it is coming soon', async () => {
+  const index = await loadIndex();
+  const first = index.styles[0];
+  assert.deepEqual(styleFromSearch(index, '?style=bear'), { entry: first, notice: 'Bear is coming soon. Showing Alien.' });
+  assert.deepEqual(styleFromSearch(index, '?style=cyclops'), { entry: first, notice: 'Cyclops is coming soon. Showing Alien.' });
+  assert.equal(comingSoonNotice({ id: 'b', name: 'B', picture: 'b.png' }, first), 'B is coming soon. Showing Alien.');
+  // chooseStyle never gives a coming-soon character back as the style to open.
+  for (const entry of comingSoonEntries(index)) {
+    assert.deepEqual(chooseStyle(index, entry.id), { entry: first, unknown: entry.id });
+  }
+});
+
+test('the render check and the site build read a coming-soon entry as a picture, never as a style', async () => {
+  // check-styles walks index.styles only, so it loads no manifest for a coming-soon character.
+  const check = await readFile(new URL('bin/check-styles.js', rootUrl), 'utf8');
+  assert.doesNotMatch(check, /comingSoon/);
+  const { stdout } = await run(process.execPath, [cli, 'styles/index.json'], { cwd: fileURLToPath(rootUrl) });
+  assert.match(stdout, /Styles checked: 1\n/);
+  // The site build copies the picture and reads nothing else of the entry.
+  const build = await readFile(new URL('bin/build-site.js', rootUrl), 'utf8');
+  assert.match(build, /for \(const entry of comingSoonEntries\(index\)\) \{\n\s*let pictureUrl;\n\s*try \{\n\s*pictureUrl = resolvePictureUrl\(entry, indexUrl\);/);
 });

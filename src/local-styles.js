@@ -84,7 +84,7 @@ export function buildLocalIndex(folders, takenIds = []) {
 }
 
 /**
- * The styles the Style picker shows: the repository's styles first, then the
+ * The styles the Character tab shows: the repository's styles first, then the
  * local ones with "(local)" after the name. Each entry remembers the URL of
  * the index it came from, because manifest paths are relative to it.
  *

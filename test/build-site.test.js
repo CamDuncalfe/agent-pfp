@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { REDIRECT_PAGE, buildSite } from '../bin/build-site.js';
+import { NAME, pageTitle } from '../src/brand.js';
 import { resolveLayerUrl } from '../src/manifest.js';
 import { resolveManifestUrl } from '../src/styles.js';
 
@@ -143,6 +144,74 @@ test('the site holds web/, src/, the index, its manifests and their layers, and 
   }
 });
 
+test('the site holds the picture of each coming-soon character the index names, and no other file of its folder', async () => {
+  const root = await makeRoot();
+  try {
+    // Plain fixture shapes stand in for the pictures.
+    const indexPath = join(root, 'styles', 'index.json');
+    const index = JSON.parse(await readFile(indexPath, 'utf8'));
+    index.comingSoon = [
+      { id: 'round', name: 'Round', picture: 'fixtures/shapes/layers/body/round.png' },
+      { id: 'square', name: 'Square', picture: 'fixtures/shapes/layers/body/square.png' },
+    ];
+    await writeJson(indexPath, index);
+    await writeFile(join(root, 'fixtures', 'shapes', 'layers', 'body', 'NOTICE.md'), 'x');
+    const { code, stderr } = await runBuild(root);
+    assert.equal(code, 0, stderr);
+    const files = await listFiles(join(root, '_site'));
+    for (const entry of index.comingSoon) {
+      assert.ok(files.includes(entry.picture), entry.picture);
+      assert.deepEqual(await readFile(join(root, '_site', entry.picture)), await readFile(join(root, entry.picture)));
+    }
+    assert.ok(!files.includes('fixtures/shapes/layers/body/NOTICE.md'));
+    // The copy of the repository's own pictures is in styles/, and this index names none of them.
+    assert.ok(!files.some((file) => file.startsWith('styles/coming-soon/')), 'a picture the index does not name stays out');
+    // No manifest is looked for next to a coming-soon picture.
+    assert.ok(!files.some((file) => file.endsWith('body/manifest.json')));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('the build exits 1 when a coming-soon picture is missing, leaves the site or takes a generated file\'s place', async (t) => {
+  const withComing = (comingSoon) => async (root) => {
+    const indexPath = join(root, 'styles', 'index.json');
+    const index = JSON.parse(await readFile(indexPath, 'utf8'));
+    await writeJson(indexPath, { ...index, comingSoon });
+  };
+  const cases = [
+    {
+      name: 'a picture that is missing',
+      change: withComing([{ id: 'gone', name: 'Gone', picture: 'styles/coming-soon/gone.png' }]),
+      says: /the picture of coming-soon character "gone" .*gone\.png is missing/,
+    },
+    {
+      name: 'a picture path that leaves the site',
+      change: withComing([{ id: 'out', name: 'Out', picture: '../out.png' }]),
+      says: /not a valid style index: comingSoon\[0\]\.picture/,
+    },
+    {
+      name: 'an entry with a manifest',
+      change: withComing([{ id: 'half', name: 'Half', picture: 'fixtures/shapes/layers/body/round.png', manifest: 'fixtures/shapes/manifest.json' }]),
+      says: /not a valid style index: comingSoon\[0\] has a manifest, so it belongs in styles/,
+    },
+  ];
+  for (const { name, change, says } of cases) {
+    await t.test(name, async () => {
+      const root = await makeRoot();
+      try {
+        await change(root);
+        const { code, stderr } = await runBuild(root);
+        assert.equal(code, 1, name);
+        assert.match(stderr, says);
+        assert.deepEqual(await listFiles(join(root, '_site')), [], 'a failed build leaves _site/ empty');
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
 test('the build of this repository holds each file the builder asks for', async () => {
   const out = await mkdtemp(join(tmpdir(), 'agent-pfp-site-out-'));
   try {
@@ -150,6 +219,11 @@ test('the build of this repository holds each file the builder asks for', async 
     const files = new Set(await listFiles(out));
     for (const file of await expectedStyleFiles(repo)) assert.ok(files.has(file), file);
     assert.ok(files.has('styles/alien/manifest.json'));
+    // The eleven coming-soon pictures the Character tab shows are in the site. Their notice is not a file the page asks for.
+    const index = JSON.parse(await readFile(join(repo, 'styles', 'index.json'), 'utf8'));
+    assert.equal(index.comingSoon.length, 11);
+    for (const entry of index.comingSoon) assert.ok(files.has(entry.picture), entry.picture);
+    assert.ok(!files.has('styles/coming-soon/NOTICE.md'));
     // The fixtures are test data and stay off the public site.
     assert.ok(![...files].some((file) => file.startsWith('fixtures/')), 'no fixture file in the site');
   } finally {
@@ -206,6 +280,13 @@ test('index.html sends the visitor to web/ with a relative link and shows a plai
   }
 });
 
+/**
+ * The one absolute link in the site: the Adobe Fonts kit the builder page
+ * loads its typeface from (web/index.html). Any other absolute link, a
+ * second kit included, fails the test below.
+ */
+const ADOBE_FONTS_KIT = 'https://use.typekit.net/dll3tpt.css';
+
 test('each path in the site is relative, so it works from a sub-path', async () => {
   const out = await mkdtemp(join(tmpdir(), 'agent-pfp-site-out-'));
   try {
@@ -217,9 +298,9 @@ test('each path in the site is relative, so it works from a sub-path', async () 
       const html = await readFile(join(out, page), 'utf8');
       const links = [...html.matchAll(/(?:href|src)="([^"]*)"|url=([^"\s;]+)/g)].map((match) => match[1] ?? match[2]);
       assert.ok(links.length > 0, `${page} has links`);
-      for (const value of links) {
-        assert.ok(!value.startsWith('/') && !/^[a-z]+:/i.test(value), `${page}: ${value}`);
-      }
+      const absolute = links.filter((value) => value.startsWith('/') || /^[a-z]+:/i.test(value));
+      // The builder page has the kit, once, and nothing else absolute. The redirect page has nothing absolute.
+      assert.deepEqual(absolute, page === 'web/index.html' ? [ADOBE_FONTS_KIT] : [], page);
     }
 
     // Each module the page loads is a relative import of a file in the site.
@@ -411,4 +492,9 @@ test('the build says what is wrong and exits 1 when the index, a manifest or a f
       }
     });
   }
+});
+
+test('the entry page takes its title and link text from the name in src/brand.js', () => {
+  assert.ok(REDIRECT_PAGE.includes(`<title>${pageTitle(NAME)}</title>`));
+  assert.ok(REDIRECT_PAGE.includes(`<a href="web/">Open the ${pageTitle(NAME)}</a>`));
 });

@@ -5,9 +5,10 @@
  * Usage: node bin/build-site.js   (run it from the repository root, or use npm run build:site)
  *
  * It empties _site/ and writes web/, src/, styles/index.json, each manifest
- * the index lists and each layer file those manifests name. Manifest and
- * layer paths go through resolveManifestUrl and resolveLayerUrl, the path
- * rule the builder page uses, so the site holds the files the page asks for.
+ * the index lists, each layer file those manifests name and the picture of
+ * each coming-soon character the index names. The paths go through
+ * resolveManifestUrl, resolveLayerUrl and resolvePictureUrl, the path rules
+ * the builder page uses, so the site holds the files the page asks for.
  *
  * Exit code 0: the site is written. 1: the index, a manifest or a file it
  * names is wrong, and nothing but an empty _site/ is left.
@@ -16,8 +17,9 @@ import { copyFile, cp, lstat, mkdir, readFile, realpath, rm, stat, writeFile } f
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { NAME, pageTitle } from '../src/brand.js';
 import { resolveLayerUrl, validateManifest } from '../src/manifest.js';
-import { resolveManifestUrl, styleMismatch, validateStyleIndex } from '../src/styles.js';
+import { comingSoonEntries, resolveManifestUrl, resolvePictureUrl, styleMismatch, validateStyleIndex } from '../src/styles.js';
 
 export const SITE_DIR = '_site';
 export const STYLE_INDEX = 'styles/index.json';
@@ -26,17 +28,23 @@ export const CODE_DIRS = Object.freeze(['web', 'src']);
 /** Files the build writes itself. No style file may take their place. */
 export const GENERATED_FILES = Object.freeze(['index.html']);
 
-/** The page at the site's address. Relative links, so it works from a sub-path. */
+/** Text safe to put in HTML. */
+const escapeHtml = (text) => text.replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
+
+/**
+ * The page at the site's address. Relative links, so it works from a
+ * sub-path. Its title and link take the name from src/brand.js.
+ */
 export const REDIRECT_PAGE = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="refresh" content="0; url=web/" />
-    <title>Agent PFP builder</title>
+    <title>${escapeHtml(pageTitle(NAME))}</title>
   </head>
   <body>
-    <p><a href="web/">Open the Agent PFP builder</a></p>
+    <p><a href="web/">Open the ${escapeHtml(pageTitle(NAME))}</a></p>
   </body>
 </html>
 `;
@@ -90,10 +98,10 @@ function insideRoot(root, url) {
 }
 
 /**
- * The style files the site needs: the index, each manifest it lists and each
- * layer they name, as paths relative to the root. Throws a SiteError that
- * says what is wrong when the index or a manifest isn't valid or a file is
- * missing.
+ * The style files the site needs: the index, each manifest it lists, each
+ * layer they name and the picture of each coming-soon character, as paths
+ * relative to the root. Throws a SiteError that says what is wrong when the
+ * index or a manifest isn't valid or a file is missing.
  * @param {string} root the repository folder
  * @returns {Promise<string[]>}
  */
@@ -142,6 +150,22 @@ export async function collectStyleFiles(root) {
         files.add(file);
       }
     }
+  }
+  // A coming-soon character is one picture. It has no manifest, so nothing above reads it.
+  for (const entry of comingSoonEntries(index)) {
+    let pictureUrl;
+    try {
+      pictureUrl = resolvePictureUrl(entry, indexUrl);
+    } catch (error) {
+      throw new SiteError(`${indexPath}: ${error.message}`);
+    }
+    const what = `the picture of coming-soon character "${entry.id}"`;
+    await requireFile(realRoot, fileURLToPath(pictureUrl), what);
+    const file = insideRoot(root, pictureUrl);
+    if (GENERATED_FILES.includes(file)) {
+      throw new SiteError(`${indexPath}: ${what} is ${file}, which the build writes itself`);
+    }
+    files.add(file);
   }
   return [...files];
 }

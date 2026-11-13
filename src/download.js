@@ -50,16 +50,29 @@ export function chooseSize(canvas, pickedId) {
 /**
  * What the Size picker shows for a style: its options, and the one that is
  * picked. The pick made on the last style is kept when this style offers it
- * too. Otherwise the picker goes back to Full size.
+ * too. Otherwise the picker goes back to Full size. `shown` is false when
+ * the style offers one size, because there is nothing to pick: the page
+ * hides the picker and Download saves Full size.
  * @param {{ width: number, height: number }} canvas
  * @param {unknown} pickedId the picker's value before this style opened
- * @returns {{ options: { id: string, label: string }[], value: string }}
+ * @returns {{ options: { id: string, label: string }[], value: string, shown: boolean }}
  */
 export function sizePicker(canvas, pickedId) {
-  return {
-    options: sizesFor(canvas).map(({ id, label }) => ({ id, label })),
-    value: chooseSize(canvas, pickedId).id,
-  };
+  const options = sizesFor(canvas).map(({ id, label }) => ({ id, label }));
+  return { options, value: chooseSize(canvas, pickedId).id, shown: sizePickerShown(canvas) };
+}
+
+/**
+ * Whether the Size picker is on screen. It is hidden while no style is on
+ * screen, which is while one loads and after one failed to load, so the
+ * choices of the last style never show beside an empty preview. It is also
+ * hidden for a style that offers one size.
+ * @param {{ width: number, height: number } | null} canvas the canvas of the
+ *   style on screen, or null when there is none
+ * @returns {boolean}
+ */
+export function sizePickerShown(canvas) {
+  return canvas !== null && sizesFor(canvas).length > 1;
 }
 
 /**

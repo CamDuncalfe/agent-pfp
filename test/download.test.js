@@ -14,6 +14,7 @@ import {
   pictureToSave,
   planDownload,
   sizePicker,
+  sizePickerShown,
   sizesFor,
 } from '../src/download.js';
 import { readPng, writePng } from '../src/png.js';
@@ -59,12 +60,13 @@ test('both fixture styles offer Full size only', async () => {
     assert.deepEqual(sizePicker(manifest.canvas, 'github'), {
       options: [{ id: 'full', label: 'Full size' }],
       value: 'full',
+      shown: false,
     });
   }
 });
 
 test('the picker lists Full size first and starts on it', () => {
-  // The value of the picker before the first style opens is the one option in web/index.html.
+  // Before the first style opens no size is picked.
   for (const before of ['full', '', undefined, null]) {
     assert.deepEqual(sizePicker(big.canvas, before), {
       options: [
@@ -72,7 +74,21 @@ test('the picker lists Full size first and starts on it', () => {
         { id: 'github', label: 'GitHub (500 x 500)' },
       ],
       value: 'full',
+      shown: true,
     });
+  }
+});
+
+test('the picker is on screen only for a style on screen that offers more than one size', () => {
+  // No style on screen: one is loading, or one failed to load.
+  assert.equal(sizePickerShown(null), false);
+  assert.equal(sizePickerShown(big.canvas), true);
+  for (const [width, height] of [[499, 499], [64, 64], [96, 64], [1024, 500]]) {
+    assert.equal(sizePickerShown({ width, height }), false, `${width}x${height}`);
+  }
+  // sizePicker reports the same answer for the style it lists.
+  for (const canvas of [big.canvas, { width: 64, height: 64 }, { width: 96, height: 64 }]) {
+    assert.equal(sizePicker(canvas, 'github').shown, sizePickerShown(canvas));
   }
 });
 

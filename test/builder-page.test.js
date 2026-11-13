@@ -50,115 +50,57 @@ function tracks(value) {
   return list;
 }
 
-/**
- * A length that doesn't depend on what is in the column and grows with the
- * text size, for example 4.5em. A px length stays put when the user enlarges
- * the text, and the word "Lock" would run out of the column.
- */
-const FIXED_LENGTH = /^\d+(\.\d+)?(em|rem)$/;
+const plain = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
-test('each trait heading uses the same two columns and the lock column has one width that grows with the text', async () => {
-  const css = await read('builder.css');
-
-  // One rule sets the columns of a trait heading, so each heading gets the same ones.
-  const columnRules = rules(css).filter(
-    (rule) =>
-      rule.selectors.some((item) => /\.trait-heading\b/.test(item)) && /(^|;)\s*grid-template[\w-]*\s*:/.test(rule.body),
-  );
-  assert.equal(columnRules.length, 1, 'one rule sets the columns of .trait-heading');
-  assert.deepEqual(columnRules[0].selectors, ['.trait-heading']);
-
-  const trait = Object.fromEntries(declarations(css, '.trait-heading'));
-  assert.equal(trait.display, 'grid');
-  const [name, lock, ...rest] = tracks(trait['grid-template-columns']);
-  assert.deepEqual(rest, [], 'two columns');
-  assert.equal(name, 'minmax(0, 1fr)', 'the name takes the width that is left');
-
-  // The lock column is a length, straight or through one custom property.
-  // "auto", "max-content", "min-content" and "fit-content()" would size it to the text.
-  const variable = /^var\((--[\w-]+)\)$/.exec(lock);
-  const width = variable ? Object.fromEntries(declarations(css, ':root'))[variable[1]] : lock;
-  assert.match(width ?? '', FIXED_LENGTH, `lock column width "${width}"`);
-  if (variable) {
-    const sets = rules(css).filter((rule) => new RegExp(`(^|;)\\s*${variable[1]}\\s*:`).test(rule.body));
-    assert.equal(sets.length, 1, `${variable[1]} is set once, so no row changes it`);
-  }
-});
-
-test('the lock text stays on one line and the lock label sets no width of its own', async () => {
-  const lock = Object.fromEntries(declarations(await read('builder.css'), 'label.lock'));
-  assert.equal(lock['white-space'], 'nowrap');
-  assert.equal(lock.width, undefined);
-  assert.equal(lock['min-width'], undefined);
-});
-
-test('the page takes the lock text and the aria-label from src/locks.js', async () => {
+test('the page takes the lock text and the aria-label from src/locks.js and sets no inline style', async () => {
   const js = await read('builder.js');
-  assert.match(js, /checkbox\.setAttribute\('aria-label', lockAccessibleName\(group\)\)/);
-  assert.match(js, /lock\.append\(checkbox, lockText\(\)\)/);
-  // No row gets an inline style of its own.
+  assert.match(js, /checkbox\.setAttribute\('aria-label', lockAccessibleName\(group\)\);/);
+  assert.match(js, /text\.textContent = lockText\(\);/);
+  assert.match(js, /lock\.append\(checkbox, icon, text\);/);
   assert.doesNotMatch(js, /\.style\./);
   assert.doesNotMatch(js, /\.style\s*=/);
 });
 
-test('Randomize, the Size picker and Download each take a line of their own at each width', async () => {
-  const css = await read('builder.css');
-
-  // One rule lays out the controls under the preview, and no other rule changes it for some width.
-  const layoutRules = rules(css).filter((rule) => rule.selectors.some((item) => /\.actions\b/.test(item)));
-  assert.equal(layoutRules.length, 1, 'one rule sets the layout of .actions');
-  assert.deepEqual(layoutRules[0].selectors, ['.actions']);
-  assert.doesNotMatch(css, /@media[^{]*\{[^}]*\.actions/, 'no media query changes it');
-
-  // A grid with one column puts each control on the next line, however wide the column is.
-  const actions = Object.fromEntries(declarations(css, '.actions'));
-  assert.equal(actions.display, 'grid');
-  assert.deepEqual(tracks(actions['grid-template-columns']), ['minmax(0, 1fr)'], 'one column');
-  assert.equal(actions['grid-auto-flow'], undefined, 'controls flow down the column');
-  assert.equal(actions['flex-wrap'], undefined);
-
-  // The buttons keep their own width and the picker takes the whole line.
-  assert.equal(actions['justify-items'], 'start');
-  const picker = Object.fromEntries(declarations(css, 'label.size-picker'));
-  assert.equal(picker['justify-self'], 'stretch');
-  assert.equal(picker['grid-column'], undefined);
-  assert.equal(picker.width, undefined);
-
-  // The order on the page is the order down the column.
-  const html = await read('index.html');
-  const controls = /<div class="actions">([\s\S]*?)<\/div>/.exec(html)[1];
-  const order = [...controls.matchAll(/<(?:button|select)[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(order, ['randomize', 'size', 'download']);
-});
-
-test('the Size picker sits right above Download, lists Full size first and starts disabled', async () => {
+test('the page has three buttons under the preview: Randomize, Download image and Reset', async () => {
   const html = await read('index.html');
   const actions = /<div class="actions">([\s\S]*?)<\/div>/.exec(html)[1];
-  const picker = actions.indexOf('<select id="size" disabled>');
-  const button = actions.indexOf('<button type="button" id="download"');
-  assert.notEqual(picker, -1, 'the picker is with the buttons and starts disabled');
-  assert.ok(picker < button, 'the picker comes right before Download');
-  assert.doesNotMatch(actions.slice(picker, button), /<button/, 'no button sits between them');
-  assert.match(actions, /<label class="size-picker">\s*Size\s*<select id="size"/);
-
-  // Before a style opens the picker holds Full size, under the id src/download.js gives it.
-  const { FULL_SIZE } = await import('../src/download.js');
-  const options = [...actions.matchAll(/<option value="([^"]*)">([^<]*)<\/option>/g)].map((match) => [match[1], match[2]]);
-  assert.deepEqual(options, [[FULL_SIZE.id, FULL_SIZE.label]]);
+  const buttons = [...actions.matchAll(/<button type="button" id="([^"]+)" class="([^"]+)" disabled>[\s\S]*?<\/svg>\s*([^<]+?)\s*<\/button>/g)].map(
+    (match) => [match[1], match[2], match[3]],
+  );
+  assert.deepEqual(buttons, [
+    ['randomize', 'button primary', 'Randomize'],
+    ['download', 'button', 'Download image'],
+    ['reset', 'button quiet', 'Reset'],
+  ]);
+  // Each icon is hidden from screen readers, so the text is the button's name.
+  assert.equal(actions.match(/<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">/g).length, 3);
 });
 
-test('the Size picker is disabled whenever Download is', async () => {
+test('the Size picker sits under the buttons, starts hidden and disabled, and is disabled whenever Download is', async () => {
+  const html = await read('index.html');
+  assert.match(html, /<\/div>\s*<fieldset id="size" class="size-picker" hidden disabled>\s*<legend>Size<\/legend>\s*<\/fieldset>/);
   const js = await read('builder.js');
   // One function sets both, from the same value, and nothing else sets either.
   assert.match(js, /downloadEl\.disabled = picture === null;\n\s*sizeEl\.disabled = picture === null;/);
   assert.equal(js.match(/downloadEl\.disabled\s*=/g).length, 1);
   assert.equal(js.match(/sizeEl\.disabled\s*=/g).length, 1);
+  // A style with one size gets no picker.
+  assert.match(js, /const \{ options, value, shown \} = sizePicker\(manifest\.canvas, pickedSize\(\)\);/);
+  assert.match(js, /sizeEl\.hidden = !shown;/);
+  // With no style on screen the picker is hidden, so a style that fails to load never leaves the last style's choices behind.
+  // clearStyle runs before each load and after a failed one, and src/download.js gives the answer.
+  assert.match(js, /function clearStyle\(\) \{\n\s*current = null;\n\s*updateButtons\(\);\n\s*setFinished\(null\);\n\s*sizeEl\.hidden = !sizePickerShown\(null\);/);
+  // Nothing else shows or hides it, and the choices are replaced only when a style opens, so the pick lasts through a failed load.
+  assert.equal(js.match(/sizeEl\.hidden\s*=/g).length, 2);
+  assert.equal(js.match(/sizeEl\.replaceChildren\(/g).length, 1);
+  // The sizes are radio buttons of one name no group can have, since a group id has no colon.
+  assert.match(js, /const SIZE_NAME = 'download:size';/);
+  assert.match(js, /input\.type = 'radio';\n\s*input\.name = SIZE_NAME;/);
 });
 
 test('the page takes the sizes, the saved picture and the file name from src/download.js', async () => {
   const js = await read('builder.js');
-  assert.match(js, /sizePicker\(manifest\.canvas, sizeEl\.value\)/);
-  assert.match(js, /planDownload\(manifest, sizeEl\.value\)/);
+  assert.match(js, /planDownload\(manifest, pickedSize\(\)\)/);
   assert.match(js, /pictureToSave\(finished, plan\)/);
   assert.match(js, /link\.download = plan\.fileName;/);
   // The page holds no size, no file name and no scaling of its own.
@@ -196,24 +138,218 @@ test('compositeLayers draws the picture once and nothing else stacks layers', as
   }
 });
 
-test('each group gets a grid of tiles and no dropdown', async () => {
+test('the type comes from one Adobe Fonts kit, and the page loads nothing else from another origin', async () => {
+  const html = await read('index.html');
+  // The one link to another origin is the kit's stylesheet, before the page's own.
+  const external = [...html.matchAll(/(?:href|src)="(https?:[^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(external, ['https://use.typekit.net/dll3tpt.css']);
+  assert.ok(html.indexOf('use.typekit.net') < html.indexOf('href="builder.css"'), 'the kit comes first');
+  // The stylesheet loads no font file of its own, and its only images are inline.
+  const css = plain(await read('builder.css'));
+  assert.doesNotMatch(css, /@font-face|@import/);
+  for (const [, url] of css.matchAll(/url\(\s*["']?([^"')]+)/g)) assert.match(url, /^data:/);
+  // Neue Haas Grotesk Text for the page, then the system face while the kit loads or when it can't. No free font in the stack.
+  assert.match(css, /body \{[^}]*font-family: 'neue-haas-grotesk-text', system-ui, -apple-system, 'Segoe UI', sans-serif;/);
+  // Owners Narrow is the face of the wordmark and the headings, through one custom property, in Bold.
+  assert.match(css, /--font-head: 'owners-narrow', system-ui, -apple-system, 'Segoe UI', sans-serif;/);
+  assert.equal(css.match(/owners-narrow/g).length, 1);
+  const headed = rules(css).filter((rule) => /font-family:\s*var\(--font-head\)/.test(rule.body));
+  assert.deepEqual(headed.map((rule) => rule.selectors.join(', ')).sort(), ['.trait-heading h2', '.wordmark', 'h1']);
+  for (const rule of headed) assert.match(rule.body, /font-weight:\s*700;/, rule.selectors.join(', '));
+  // The kit holds Neue Haas Grotesk Text in 400, 500 and 700, so the page uses those weights only.
+  const weights = new Set([...css.matchAll(/font-weight:\s*(\d+)/g)].map((match) => match[1]));
+  assert.deepEqual([...weights].sort(), ['400', '500', '700']);
+});
+
+test('the logo is the wordmark, with no image, and the name is written in src/brand.js only', async () => {
+  const html = await read('index.html');
+  assert.match(html, /<header class="topbar">\s*<p id="wordmark" class="wordmark"><\/p>\s*<\/header>/);
+  assert.doesNotMatch(html, /<img/);
+  const { NAME, pageTitle } = await import('../src/brand.js');
+  assert.equal(typeof NAME, 'string');
+  assert.ok(NAME.trim().length > 0, 'a name');
+  assert.ok(pageTitle(NAME).includes(NAME), 'the title holds the name');
+  // The page writes the name into the wordmark and the title from src/brand.js, and no page file holds it.
+  const js = await read('builder.js');
+  assert.match(js, /document\.querySelector\('#wordmark'\)\.textContent = NAME;\n\s*document\.title = pageTitle\(NAME\);/);
+  assert.match(js, /async function start\(\) \{\n\s*showName\(\);/);
+  for (const file of ['index.html', 'builder.js', 'builder.css', 'thumbnail-worker.js', 'layers.js']) {
+    assert.ok(!(await read(file)).includes(NAME), file);
+  }
+  // The site build takes it from src/brand.js too, so a new name needs no other edit.
+  const build = await readFile(new URL('../bin/build-site.js', import.meta.url), 'utf8');
+  assert.ok(!build.includes(NAME), 'bin/build-site.js holds no name of its own');
+  assert.match(build, /import \{ NAME, pageTitle \} from '\.\.\/src\/brand\.js';/);
+});
+
+test('the Character tab is the first tab, with one tile per style in the index, as a radio group', async () => {
+  const html = await read('index.html');
+  // The tab and its panel are in the page, before any trait tab, so a new style never removes them.
+  const tablist = /<div id="tabs" class="tabs" role="tablist" aria-label="Character and traits">\s*<button ([^>]*)>Character<\/button>\s*<\/div>/.exec(html);
+  assert.ok(tablist, 'the tablist starts with the Character tab and holds nothing else in the markup');
+  assert.match(tablist[1], /id="character-tab"/);
+  assert.match(tablist[1], /role="tab"/);
+  assert.match(tablist[1], /aria-controls="character-panel"/);
+  assert.match(html, /<div id="character-panel" class="trait" role="tabpanel" aria-labelledby="character-tab" hidden>/);
+  assert.match(html, /<h2 id="character-heading">Character<\/h2>\s*<p id="character-pick" class="pick"><\/p>/);
+  // The grid is the last thing in the panel. The coming-soon tiles say what the "More characters on the way." line used to.
+  assert.match(html, /<div id="bases" class="tiles characters" role="radiogroup" aria-labelledby="character-heading"><\/div>\s*<\/div>/);
+  assert.doesNotMatch(html, /on the way|bases-note/);
+  // No row of styles sits above the panel.
+  assert.doesNotMatch(html, /class="bases"|class="top"/);
+  const js = await read('builder.js');
+  assert.match(js, /const tiles = characterTiles\(index\.styles, index\.comingSoon\);\n\s*buildBaseRow\(tiles, indexUrl\);/);
+  // The address is read with the coming-soon characters in the index, so their ids get the coming-soon notice.
+  assert.match(js, /comingSoon: comingSoonEntries\(repoIndex\),\n\s*\};/);
+  assert.match(js, /const \{ entry, notice \} = styleFromSearch\(index, location\.search\);/);
+  assert.match(js, /input\.type = 'radio';\n\s*input\.name = BASE_NAME;\n\s*input\.value = tile\.id;/);
+  assert.match(js, /const BASE_NAME = 'style:base';/);
+  // A character tile is a trait tile with a caption: same classes, a canvas hidden from screen readers, and the
+  // style's name under the picture, which is the radio button's accessible name.
+  assert.match(js, /label\.className = 'tile base';/);
+  assert.match(js, /thumb\.className = 'thumb base-thumb';[\s\S]{0,120}thumb\.setAttribute\('aria-hidden', 'true'\);/);
+  assert.match(js, /label\.append\(input, thumb, makeCaption\(tile\.name, null\)\);/);
+  // The caption cuts a long name short, so the tooltip carries the whole name.
+  assert.match(js, /label\.title = tile\.name;/);
+  assert.match(js, /nameEl\.className = 'base-name';\n\s*nameEl\.textContent = name;/);
+  // Picking a tile opens its style, and opening a style checks its tile and names it in the panel heading.
+  assert.match(js, /const entry = index\.styles\.find\(\(candidate\) => candidate\.id === target\.value\);\n\s*if \(entry\) switcher\.open\(entry\);/);
+  // characterPick in src/builder-layout.js says which tile, and one function writes it to the page.
+  assert.match(js, /clear\(entry\) \{\n\s*clearStyle\(\);\n\s*showCharacterPick\(characterPick\(entry, false\)\);/);
+  assert.match(
+    js,
+    /function showCharacterPick\(\{ id, name \}\) \{\n\s*for \(const input of basesEl\.querySelectorAll\(`input\[name="\$\{BASE_NAME\}"\]`\)\) input\.checked = input\.value === id;\n\s*characterPickEl\.textContent = name;\n\}/,
+  );
+  assert.equal(js.match(/characterPickEl\.textContent\s*=/g).length, 1);
+  // A new style replaces the trait tabs only: they carry data-trait, and the Character tab doesn't.
+  assert.match(js, /if \(element\.hasAttribute\('data-trait'\)\) element\.remove\(\);/);
+  assert.doesNotMatch(js, /tabsEl\.replaceChildren\(|panelsEl\.replaceChildren\(/);
+  // Which tab opens comes from src/builder-layout.js.
+  // It counts the styles, never the tiles, so eleven coming-soon tiles don't change which tab opens.
+  // The page passes what it sees and opens the tab it gets back: it holds no tab position of its own.
+  assert.match(js, /openTab\(tabToOpen\(\{ styleCount, firstStyle: !shownBefore, tabCount: tabsEl\.children\.length \}\), false\);/);
+  assert.doesNotMatch(js, /characterTabOpens|\? 0 : 1/);
+  // A style that fails to load leaves the Character tab open, so its tiles can be reached to pick another.
+  assert.match(js, /fail\(entry, error\) \{\n\s*clearStyle\(\);\n[^\n]*\n\s*openTab\(tabAfterFailedStyle\(\), false\);/);
+  // After a failed load no tile is checked, so a click or Space on the failed tile fires a change and opens it once more.
+  assert.match(js, /openTab\(tabAfterFailedStyle\(\), false\);\n[^\n]*\n\s*showCharacterPick\(characterPick\(entry, true\)\);/);
+  assert.match(js, /const switcher = createSwitcher\(index\.styles\.length\);/);
+  assert.doesNotMatch(js, /basesEl\.children\.length/);
+  // A tile shows the picture the style opens with. The page asks the thumbnail worker for it after the
+  // first style is on screen, and the worker draws it with basePicture from src/builder-layout.js.
+  assert.match(js, /await switcher\.open\(entry\);\n\s*await drawBaseTiles\(index\.styles\);/);
+  assert.match(js, /worker\.postMessage\(\{ kind: 'base', id: entry\.id, manifest, manifestUrl: String\(url\) \}\);/);
+  assert.match(js, /if \(event\.data\.type === 'base'\) paintBaseTile\(event\.data\);/);
+  assert.doesNotMatch(js, /basePicture|baseLayers/, 'the main thread composites no tile picture');
+  const worker = await read('thumbnail-worker.js');
+  assert.match(worker, /return basePicture\(manifest, \(src\) => loaded\.get\(src\)\);/);
+  // The style on screen reuses the layers its thumbnails loaded. The decision is reusesThumbnailLayers in src/builder-layout.js.
+  assert.match(worker, /reusesThumbnailLayers\(style\?\.manifestUrl \?\? null, manifestUrl\)\s*\? style\.layers\s*: createLayerLoader\(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES\)/);
+  // A tile request has no ticket and a queue of its own, so it neither drops nor is dropped by a thumbnail request.
+  assert.match(worker, /if \(request\.kind === 'base'\) \{\n\s*baseQueue\.push\(request\);\n\s*if \(!basesRunning\) runBases\(\);\n\s*return;\n\s*\}\n\s*latest = Math\.max\(latest, request\.ticket\);/);
+  // Trait thumbnails go first: the thumbnail loop never draws a character picture, and a character picture
+  // composites only while no thumbnail request is running or waiting.
+  const run = /async function run\(\) \{([\s\S]*?)\n\}/.exec(worker)[1];
+  assert.doesNotMatch(run, /drawBase|base/);
+  // The decision is mayDrawBase in src/builder-layout.js (test/builder-layout.test.js); the worker calls it before compositing.
+  // It looks every BASE_POLL_MS and tells mayDrawBase how long it has waited, so the wait has an end and no tight loop.
+  assert.match(worker, /const waitingSince = performance\.now\(\);\n\s*while \(!mayDrawBase\(\{ running, waiting: queue\.length, waitedMs: performance\.now\(\) - waitingSince \}\)\) await pause\(BASE_POLL_MS\);\n\s*return basePicture\(/);
+  assert.match(worker, /function pause\(milliseconds\) \{\n\s*return new Promise\(\(resolve\) => setTimeout\(resolve, milliseconds\)\);/);
+  // The character tiles take the trait tiles' look. Their own rules are the caption, the sharp-pixel rule and the coming-soon tile.
+  const css = await read('builder.css');
+  assert.ok(declarations(css, '.base-thumb.pixel-art').length > 0);
+  assert.doesNotMatch(plain(css), /label\.base\b|\.base-list|\.bases-row/);
+});
+
+test('a coming-soon tile shows its picture, its name and a small tag, and can\'t be picked', async () => {
+  const js = await read('builder.js');
+  const make = /function makeComingSoonTile\(tile, indexUrl\) \{([\s\S]*?)\n\}/.exec(js)[1];
+  // The trait tile's classes, so it is the same tile, and one more for what differs.
+  assert.match(make, /item\.className = 'tile base coming-soon';/);
+  // It holds no radio button and no other form control: it is never the group's pick, and neither
+  // readSelection, Randomize, Reset nor Download, which read the form's inputs and the manifest, reach it.
+  assert.doesNotMatch(make, /createElement\('(input|button|select|label)'\)|BASE_NAME|\.checked|\.name =/);
+  // To a screen reader it is a radio of the group that is disabled and not checked.
+  assert.match(make, /item\.setAttribute\('role', 'radio'\);/);
+  assert.match(make, /item\.setAttribute\('aria-checked', 'false'\);/);
+  assert.match(make, /item\.setAttribute\('aria-disabled', 'true'\);/);
+  // Tab passes it and the arrow keys reach it, so a keyboard user gets to the tag.
+  assert.match(make, /item\.tabIndex = -1;/);
+  // Its picture is one image of this site, found through resolvePictureUrl, and loaded when the tile is on screen.
+  assert.match(make, /picture\.src = String\(resolvePictureUrl\(tile, indexUrl\)\);/);
+  assert.match(make, /picture\.alt = '';/);
+  assert.match(make, /picture\.loading = 'lazy';/);
+  // The name and the tag are the caption, and the tag's text is COMING_SOON_TAG from src/builder-layout.js.
+  assert.match(make, /item\.append\(picture, makeCaption\(tile\.name, COMING_SOON_TAG\)\);/);
+  assert.doesNotMatch(js, /['"`]Coming soon/i, 'the page holds no copy of the tag');
+  // Nothing asks the thumbnail worker for a coming-soon picture or loads a manifest for one: both walk the styles.
+  assert.match(js, /await drawBaseTiles\(index\.styles\);/);
+  assert.equal(js.match(/comingSoonEntries\(/g).length, 1);
+  assert.doesNotMatch(make, /manifest|worker|canvas/i);
+
+  // A click does nothing: only an input of the group opens a style.
+  assert.match(js, /if \(!\(target instanceof HTMLInputElement\) \|\| target\.name !== BASE_NAME\) return;/);
+  // The arrow keys come from characterKeyMove, and only a tile with a radio button becomes the pick.
+  const keys = /basesEl\.addEventListener\('keydown', \(event\) => \{([\s\S]*?)\n    \}\);/.exec(js)[1];
+  assert.match(keys, /const move = characterKeyMove\(/);
+  assert.match(keys, /event\.key,\n\s*event\.altKey \|\| event\.ctrlKey \|\| event\.metaKey,\n\s*\);/);
+  assert.match(keys, /if \(move === null\) return;\n\s*event\.preventDefault\(\);/);
+  assert.match(keys, /\(input \?\? element\)\.focus\(\);/);
+  assert.match(keys, /if \(move\.pick && input && !input\.checked\) \{\n\s*input\.checked = true;\n\s*input\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\);/);
+});
+
+test('the tag is small and quiet, the picture stays clear, and a focused coming-soon tile has an outline', async () => {
+  const css = plain(await read('builder.css'));
+  const caption = Object.fromEntries(declarations(css, '.base-caption'));
+  const tag = Object.fromEntries(declarations(css, '.base-tag'));
+  // One size from the page's scale for the caption, and the tag sets none of its own.
+  assert.equal(caption['font-size'], 'var(--t-small)');
+  assert.equal(tag['font-size'], undefined);
+  assert.equal(tag.color, 'var(--muted)');
+  assert.equal(tag.background, 'var(--paper)');
+  assert.equal(tag['white-space'], 'nowrap');
+  // Sentence case as written: nothing in the stylesheet turns text into capitals.
+  assert.doesNotMatch(css, /text-transform|font-variant(-caps)?:\s*(all-)?small-caps/);
+  // The tag sits in the caption under the picture, never across it.
+  assert.equal(tag.position, undefined);
+  assert.equal(caption.position, undefined);
+  // No grey-out: no rule for a coming-soon tile dims or filters it.
+  for (const rule of rules(css).filter((item) => item.selectors.some((selector) => selector.includes('coming-soon')))) {
+    assert.doesNotMatch(rule.body, /opacity|filter|grayscale|mix-blend-mode/, rule.selectors.join(', '));
+  }
+  // It is no button to press: the default pointer, and no lift on hover.
+  assert.equal(Object.fromEntries(declarations(css, '.tile.coming-soon')).cursor, 'default');
+  assert.equal(declarations(css, '.tile.coming-soon:hover').length, 0);
+  assert.match(Object.fromEntries(declarations(css, '.tile.coming-soon:focus-visible')).outline ?? '', /solid/);
+  // The cut-out picture sits on the yellow the alien's tile opens on.
+  assert.equal(Object.fromEntries(declarations(css, '.tile.coming-soon .thumb')).background, 'var(--character-ground)');
+  assert.match(css, /--character-ground: #f6d44a;/);
+  // On a phone the Character tab keeps the wide rule, so a tile is wide enough for its tag on one line.
+  assert.match(
+    css,
+    /@media \(max-width: 560px\)[\s\S]*?\.tiles\.characters\s*\{\s*grid-template-columns: repeat\(auto-fill, minmax\(min\(var\(--thumbnail\), 100%\), 1fr\)\);/,
+  );
+});
+
+test('each group gets tiles and no dropdown', async () => {
   const js = await read('builder.js');
   const html = await read('index.html');
-  // The two dropdowns on the page are the Style picker and the Size picker.
-  assert.deepEqual([...html.matchAll(/<select id="([^"]+)"/g)].map((match) => match[1]), ['style', 'size']);
+  // The page has no dropdown. Styles are tiles in the Character tab.
+  assert.doesNotMatch(html, /<select/);
   assert.equal(js.match(/createElement\('select'\)/g), null, 'the page makes no dropdown');
-  // One tile per entry of traitTiles, each a radio button named after its group.
-  assert.match(js, /traitTiles\(group\)\.forEach\(\(tile, index\) =>/);
+  // One tile per entry of traitTiles, each a radio button named after its group. The first one starts picked.
+  assert.match(js, /traitTiles\(group\)\.forEach\(\(tile, index\) => grid\.append\(makeTile\(group, tile, index === 0, tileClass, pixelArt\)\)\);/);
   assert.match(js, /input\.type = 'radio';\n\s*input\.name = group\.id;\n\s*input\.value = tile\.value;/);
-  assert.match(js, /grid\.className = 'tiles';/);
 });
 
 test('each grid is a radio group named by its heading, and each tile is named by its option label', async () => {
   const js = await read('builder.js');
   const css = await read('builder.css');
-  assert.match(js, /grid\.setAttribute\('role', 'radiogroup'\);/);
-  assert.match(js, /grid\.setAttribute\('aria-labelledby', title\.id\);/);
-  assert.match(js, /title\.id = `trait-\$\{group\.id\}`;/);
+  assert.match(js, /grid\.setAttribute\('role', 'radiogroup'\);\n\s*grid\.setAttribute\('aria-labelledby', labelId\);/);
+  // The panel's heading and the swatch column's hidden heading both have the id the grid points at.
+  assert.equal(js.match(/title\.id = `trait-\$\{group\.id\}`;/g).length, 2);
+  assert.match(js, /makeGrid\(group, 'swatch-list', 'tile swatch', title\.id, pixelArt\)/);
+  assert.match(js, /makeGrid\(group, 'tiles', 'tile', title\.id, pixelArt\)/);
   // The radio button sits in the tile's label with the option's label as its text. The canvas is hidden from screen readers.
   assert.match(js, /name\.textContent = tile\.label;/);
   assert.match(js, /label\.append\(input, thumb, name\);/);
@@ -228,59 +364,127 @@ test('each grid is a radio group named by its heading, and each tile is named by
   assert.equal(name.visibility, undefined);
 });
 
-test('a click on a tile redraws the preview, the round preview and the layer list', async () => {
+test('the background group is a column of swatches on the left of the preview', async () => {
+  const html = await read('index.html');
+  const row = /<div class="stage-row">([\s\S]*?)<div class="actions">/.exec(html)[1];
+  assert.ok(row.indexOf('id="swatches"') < row.indexOf('class="stage-card"'), 'the column comes first, on the left');
   const js = await read('builder.js');
-  // A radio change renders. Only a lock checkbox skips the render.
-  assert.match(
-    js,
-    /if \(event\.target instanceof HTMLInputElement && event\.target\.type === 'checkbox'\) updateRandomize\(\);\n\s*else current\?\.render\(\);/,
-  );
-  // The render reads the picked tiles and writes both previews and the list.
-  assert.match(js, /const selection = readSelection\(manifest\);\n\s*const layers = resolveSelection\(manifest, selection\);\n\s*showSelection\(layers\);/);
-  assert.match(js, /putPicture\(previewEl, picture\);\n\s*putPicture\(roundPreviewEl, roundPreviewPicture\(picture\)\);/);
+  assert.match(js, /buildSwatches\(swatchGroup\(manifest\), locks, pixelArt\);/);
+  // The column is as tall as the preview: it takes no height of its own and scrolls when a style has more colours.
+  const css = await read('builder.css');
+  const column = Object.fromEntries(declarations(css, '.swatches'));
+  assert.equal(column.contain, 'size');
+  assert.equal(column['flex-direction'], 'column');
+  // When the swatches don't fit, only the list scrolls, with a scrollbar, and the Lock stays in view at the foot.
+  assert.equal(column.overflow, 'hidden');
+  const list = Object.fromEntries(declarations(css, '.swatch-list'));
+  assert.equal(list['overflow-y'], 'auto');
+  assert.equal(list['min-height'], '0');
+  assert.match(list.flex, /^0 1 /, 'the list shrinks, the Lock does not');
+  assert.notEqual(list['scrollbar-width'], 'none', 'the scrollbar shows');
+  assert.equal(Object.fromEntries(declarations(css, 'label.lock.compact')).flex, 'none');
+  const grid = Object.fromEntries(declarations(css, '.stage-row'));
+  assert.deepEqual(tracks(grid['grid-template-columns']), ['calc(var(--swatch) + 12px)', 'minmax(0, 1fr)']);
+  // The picked swatch has two rings, so it doesn't show by colour alone.
+  assert.match(Object.fromEntries(declarations(css, 'label.swatch:has(input:checked)'))['box-shadow'], /var\(--ink\)/);
+});
+
+test('ten swatches and the Lock fit beside the preview at 390 px, with room for each ring', async () => {
+  const css = plain(await read('builder.css'));
+  const phone = /@media \(max-width: 560px\) \{\s*:root \{([^}]*)\}/.exec(css)[1];
+  const value = (name) => Number.parseFloat(new RegExp(`--${name}:\\s*([\\d.]+)px`).exec(phone)[1]);
+  const [swatch, gap, ring] = [value('swatch'), value('swatch-gap'), value('ring')];
+  const reach = Number.parseFloat(/--swatch-reach:\s*([\d.]+)px/.exec(css)[1]);
+  const rowGap = Number.parseFloat(/@media \(max-width: 560px\)[\s\S]*?\.stage-row \{\s*gap: ([\d.]+)px;/.exec(css)[1]);
+  // The page is 16 px from each edge and the column is the swatch plus 12 px.
+  const card = 390 - 2 * 16 - (swatch + 12) - rowGap;
+  // Ten swatches and the Lock with a gap between each, the reach at both ends of the list and 2 px under the Lock.
+  const column = 11 * swatch + 10 * gap + 2 * reach + 2;
+  assert.ok(column <= card, `${column} px of swatches beside a ${card} px preview`);
+  // The picked ring (paper, then 2 px of ink) and the focus ring (3 px of yellow, then 2 px of ink) stay inside the reach.
+  assert.ok(ring + 2 <= reach, 'the picked ring fits');
+  const focus = Object.fromEntries(declarations(css, 'label.swatch:has(input:focus-visible)'));
+  const outline = Number.parseFloat(focus.outline);
+  const offset = Number.parseFloat(focus['outline-offset']);
+  assert.equal(focus['box-shadow'], '0 0 0 3px var(--accent)');
+  assert.ok(offset >= 3, 'the outline sits outside the yellow halo');
+  assert.ok(outline + offset <= reach, 'the focus ring fits');
+  // The list keeps the reach at its ends and the column keeps 6 px a side.
+  assert.equal(Object.fromEntries(declarations(css, '.swatch-list')).padding, 'var(--swatch-reach) 0');
+  assert.ok(reach <= 6, 'the column has 6 px a side');
+});
+
+test('the other groups are tabs in one panel, and the arrow keys move along them', async () => {
+  const js = await read('builder.js');
+  const html = await read('index.html');
+  assert.match(html, /<div id="tabs" class="tabs" role="tablist" aria-label="Character and traits">/);
+  assert.match(js, /buildTabs\(tabGroups\(manifest\), locks, pixelArt\);/);
+  assert.match(js, /tab\.setAttribute\('role', 'tab'\);\n\s*tab\.setAttribute\('aria-controls', `panel-\$\{group\.id\}`\);\n\s*tab\.setAttribute\('aria-selected', 'false'\);/);
+  assert.match(js, /panel\.setAttribute\('role', 'tabpanel'\);\n\s*panel\.setAttribute\('aria-labelledby', tab\.id\);\n\s*panel\.hidden = true;/);
+  // One tab is in the Tab order, the open one, and openTab opens one tab and closes the others.
+  assert.match(js, /const open = at === index;\n\s*tab\.setAttribute\('aria-selected', String\(open\)\);\n\s*tab\.tabIndex = open \? 0 : -1;/);
+  // A key held with Alt, Control or Meta stays the browser's: tabAfterKey gets told and gives null.
+  assert.match(js, /const modified = event\.altKey \|\| event\.ctrlKey \|\| event\.metaKey;\n\s*const next = tabAfterKey\(tabs\.indexOf\(document\.activeElement\), event\.key, tabs\.length, modified\);\n\s*if \(next === null\) return;\n\s*event\.preventDefault\(\);/);
+  // The panel names the group's pick.
+  assert.match(js, /pick\.textContent = choiceLabel\(group, selection\[group\.id\] \?\? null\);/);
+});
+
+test('a click on a tile redraws the preview with a settle, and a lock, the Circle switch, a size or a character tile do not', async () => {
+  const js = await read('builder.js');
+  const change = /controlsEl\.addEventListener\('change', \(event\) => \{([\s\S]*?)\n    \}\);/.exec(js)[1];
+  assert.match(change, /if \(target === circleEl\)/);
+  assert.match(change, /else if \(target\.name === SIZE_NAME \|\| target\.name === BASE_NAME\) return;/);
+  assert.match(change, /else if \(target\.type === 'checkbox'\) updateButtons\(\);/);
+  assert.match(change, /else current\?\.render\(\{ settle: true \}\);/);
+  // The render reads the picked tiles and writes the preview.
+  assert.match(js, /const selection = readSelection\(manifest\);\n\s*showPicks\(manifest, selection\);/);
   assert.match(js, /selection\[group\.id\] = pageChoice\(group, picked\?\.value\);/);
+  assert.match(js, /if \(settle\) replay\(stageCardEl, 'settle'\);/);
+  // The form never submits.
+  assert.match(js, /controlsEl\.addEventListener\('submit', \(event\) => event\.preventDefault\(\)\);/);
 });
 
 test('the preview and the download draw every picked layer, and only the thumbnails leave out the groups drawn over', async () => {
   const js = await read('builder.js');
-  // The preview is compositeLayers over each layer of resolveSelection, and the download saves that picture.
   assert.match(js, /const rasters = await Promise\.all\(layers\.map\(\(\{ option \}\) => layerCache\.get\(option\.src\)\)\);/);
-  assert.match(js, /const picture = compositeLayers\(width, height, rasters\);\n\s*showPicture\(picture\);\n\s*setFinished\(picture\);/);
+  assert.match(js, /const picture = compositeLayers\(width, height, rasters\);\n\s*putPicture\(previewEl, picture\);\n\s*setFinished\(picture\);/);
   assert.match(js, /if \(!plan\.scaled\) return previewEl;\n\s*const picture = pictureToSave\(finished, plan\);/);
   // The page never filters layers by over. That is drawThumbnail's job, in the worker.
   assert.doesNotMatch(js, /thumbnailLayers|coversInThumbnails|\.over\b/);
 });
 
-test('a group with one choice gets no section, no Lock and no thumbnails on the page', async () => {
+test('a group with one choice gets no tiles, no Lock and no thumbnails on the page', async () => {
   const js = await read('builder.js');
-  assert.match(js, /for \(const group of manifest\.groups\) \{\n\s*if \(!hasLock\(group\)\) continue;\n\s*const row = document\.createElement\('div'\);/);
-  assert.match(js, /for \(const group of manifest\.groups\.filter\(hasLock\)\) \{\n\s*locks\[group\.id\] = controlsEl\.elements\.namedItem/);
+  // The column and the tabs come from swatchGroup and tabGroups, which leave such a group out (test/builder-layout.test.js).
+  assert.match(js, /buildSwatches\(swatchGroup\(manifest\), locks, pixelArt\);\n\s*buildTabs\(tabGroups\(manifest\), locks, pixelArt\);/);
+  assert.match(js, /for \(const group of manifest\.groups\.filter\(hasLock\)\) \{\n\s*locks\[group\.id\] = lockInput\(group\)\.checked;/);
   assert.match(js, /if \(traitTiles\(group\)\.length === 0\) continue;\n\s*const key = thumbnailKey/);
 });
 
-test('at 900 px and wider the preview column stays in view, and below that the layout is as before', async () => {
-  const css = await read('builder.css');
+test('at 900 px and wider the preview column stays in view, and below that the page scrolls as one', async () => {
+  const css = plain(await read('builder.css'));
   const html = await read('index.html');
-  // The column holds both previews and Randomize, Size and Download.
-  const column = /<section class="preview-column" aria-label="Preview">([\s\S]*?)<\/section>/.exec(html);
+  const column = /<section class="stage-column" aria-label="Preview">([\s\S]*?)<\/section>/.exec(html);
   assert.ok(column, 'the preview section has the class');
-  for (const id of ['preview', 'round-preview', 'randomize', 'size', 'download']) {
+  for (const id of ['swatches', 'preview', 'circle', 'randomize', 'download', 'reset', 'size']) {
     assert.match(column[1], new RegExp(`id="${id}"`), id);
   }
-  // One rule for the column, inside the 900 px query, and nothing else in the page sticks.
-  const plain = css.replace(/\/\*[\s\S]*?\*\//g, '');
-  assert.equal(plain.match(/\.preview-column/g).length, 1);
-  const wide = /@media \(min-width: 900px\)\s*\{\s*\.preview-column\s*\{([^}]*)\}\s*\}/.exec(plain);
-  assert.ok(wide, 'the column rule sits in a min-width: 900px query');
-  const rule = Object.fromEntries(
-    wide[1].split(';').filter((line) => line.includes(':')).map((line) => line.split(':').map((part) => part.trim())),
-  );
-  assert.equal(rule.position, 'sticky');
-  assert.equal(rule.top, '16px');
-  assert.equal(plain.match(/position:\s*sticky/g).length, 1);
-  // The grid stays as it was: two columns, one under 560 px, aligned to the top so the column can stick.
-  const layout = Object.fromEntries(declarations(css, '.layout'));
-  assert.equal(layout['align-items'], 'start');
+  const wide = /@media \(min-width: 900px\)\s*\{\s*\.stage-column\s*\{([^}]*)\}\s*\}/.exec(css);
+  assert.ok(wide, 'the sticky rule sits in a min-width: 900px query');
+  assert.match(wide[1], /position: sticky;/);
+  // A column taller than the window scrolls on its own, so Download is always in reach.
+  assert.match(wide[1], /max-height: calc\(100vh - 16px\);/);
+  assert.match(wide[1], /overflow-y: auto;/);
+  // The padding, taken back by the margin, is as wide as the stars reach past the card (.sparkles inset -16px).
+  assert.match(wide[1], /padding: 16px;\s*margin: -16px;/);
+  assert.match(css, /\.sparkles \{[^}]*inset: -16px;/);
+  for (const [, offset] of css.matchAll(/\.sparkles span:nth-child\(\d\) \{[^}]*?(?:left|right|top|bottom): (-?\d+)px/g)) {
+    assert.ok(Number(offset) >= 0, 'no star reaches past the sparkles box');
+  }
+  assert.equal(css.match(/position:\s*sticky/g).length, 1);
+  assert.equal(Object.fromEntries(declarations(css, '.layout'))['align-items'], 'start');
+  // Under 900 px one column.
+  assert.match(css, /@media \(max-width: 899px\)\s*\{\s*\.layout\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
 });
 
 test('the thumbnails are drawn in a worker after each render, and the page paints a whole group at once', async () => {
@@ -299,7 +503,6 @@ test('the thumbnails are drawn in a worker after each render, and the page paint
 
   const worker = await read('thumbnail-worker.js');
   assert.match(worker, /drawThumbnail\(\{ manifest, selection, group, choice: tile\.choice, pixelsOf, boundsOf \}\)/);
-  // The worker drops a request once a newer one has come, also halfway through a group, and sends a group's tiles in one answer.
   assert.match(worker, /if \(request\.ticket < latest\) return null;/);
   assert.match(worker, /self\.postMessage\(\{ type: 'tiles', ticket, groupId, key, tiles \}/);
   assert.match(worker, /createLayerLoader\(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES\)/);
@@ -311,51 +514,82 @@ test('the page keeps the layers of the picture on screen up to its limit', async
   assert.doesNotMatch(js, /new Map\(\);\n\s*let latest/, 'no cache without a limit');
 });
 
-test('Lock sits in the heading row of its group and Randomize checks the tiles it picks', async () => {
+test('Lock sits in the heading row of its group, Randomize keeps the locked groups and Reset puts back the defaults', async () => {
   const js = await read('builder.js');
   assert.match(js, /heading\.className = 'trait-heading';/);
-  assert.match(js, /heading\.append\(title, lock\);/);
-  assert.match(js, /row\.append\(heading, grid\);/);
-  // Randomize keeps the locked groups, then checks the tile of each choice and redraws.
+  assert.match(js, /heading\.append\(title, pick, makeLock\(group, locks\[group\.id\], false\)\);/);
+  assert.match(js, /swatchesEl\.append\(title, grid, makeLock\(group, locks\[group\.id\], true\)\);/);
+  // Randomize keeps the locked groups, then checks the tile of each choice, sparkles and redraws.
   assert.match(
     js,
-    /writeSelection\(manifest, randomizeUnlocked\(manifest, readSelection\(manifest\), locks\)\);\n\s*current\.render\(\);/,
+    /writeSelection\(manifest, randomizeUnlocked\(manifest, readSelection\(manifest\), locks\)\);\n\s*replay\(sparklesEl, 'go'\);\n\s*current\.render\(\{ settle: true \}\);/,
   );
   assert.match(js, /for \(const input of tileInputs\(group\)\) input\.checked = input\.value === value;/);
+  // Reset takes its picks and its locks from src/builder-layout.js.
+  assert.match(js, /const \{ selection, locks \} = resetState\(manifest\);\n\s*writeSelection\(manifest, selection\);\n\s*writeLocks\(manifest, locks\);/);
+  assert.match(js, /resetEl\.disabled = !canReset\(manifest, readSelection\(manifest\), locks\);/);
+  assert.match(js, /randomizeEl\.disabled = !canRandomize\(manifest, locks\);/);
 });
 
-test('the picked tile shows a check mark and a second ring, not only another colour', async () => {
+test('the picked tile shows a check mark and a ring, not only another colour', async () => {
   const css = await read('builder.css');
-  const picked = Object.fromEntries(declarations(css, 'label.tile:has(input:checked)'));
-  assert.ok(picked['box-shadow'], 'a second ring around the frame');
-  const mark = Object.fromEntries(declarations(css, 'label.tile:has(input:checked)::after'));
+  const picked = Object.fromEntries(declarations(css, 'label.tile:not(.swatch):has(input:checked)'));
+  assert.ok(picked['box-shadow'], 'a ring inside the frame');
+  const mark = Object.fromEntries(declarations(css, 'label.tile:not(.swatch):has(input:checked)::after'));
   assert.equal(mark.content, "'✓'");
   assert.equal(mark.position, 'absolute');
-  // The mark sits inside the tile, so it never sticks out of the column.
+  // The mark sits inside the tile, so it never sticks out of the panel.
   assert.ok(Number.parseFloat(mark.top) >= 0 && Number.parseFloat(mark.right) >= 0);
-  const focus = Object.fromEntries(declarations(css, 'label.tile:has(input:focus-visible)'));
+  const focus = Object.fromEntries(declarations(css, 'label.tile:not(.swatch):has(input:focus-visible)'));
   assert.match(focus.outline ?? '', /solid/, 'a focused tile has an outline');
 });
 
-test('at 390 px the tiles wrap inside the column', async () => {
-  const css = await read('builder.css');
-  const tiles = Object.fromEntries(declarations(css, '.tiles'));
-  assert.equal(tiles.display, 'flex');
-  assert.equal(tiles['flex-wrap'], 'wrap');
-  // Under 560 px the page has one column: 390 px less 24 px of padding a side.
-  assert.match(css, /@media \(max-width: 560px\)\s*\{\s*\.layout\s*\{\s*grid-template-columns: minmax\(0, 1fr\);/);
-  assert.equal(Object.fromEntries(declarations(css, 'main')).padding, '40px 24px 64px');
-  const column = 390 - 2 * 24;
-  // A tile is the thumbnail, 2 px of padding and a 2 px border a side.
-  const thumbnail = Number.parseFloat(Object.fromEntries(declarations(css, ':root'))['--thumbnail']);
-  const tile = Object.fromEntries(declarations(css, 'label.tile'));
-  assert.equal(tile.padding, '2px');
-  assert.match(tile.border, /^2px /);
-  assert.ok(thumbnail + 8 <= column, 'a tile fits the column at 390 px');
-  // Nothing in a trait row sets a width that could push past the column.
-  for (const selector of ['.trait', '.trait-heading', '.tiles', 'label.tile']) {
+test('the tiles fill the panel at each width and four go to a row at 390 px', async () => {
+  const css = plain(await read('builder.css'));
+  // The first .tiles rule is the one for each width. The phone query comes later and sets four columns.
+  const first = (property) => declarations(css, '.tiles').find(([name]) => name === property)?.[1];
+  assert.equal(first('display'), 'grid');
+  assert.equal(first('grid-template-columns'), 'repeat(auto-fill, minmax(min(var(--thumbnail), 100%), 1fr))');
+  assert.match(css, /@media \(max-width: 560px\)[\s\S]*?\.tiles\s*\{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+  // Nothing in a trait panel sets a width that could push past the column.
+  for (const selector of ['.trait', '.trait-heading', '.tiles', 'label.tile:not(.swatch)']) {
     const rule = Object.fromEntries(declarations(css, selector));
     assert.equal(rule.width, undefined, selector);
     assert.equal(rule['min-width'] ?? '0', '0', selector);
   }
+});
+
+test('the settle, the sparkle and the pop stop with reduced motion on', async () => {
+  const css = plain(await read('builder.css'));
+  const reduced = /@media \(prefers-reduced-motion: reduce\)\s*\{([\s\S]*)\}\s*$/.exec(css.trim());
+  assert.ok(reduced, 'the reduced-motion query is the last rule');
+  assert.match(reduced[1], /\*,\s*\*::before,\s*\*::after\s*\{\s*animation: none !important;\s*transition: none !important;/);
+  for (const name of ['settle', 'sparkle', 'pop']) assert.match(css, new RegExp(`@keyframes ${name}\\b`));
+  // A star is see-through until it plays, so with no animation it never shows.
+  assert.equal(Object.fromEntries(declarations(css, '.sparkles span')).opacity, '0');
+  const js = await read('builder.js');
+  assert.match(js, /function replay\(element, className\) \{\n\s*element\.classList\.remove\(className\);\n\s*void element\.offsetWidth;\n\s*element\.classList\.add\(className\);/);
+});
+
+test('on a phone Reset wraps to its own line before the buttons overlap', async () => {
+  const css = plain(await read('builder.css'));
+  // One flex row that wraps, at each width. No grid track pins two buttons side by side.
+  const actions = Object.fromEntries(declarations(css, '.actions'));
+  assert.equal(actions.display, 'flex');
+  assert.equal(actions['flex-wrap'], 'wrap');
+  assert.equal(declarations(css, '.actions').filter(([name]) => name === 'display').length, 1);
+  const phone = /@media \(max-width: 560px\)\s*\{([\s\S]*?)\n\}/.exec(css)[1];
+  assert.match(phone, /#randomize\s*\{\s*flex: 1 1 100%;/);
+  assert.match(phone, /#download\s*\{\s*flex: 1 1 auto;/);
+  // A button is never wider than its row.
+  assert.equal(Object.fromEntries(declarations(css, '.button'))['max-width'], '100%');
+});
+
+test('Reset hands the focus to Randomize when it turns itself off, and the decision is focusAfterReset', async () => {
+  const js = await read('builder.js');
+  const reset = /resetEl\.addEventListener\('click', \(\) => \{([\s\S]*?)\n    \}\);/.exec(js)[1];
+  // Whether Reset has the focus is read before the render turns it off, and the buttons after.
+  assert.match(reset, /const resetHadFocus = document\.activeElement === resetEl;[\s\S]*current\.render\(\{ settle: true \}\);\n\s*const target = focusAfterReset\(\{ resetHadFocus, resetDisabled: resetEl\.disabled, randomizeDisabled: randomizeEl\.disabled \}\);\n\s*if \(target === 'randomize'\) randomizeEl\.focus\(\);/);
+  // render turns Reset off in its first step, before it waits for a layer.
+  assert.match(js, /const selection = readSelection\(manifest\);\n\s*showPicks\(manifest, selection\);\n\s*updateButtons\(\);\n\s*const layers = resolveSelection\(manifest, selection\);\n\s*const rasters = await/);
 });

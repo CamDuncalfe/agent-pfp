@@ -19,8 +19,8 @@ A style is a folder that holds one `manifest.json` and the layer images it names
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `id` | string | Unique id, same character rules as `style`. |
-| `label` | string | Name shown above the group's thumbnails. |
+| `id` | string | Unique id, same character rules as `style`. The builder shows the options of the group with the id `background` as swatches next to the preview, and every other group as a tab. |
+| `label` | string | Name of the group's tab and the heading above its thumbnails. A screen reader reads it for the background swatches. |
 | `optional` | boolean, optional | When `true`, the user can leave the group empty. |
 | `base` | boolean, optional | When `true`, any group drawn later may cover this one. Backgrounds and bodies are base groups. |
 | `bleed` | array, optional | Canvas edges this group may touch: `top`, `right`, `bottom`, `left`. A layer that touches an edge its group does not list counts as clipped. |
