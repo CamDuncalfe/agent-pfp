@@ -12,6 +12,7 @@ import {
   startingLocks,
 } from '../src/locks.js';
 import { canReset, choiceLabel, resetState, swatchGroup, tabAfterKey, tabGroups } from '../src/builder-layout.js';
+import { NAME, pageTitle } from '../src/brand.js';
 import { compositeLayers } from '../src/composite.js';
 import { pictureToSave, planDownload, sizePicker } from '../src/download.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
@@ -660,7 +661,14 @@ function createSwitcher() {
   });
 }
 
+/** The name in the wordmark and the title comes from src/brand.js, the one place it is written. */
+function showName() {
+  document.querySelector('#wordmark').textContent = NAME;
+  document.title = pageTitle(NAME);
+}
+
 async function start() {
+  showName();
   try {
     const indexUrl = new URL(STYLE_INDEX, location.href);
     const localIndexUrl = new URL(LOCAL_STYLE_INDEX, location.href);

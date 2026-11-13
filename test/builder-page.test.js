@@ -142,22 +142,33 @@ test('the type comes from one Adobe Fonts kit, and the page loads nothing else f
   const css = plain(await read('builder.css'));
   assert.doesNotMatch(css, /@font-face|@import/);
   for (const [, url] of css.matchAll(/url\(\s*["']?([^"')]+)/g)) assert.match(url, /^data:/);
-  // Sofia Pro Soft for the page, then the system face while the kit loads or when it can't. No free font in the stack.
-  assert.match(css, /body \{[^}]*font-family: 'sofia-pro-soft', system-ui, -apple-system, 'Segoe UI', sans-serif;/);
-  // Ohno Softie is the wordmark's face and nothing else's.
-  assert.equal(css.match(/ohno-softie/g).length, 1);
-  const wordmark = Object.fromEntries(declarations(css, '.wordmark'));
-  assert.equal(wordmark['font-family'], "'ohno-softie-variable', system-ui, -apple-system, 'Segoe UI', sans-serif");
-  assert.equal(wordmark['font-weight'], '900');
-  // The kit holds Sofia Pro Soft in 400 and 700, so the rest of the page uses those two weights only.
-  const weights = new Set([...css.replace(/\.wordmark \{[^}]*\}/, '').matchAll(/font-weight:\s*(\d+)/g)].map((match) => match[1]));
-  assert.deepEqual([...weights].sort(), ['400', '700']);
+  // Neue Haas Grotesk Text for the page, then the system face while the kit loads or when it can't. No free font in the stack.
+  assert.match(css, /body \{[^}]*font-family: 'neue-haas-grotesk-text', system-ui, -apple-system, 'Segoe UI', sans-serif;/);
+  // Owners Narrow is the face of the wordmark and the headings, through one custom property, in Bold.
+  assert.match(css, /--font-head: 'owners-narrow', system-ui, -apple-system, 'Segoe UI', sans-serif;/);
+  assert.equal(css.match(/owners-narrow/g).length, 1);
+  const headed = rules(css).filter((rule) => /font-family:\s*var\(--font-head\)/.test(rule.body));
+  assert.deepEqual(headed.map((rule) => rule.selectors.join(', ')).sort(), ['.trait-heading h2', '.wordmark', 'h1']);
+  for (const rule of headed) assert.match(rule.body, /font-weight:\s*700;/, rule.selectors.join(', '));
+  // The kit holds Neue Haas Grotesk Text in 400, 500 and 700, so the page uses those weights only.
+  const weights = new Set([...css.matchAll(/font-weight:\s*(\d+)/g)].map((match) => match[1]));
+  assert.deepEqual([...weights].sort(), ['400', '500', '700']);
 });
 
-test('the logo is the wordmark, with no image', async () => {
+test('the logo is the wordmark, with no image, and the name is written in src/brand.js only', async () => {
   const html = await read('index.html');
-  assert.match(html, /<header class="topbar">\s*<p class="wordmark">Agent PFP<\/p>\s*<\/header>/);
+  assert.match(html, /<header class="topbar">\s*<p id="wordmark" class="wordmark"><\/p>\s*<\/header>/);
   assert.doesNotMatch(html, /<img/);
+  const { NAME, pageTitle } = await import('../src/brand.js');
+  assert.equal(NAME, 'Agent PFP');
+  assert.equal(pageTitle(NAME), 'Agent PFP builder');
+  // The page writes the name into the wordmark and the title from src/brand.js, and no page file holds it.
+  const js = await read('builder.js');
+  assert.match(js, /document\.querySelector\('#wordmark'\)\.textContent = NAME;\n\s*document\.title = pageTitle\(NAME\);/);
+  assert.match(js, /async function start\(\) \{\n\s*showName\(\);/);
+  for (const file of ['index.html', 'builder.js', 'builder.css', 'thumbnail-worker.js', 'layers.js']) {
+    assert.doesNotMatch(await read(file), new RegExp(NAME), file);
+  }
 });
 
 test('the character row has one tile per style in the index, as a radio group, and replaces the Style dropdown', async () => {

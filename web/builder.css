@@ -2,9 +2,9 @@
  * The builder page. Light and cartoon-like: warm paper behind, white cards
  * with a dark outline and a hard shadow like the line in the art, and one
  * yellow accent. The type comes from the Adobe Fonts kit in web/index.html:
- * Sofia Pro Soft for the page, in 400 and 700, and Ohno Softie Black for the
- * wordmark and nothing else. The system face stands in until the kit loads,
- * or when it can't.
+ * Owners Narrow Bold for the wordmark and the headings (--font-head), and
+ * Neue Haas Grotesk Text for everything else, in 400, 500 and 700. The
+ * system face stands in until the kit loads, or when it can't.
  */
 :root {
   --paper: #f7f3ea;
@@ -20,8 +20,11 @@
   --accent-hover: #f9dd6e;
   --error: #a4262c;
 
+  /* The face of the wordmark and the headings. */
+  --font-head: 'owners-narrow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
   /* One type scale. */
-  --t-h1: clamp(1.75rem, 1.35rem + 1.6vw, 2.5rem);
+  --t-h1: clamp(2.125rem, 1.6rem + 2vw, 3rem);
   --t-title: 1.125rem;
   --t-body: 1rem;
   --t-small: 0.875rem;
@@ -58,7 +61,7 @@
 
 body {
   margin: 0;
-  font-family: 'sofia-pro-soft', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'neue-haas-grotesk-text', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: var(--t-body);
   line-height: 1.5;
   color: var(--ink);
@@ -119,10 +122,11 @@ input {
 }
 
 .wordmark {
-  /* The logo's own face, used for the wordmark only. Its kit file is variable, 300 to 900. */
-  font-family: 'ohno-softie-variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 1.875rem;
-  font-weight: 900;
+  /* The name comes from src/brand.js. The line keeps its height while the page script fills it in. */
+  min-height: 1em;
+  font-family: var(--font-head);
+  font-size: 2rem;
+  font-weight: 700;
   line-height: 1;
 }
 
@@ -159,10 +163,11 @@ main {
 }
 
 h1 {
+  font-family: var(--font-head);
   font-size: var(--t-h1);
   font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  line-height: 1.05;
+  letter-spacing: 0;
   text-wrap: balance;
 }
 
@@ -170,7 +175,8 @@ h1 {
   max-width: 36em;
   color: var(--muted);
   font-size: var(--t-title);
-  text-wrap: pretty;
+  /* Short copy breaks into lines of similar length. */
+  text-wrap: balance;
 }
 
 .notice {
@@ -197,7 +203,7 @@ h1 {
 .bases-heading {
   color: var(--muted);
   font-size: var(--t-small);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .bases-row {
@@ -270,7 +276,7 @@ label.base input {
   max-width: 100%;
   overflow: hidden;
   font-size: var(--t-small);
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -522,7 +528,7 @@ label.swatch:has(input:focus-visible) {
   border-radius: var(--r-pill);
   background: var(--card);
   font-size: var(--t-small);
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -697,7 +703,7 @@ label.swatch:has(input:focus-visible) {
   border-radius: var(--r-pill);
   background: var(--card);
   box-shadow: var(--lift);
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
   transition:
     transform 0.18s var(--ease-out),
@@ -763,7 +769,7 @@ label.swatch:has(input:focus-visible) {
   padding: 0;
   color: var(--muted);
   font-size: var(--t-small);
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .size-picker label {
@@ -776,7 +782,7 @@ label.swatch:has(input:focus-visible) {
   border-radius: var(--r-pill);
   background: var(--card);
   font-size: var(--t-small);
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -850,7 +856,7 @@ label.swatch:has(input:focus-visible) {
   border-radius: var(--r-tile) var(--r-tile) 0 0;
   background: transparent;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 500;
   cursor: pointer;
   transition: color 0.18s var(--ease-out);
 }
@@ -900,8 +906,10 @@ label.swatch:has(input:focus-visible) {
 }
 
 .trait-heading h2 {
-  font-size: var(--t-title);
+  font-family: var(--font-head);
+  font-size: 1.375rem;
   font-weight: 700;
+  line-height: 1.1;
 }
 
 .pick {
@@ -925,7 +933,7 @@ label.lock {
   border-radius: var(--r-pill);
   background: var(--card);
   font-size: var(--t-small);
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
   transition:
