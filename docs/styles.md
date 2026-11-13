@@ -52,7 +52,7 @@ A coming-soon character is a name and one flat picture. It is not a style: it ha
 - `?style=<id>` in the address opens that style. The address follows the Character tab, so a link opens the style that was on screen.
 - An id the index does not list opens the first style, and the page says which id it did not know.
 - The id of a coming-soon character opens the first style too, and the page says the character is coming soon.
-- When a style's manifest cannot be loaded, is not valid or belongs to another style id, the page says which style failed and why, and the style's tile stays blank. The Character tab keeps working.
+- When a style's manifest cannot be loaded, is not valid or belongs to another style id, the page says which style failed and why, and the style's tile stays blank. The Character tab keeps working. It opens with no tile checked, so picking the failed style's tile tries that style again, and the page shows no Size picker until a style is on screen.
 
 ## Checking the styles
 

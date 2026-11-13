@@ -11,7 +11,8 @@
  * - Each style is a tile in the Character tab, the first tab of the panel,
  *   showing the picture the style opens with (basePicture). Which tab
  *   opens with a style is tabToOpen, and after a style that failed to load
- *   it is tabAfterFailedStyle.
+ *   it is tabAfterFailedStyle. Which tile is checked is characterPick: none
+ *   after a failed load, so the failed style can be picked again.
  * - Reset turns itself off, and focusAfterReset says where the focus goes.
  * - After the styles, the Character tab shows each coming-soon character
  *   as a tile that can't be picked (characterTiles, characterKeyMove).
@@ -299,6 +300,21 @@ export function tabToOpen({ styleCount, firstStyle, tabCount }) {
  */
 export function tabAfterFailedStyle() {
   return CHARACTER_TAB;
+}
+
+/**
+ * What the Character tab shows as its pick for the style last asked for:
+ * the tile that is checked and the name beside the heading. While the style
+ * loads and while it is on screen, that is the style. After it failed to
+ * load there is no pick, because nothing of the style is on screen. Its tile
+ * is then a tile like the others, so a click or Space on it picks it and
+ * opens the style once more.
+ * @param {{ id: string, name: string }} entry the style last asked for
+ * @param {boolean} failed whether it failed to load
+ * @returns {{ id: string | null, name: string }} `id` is null when no tile is checked
+ */
+export function characterPick(entry, failed) {
+  return failed ? { id: null, name: '' } : { id: entry.id, name: entry.name };
 }
 
 /**

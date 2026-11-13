@@ -15,6 +15,7 @@ import {
   COMING_SOON_TAG,
   canReset,
   characterKeyMove,
+  characterPick,
   characterTiles,
   choiceLabel,
   focusAfterReset,
@@ -575,6 +576,17 @@ function clearStyle() {
   clearPreview();
 }
 
+/**
+ * Check the tile of the Character tab's pick and name it beside the heading.
+ * characterPick in src/builder-layout.js says which: with no pick, no tile
+ * is checked and the name is empty.
+ * @param {{ id: string | null, name: string }} pick
+ */
+function showCharacterPick({ id, name }) {
+  for (const input of basesEl.querySelectorAll(`input[name="${BASE_NAME}"]`)) input.checked = input.value === id;
+  characterPickEl.textContent = name;
+}
+
 /** The radio button of a style in the Character tab. */
 function baseInput(id) {
   return [...basesEl.querySelectorAll(`input[name="${BASE_NAME}"]`)].find((input) => input.value === id);
@@ -717,9 +729,7 @@ function createSwitcher(styleCount) {
   return createStyleSwitcher({
     clear(entry) {
       clearStyle();
-      const input = baseInput(entry.id);
-      if (input) input.checked = true;
-      characterPickEl.textContent = entry.name;
+      showCharacterPick(characterPick(entry, false));
       showStyleInAddress(entry.id);
       setStatus(`Loading ${entry.name}...`);
     },
@@ -745,6 +755,8 @@ function createSwitcher(styleCount) {
       clearStyle();
       // The Character tab opens, so another style can be picked, with the keyboard too.
       openTab(tabAfterFailedStyle(), false);
+      // No tile is the pick now, so a click or Space on the failed one picks it and opens it once more.
+      showCharacterPick(characterPick(entry, true));
       setStatus(`Could not open ${entry.name}. ${reason(error)}`, true);
     },
   });

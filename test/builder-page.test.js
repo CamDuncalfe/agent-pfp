@@ -214,7 +214,13 @@ test('the Character tab is the first tab, with one tile per style in the index, 
   assert.match(js, /nameEl\.className = 'base-name';\n\s*nameEl\.textContent = name;/);
   // Picking a tile opens its style, and opening a style checks its tile and names it in the panel heading.
   assert.match(js, /const entry = index\.styles\.find\(\(candidate\) => candidate\.id === target\.value\);\n\s*if \(entry\) switcher\.open\(entry\);/);
-  assert.match(js, /const input = baseInput\(entry\.id\);\n\s*if \(input\) input\.checked = true;\n\s*characterPickEl\.textContent = entry\.name;/);
+  // characterPick in src/builder-layout.js says which tile, and one function writes it to the page.
+  assert.match(js, /clear\(entry\) \{\n\s*clearStyle\(\);\n\s*showCharacterPick\(characterPick\(entry, false\)\);/);
+  assert.match(
+    js,
+    /function showCharacterPick\(\{ id, name \}\) \{\n\s*for \(const input of basesEl\.querySelectorAll\(`input\[name="\$\{BASE_NAME\}"\]`\)\) input\.checked = input\.value === id;\n\s*characterPickEl\.textContent = name;\n\}/,
+  );
+  assert.equal(js.match(/characterPickEl\.textContent\s*=/g).length, 1);
   // A new style replaces the trait tabs only: they carry data-trait, and the Character tab doesn't.
   assert.match(js, /if \(element\.hasAttribute\('data-trait'\)\) element\.remove\(\);/);
   assert.doesNotMatch(js, /tabsEl\.replaceChildren\(|panelsEl\.replaceChildren\(/);
@@ -225,6 +231,8 @@ test('the Character tab is the first tab, with one tile per style in the index, 
   assert.doesNotMatch(js, /characterTabOpens|\? 0 : 1/);
   // A style that fails to load leaves the Character tab open, so its tiles can be reached to pick another.
   assert.match(js, /fail\(entry, error\) \{\n\s*clearStyle\(\);\n[^\n]*\n\s*openTab\(tabAfterFailedStyle\(\), false\);/);
+  // After a failed load no tile is checked, so a click or Space on the failed tile fires a change and opens it once more.
+  assert.match(js, /openTab\(tabAfterFailedStyle\(\), false\);\n[^\n]*\n\s*showCharacterPick\(characterPick\(entry, true\)\);/);
   assert.match(js, /const switcher = createSwitcher\(index\.styles\.length\);/);
   assert.doesNotMatch(js, /basesEl\.children\.length/);
   // A tile shows the picture the style opens with. The page asks the thumbnail worker for it after the

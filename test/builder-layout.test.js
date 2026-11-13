@@ -12,6 +12,7 @@ import {
   CHARACTER_TAB,
   COMING_SOON_TAG,
   characterKeyMove,
+  characterPick,
   characterTabOpens,
   characterTiles,
   BASE_POLL_MS,
@@ -321,6 +322,16 @@ test('the tab that opens with a style is Character or the first trait tab, and C
 
 test('after a style that failed to load the Character tab opens, so another style can be picked', () => {
   assert.equal(tabAfterFailedStyle(), CHARACTER_TAB);
+});
+
+test('the Character tab checks the tile of the style asked for, and no tile after it failed to load', () => {
+  const entry = { id: 'alien', name: 'Alien', manifest: 'styles/alien/manifest.json' };
+  // While it loads and while it is on screen: its tile, and its name beside the heading.
+  assert.deepEqual(characterPick(entry, false), { id: 'alien', name: 'Alien' });
+  // After a failed load nothing is the pick, so the failed tile can be picked again.
+  assert.deepEqual(characterPick(entry, true), { id: null, name: '' });
+  // A local style keeps the name its tile shows.
+  assert.deepEqual(characterPick({ id: 'bear', name: 'Bear (local)' }, false), { id: 'bear', name: 'Bear (local)' });
 });
 
 test('the focus goes from Reset to Randomize when Reset turns itself off under it', () => {
