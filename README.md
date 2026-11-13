@@ -10,7 +10,7 @@ I'm building it during the [Qodo Software Factory Hackathon](https://hackathon.q
 
 ![The builder page showing the alien in a cowboy hat, heart shades and a purple hoodie](docs/img/builder.png)
 
-The alien in the screenshot is the first style I've drawn. Its layers are in [styles/alien/](styles/alien/), and the builder opens on it. I own the artwork, and no license on the code covers it. [styles/alien/NOTICE.md](styles/alien/NOTICE.md) says what you can do with it.
+The alien in the screenshot is the first style I've made. Its layers are in [styles/alien/](styles/alien/), and the builder opens on it. I own the artwork, and no license on the code covers it. [styles/alien/NOTICE.md](styles/alien/NOTICE.md) says what you can do with it.
 
 ## What works today
 

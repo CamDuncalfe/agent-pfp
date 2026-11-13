@@ -4,7 +4,7 @@ Instructions for the coding agents and reviewers that work in this repository.
 
 ## The project
 
-Agent PFP is a builder for coding-agent profile pictures. A user picks an art style, chooses one layer in each trait group (background, clothes, mouth, eyes, eyewear, headwear) and downloads the picture. I draw and cut the layers for each style ahead of time. The app stacks them and never generates an image.
+Agent PFP is a builder for coding-agent profile pictures. A user picks an art style, chooses one layer in each trait group (background, clothes, mouth, eyes, eyewear, headwear) and downloads the picture. Each style's art starts in Midjourney, and I cut it into layers ahead of time. The app stacks them and never generates an image.
 
 A style is a folder with a `manifest.json` and the layer images it names. [docs/manifest.md](docs/manifest.md) describes the format. The render check reads a style and fails it when a layer is the wrong size, blank, cut off by a canvas edge, outside its zone or overlapping another group. [docs/render-check.md](docs/render-check.md) lists each failure.
 
@@ -100,7 +100,7 @@ Qodo's review comment on a pull request lists each finding under its group. Its 
 A task is done when all three are true:
 
 1. `npm test` and `npm run check` pass on the newest commit. On a pull request, CI passes too.
-2. The newest Qodo review is complete and covers the newest code. Locally, that is a review you ran after your last change. On a pull request, the commit Qodo's review comment names is the head of the branch.
+2. The newest Qodo review is complete and covers the newest code. Locally, that is a review you ran after your last change. On a pull request, the commit Qodo's review comment names is the head of the branch, and Qodo reports the review run on that commit as completed.
 3. No High or Medium finding is open.
 
 When one of them isn't true, the task is not done. Your report says which one, lists the findings still open and says what you need from me. You get two fix rounds. If a High or Medium finding is still open after the second, stop and report.
