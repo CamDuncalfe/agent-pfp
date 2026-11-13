@@ -424,18 +424,29 @@ function shorten(text) {
 }
 
 /**
+ * The review_session statuses Qodo documents as ended without completing.
+ * The list is the one in Qodo's Review Resolver skill
+ * (.claude/skills/qodo-review-resolver/SKILL.md, "Read the session state
+ * FIRST"); `qodo help` and the qodo read help don't list session statuses.
+ * "started" and any status not on this list keep the runner waiting.
+ */
+export const ENDED_STATUSES = ['failed', 'aborted', 'skipped', 'superseded'];
+
+/**
  * Whether Qodo's review run on the head is complete, from one qodo read of
  * the pull request. The run counts as complete only when `review_session`
  * names the head, its status is "completed" and `review_complete` is true.
- * Anything else is not complete yet: no session, another commit, another
- * status or a truncated read. A failed command or output that is not JSON
- * is not complete either, and `error` holds what qodo said, shortened.
+ * When the session names the head and its status is in ENDED_STATUSES,
+ * `ended` holds that status: the run is over and won't complete. Anything
+ * else is not complete yet: no session, another commit, another status or a
+ * truncated read. A failed command or output that is not JSON is not
+ * complete either, and `error` holds what qodo said, shortened.
  * @param {{ code: number, stdout: string, stderr: string, timedOut?: boolean, message?: string }} result what the qodo command returned
  * @param {string} head the full SHA of the commit to look for
- * @returns {{ complete: boolean, error: string | null }}
+ * @returns {{ complete: boolean, error: string | null, ended: string | null }}
  */
 export function reviewRunState(result, head) {
-  const failed = (text) => ({ complete: false, error: shorten(text) });
+  const failed = (text) => ({ complete: false, error: shorten(text), ended: null });
   if (result.timedOut) return failed('qodo did not answer in time.');
   const output = String(result.stderr || result.stdout || result.message || '').trim();
   if (result.code !== 0) return failed(output || `qodo exited with code ${result.code}.`);
@@ -447,23 +458,25 @@ export function reviewRunState(result, head) {
   }
   if (!data || typeof data !== 'object') return failed(`qodo did not print a JSON object: ${output}`);
   if (data.error) return failed(JSON.stringify(data.error));
-  if (data.qar_operation_result_truncated === true) return { complete: false, error: null };
+  if (data.qar_operation_result_truncated === true) return { complete: false, error: null, ended: null };
   const session = data.review_session;
-  const complete =
-    Boolean(session) && session.commit_sha === head && session.status === 'completed' && session.review_complete === true;
-  return { complete, error: null };
+  const onHead = Boolean(session) && session.commit_sha === head;
+  const complete = onHead && session.status === 'completed' && session.review_complete === true;
+  const ended = onHead && ENDED_STATUSES.includes(session.status) ? session.status : null;
+  return { complete, error: null, ended };
 }
 
 /**
  * The run state the runner hands nextStep after one more qodo read: this
  * read's answer, with the last qodo error of the wait kept when this read
  * had none. A failed read followed by reads that work but show the run still
- * going leaves that error in the stop reason.
- * @param {{ complete: boolean, error: string | null } | null} previous the state after the read before, null on the first read
- * @param {{ complete: boolean, error: string | null }} current from reviewRunState
+ * going leaves that error in the stop reason. `ended` comes from this read
+ * only.
+ * @param {{ complete: boolean, error: string | null, ended?: string | null } | null} previous the state after the read before, null on the first read
+ * @param {{ complete: boolean, error: string | null, ended?: string | null }} current from reviewRunState
  */
 export function carryRunError(previous, current) {
-  return { complete: current.complete, error: current.error ?? previous?.error ?? null };
+  return { complete: current.complete, error: current.error ?? previous?.error ?? null, ended: current.ended ?? null };
 }
 
 /**
@@ -479,9 +492,9 @@ export function qodoCall(command, prUrl, limits = LIMITS) {
 /**
  * One poll of the wait for CI and Qodo's review, after the runner has read
  * CI, asked qodo about the review run and then read the comments.
- * @param {{ previous: { complete: boolean, error: string | null } | null, lastLogged: string | null, result: object, comments: object[], head: string, ci: 'pending' | 'passed' | 'failed', round: number, waitedMs: number }} poll
+ * @param {{ previous: { complete: boolean, error: string | null, ended?: string | null } | null, lastLogged: string | null, result: object, comments: object[], head: string, ci: 'pending' | 'passed' | 'failed', round: number, waitedMs: number }} poll
  *   previous is the run state after the poll before, lastLogged the qodo error the runner logged last
- * @returns {{ run: { complete: boolean, error: string | null }, review: object | null, next: { step: string, reason?: string }, logError: string | null, lastLogged: string | null }}
+ * @returns {{ run: { complete: boolean, error: string | null, ended: string | null }, review: object | null, next: { step: string, reason?: string }, logError: string | null, lastLogged: string | null }}
  *   logError is a qodo error to log now: one that differs from the poll before's
  */
 export function reviewPoll({ previous, lastLogged, result, comments, head, ci, round, waitedMs }, limits = LIMITS) {
@@ -550,23 +563,27 @@ export function ciState(checkRuns) {
  * quality gate blocks on start a fix round or stop the run. Low ones don't.
  * The review is null until Qodo's review run on the head is complete and
  * its comment names the head (reviewFor), and the runner waits until then.
- * @param {{ ci: 'pending' | 'passed' | 'failed', review: { blocking: unknown[] } | null, run?: { complete: boolean, error: string | null }, round: number, waitedMs: number }} state
+ * A run on the head that ended without completing stops the wait at once.
+ * @param {{ ci: 'pending' | 'passed' | 'failed', review: { blocking: unknown[] } | null, run?: { complete: boolean, error: string | null, ended?: string | null }, round: number, waitedMs: number }} state
  *   run is the last reviewRunState, round is the number of fix rounds already used
  * @returns {{ step: 'wait' | 'fix' | 'review' | 'help', reason?: string }}
  */
 export function nextStep({ ci, review, run, round, waitedMs }, limits = LIMITS) {
   if (ci === 'failed') return { step: 'help', reason: 'CI failed on the pull request.' };
+  if (run?.ended) {
+    return { step: 'help', reason: `Qodo's review run on the newest commit ended as "${run.ended}" without completing.` };
+  }
   if (ci === 'pending' || !review) {
     if (waitedMs >= limits.reviewWaitMs) {
       const minutes = Math.round(limits.reviewWaitMs / 60000);
       let missing = "Qodo's review comment did not name the newest commit";
-      let after = '';
       if (ci === 'pending') {
         missing = 'CI did not finish';
       } else if (!run?.complete) {
         missing = "Qodo's review run on the newest commit did not complete";
-        if (run?.error) after = ` The last qodo error: ${run.error}`;
       }
+      // The last qodo error goes in whichever reason comes first, while the run isn't complete.
+      const after = run && !run.complete && run.error ? ` The last qodo error: ${run.error}` : '';
       return { step: 'help', reason: `${missing} within ${minutes} minutes.${after}` };
     }
     return { step: 'wait' };

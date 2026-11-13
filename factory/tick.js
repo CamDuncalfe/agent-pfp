@@ -198,7 +198,8 @@ async function inspect(worktree, before) {
  * the review run on the head is complete before it reads the comment, so a
  * comment Qodo is still editing never counts. A failed qodo read is logged
  * and counts as not complete, and the last qodo error of the wait stays in
- * the run state for the stop reason.
+ * the run state for the stop reason. A run on the head that Qodo reports as
+ * ended without completing stops the wait at once.
  */
 async function waitForReview(repo, pr, url, head, round) {
   const started = Date.now();
@@ -218,7 +219,7 @@ async function waitForReview(repo, pr, url, head, round) {
       const waited = ((Date.now() - started) / 60000).toFixed(1);
       const qodo = review
         ? `${review.findings.length} findings, ${review.blocking.length} High or Medium open, ${review.low.length} Low open`
-        : `no review, run ${reviewRun.complete ? 'complete' : 'not complete'}`;
+        : `no review, run ${reviewRun.ended ? `ended as ${reviewRun.ended}` : reviewRun.complete ? 'complete' : 'not complete'}`;
       await log(`CI ${ci}, Qodo ${qodo} on ${head.slice(0, 7)} after ${waited} min.`);
       return { ...next, review };
     }
