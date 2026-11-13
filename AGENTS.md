@@ -100,7 +100,7 @@ Qodo's review comment on a pull request lists each finding under its group. Its 
 A task is done when all three are true:
 
 1. `npm test` and `npm run check` pass on the newest commit. On a pull request, CI passes too.
-2. The newest Qodo review is complete and covers the newest code. Locally, that is a review you ran after your last change. On a pull request, the commit Qodo's review comment names is the head of the branch.
+2. The newest Qodo review is complete and covers the newest code. Locally, that is a review you ran after your last change. On a pull request, the commit Qodo's review comment names is the head of the branch, and Qodo reports the review run on that commit as completed.
 3. No High or Medium finding is open.
 
 When one of them isn't true, the task is not done. Your report says which one, lists the findings still open and says what you need from me. You get two fix rounds. If a High or Medium finding is still open after the second, stop and report.
