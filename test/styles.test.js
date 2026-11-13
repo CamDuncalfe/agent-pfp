@@ -23,9 +23,12 @@ const run = promisify(execFile);
 const rootUrl = new URL('../', import.meta.url);
 const cli = fileURLToPath(new URL('../bin/check-styles.js', import.meta.url));
 
-async function loadIndex() {
-  return JSON.parse(await readFile(new URL('styles/index.json', rootUrl), 'utf8'));
+async function loadIndex(path = 'styles/index.json') {
+  return JSON.parse(await readFile(new URL(path, rootUrl), 'utf8'));
 }
+
+/** The fixture styles: two of them, so a test can switch between them. */
+const loadFixtureIndex = () => loadIndex('fixtures/index.json');
 
 async function runCli(args) {
   try {
@@ -36,15 +39,44 @@ async function runCli(args) {
   }
 }
 
-test('styles/index.json is valid and lists the two fixture styles', async () => {
+test('styles/index.json lists the alien and no fixture style', async () => {
   const index = await loadIndex();
   assert.deepEqual(validateStyleIndex(index), { ok: true, errors: [] });
-  assert.deepEqual(index.styles.map((entry) => entry.id), ['fixture-shapes', 'fixture-blocks']);
+  assert.deepEqual(index.styles, [{ id: 'alien', name: 'Alien', manifest: 'styles/alien/manifest.json' }]);
+  const fixtureIds = (await loadFixtureIndex()).styles.map((entry) => entry.id);
+  for (const entry of index.styles) {
+    assert.ok(!fixtureIds.includes(entry.id), entry.id);
+    assert.ok(!entry.manifest.startsWith('fixtures/'), entry.manifest);
+  }
 });
 
-test('each style in the index has a valid manifest with the same id and name', async () => {
+test('the builder opens on the alien when the address has no style', async () => {
   const index = await loadIndex();
-  for (const entry of index.styles) {
+  for (const search of ['', '?', '?style=', '?other=1']) {
+    assert.deepEqual(styleFromSearch(index, search), { entry: index.styles[0], notice: '' }, search);
+    assert.equal(styleFromSearch(index, search).entry.id, 'alien', search);
+  }
+});
+
+test('fixtures/index.json lists the two passing fixture styles with paths from the repository root', async () => {
+  const index = await loadFixtureIndex();
+  assert.deepEqual(validateStyleIndex(index), { ok: true, errors: [] });
+  assert.deepEqual(index.styles, [
+    { id: 'fixture-shapes', name: 'Fixture shapes (test data, not artwork)', manifest: 'fixtures/shapes/manifest.json' },
+    { id: 'fixture-blocks', name: 'Fixture blocks (test data, not artwork)', manifest: 'fixtures/blocks/manifest.json' },
+  ]);
+  // The index sits in fixtures/, so its manifest paths resolve against the repository root.
+  assert.equal(styleRootUrl(new URL('fixtures/index.json', rootUrl)).href, rootUrl.href);
+});
+
+test('npm run check runs the render check on both indexes', async () => {
+  const pkg = JSON.parse(await readFile(new URL('package.json', rootUrl), 'utf8'));
+  assert.equal(pkg.scripts.check, 'node bin/check-styles.js styles/index.json fixtures/index.json');
+});
+
+test('each style in both indexes has a valid manifest with the same id and name', async () => {
+  const styles = [...(await loadIndex()).styles, ...(await loadFixtureIndex()).styles];
+  for (const entry of styles) {
     const manifest = JSON.parse(await readFile(new URL(entry.manifest, rootUrl), 'utf8'));
     assert.deepEqual(validateManifest(manifest).errors, [], entry.id);
     assert.equal(styleMismatch(entry, manifest), null, entry.id);
@@ -110,7 +142,7 @@ test('a manifest path cannot leave the site', () => {
 });
 
 test('the first style opens by default and an unknown id falls back to it', async () => {
-  const index = await loadIndex();
+  const index = await loadFixtureIndex();
   const [first, second] = index.styles;
   assert.deepEqual(chooseStyle(index, null), { entry: first, unknown: null });
   assert.deepEqual(chooseStyle(index, undefined), { entry: first, unknown: null });
@@ -128,7 +160,7 @@ test('a manifest for another style is a mismatch', () => {
 });
 
 test('the address picks the style through the style parameter only', async () => {
-  const index = await loadIndex();
+  const index = await loadFixtureIndex();
   const [first, second] = index.styles;
   assert.deepEqual(styleFromSearch(index, ''), { entry: first, notice: '' });
   assert.deepEqual(styleFromSearch(index, '?style=fixture-blocks'), { entry: second, notice: '' });
@@ -146,7 +178,12 @@ test('an unknown style in the address opens the first style with a notice', asyn
   const first = index.styles[0];
   assert.deepEqual(styleFromSearch(index, '?style=nope'), {
     entry: first,
-    notice: 'This builder doesn\'t know a style called "nope". Showing Fixture shapes (test data, not artwork).',
+    notice: 'This builder doesn\'t know a style called "nope". Showing Alien.',
+  });
+  // A fixture is not a style the builder offers.
+  assert.deepEqual(styleFromSearch(index, '?style=fixture-shapes'), {
+    entry: first,
+    notice: 'This builder doesn\'t know a style called "fixture-shapes". Showing Alien.',
   });
   // The id is quoted as it came. The page puts the notice in as text.
   assert.equal(
@@ -235,12 +272,64 @@ test('a style that is replaced while it is being shown reports that it is off sc
   assert.deepEqual(events, ['b on screen: true', 'a on screen: false']);
 });
 
-test('check-styles passes on the styles in the index', async () => {
-  const result = await runCli([fileURLToPath(new URL('styles/index.json', rootUrl))]);
+// The alien's check takes about half a minute, so these tests use the fixture
+// index. `npm run check` runs the alien's.
+test('check-styles passes on the styles in the fixture index', async () => {
+  const result = await runCli([fileURLToPath(new URL('fixtures/index.json', rootUrl))]);
   assert.equal(result.code, 0);
   assert.match(result.stdout, /Style: fixture-shapes/);
   assert.match(result.stdout, /Style: fixture-blocks/);
   assert.match(result.stdout, /Styles checked: 2\nRender check passed\.\n$/);
+});
+
+test('check-styles checks each index it is given and fails when either one fails', async (t) => {
+  const folder = await mkdtemp(join(tmpdir(), 'agent-pfp-styles-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  for (const name of ['good', 'bad', 'empty']) await mkdir(join(folder, name, 'styles'), { recursive: true });
+  for (const name of ['shapes', 'blocks']) {
+    await cp(fileURLToPath(new URL(`fixtures/${name}`, rootUrl)), join(folder, 'good', name), { recursive: true });
+  }
+  await cp(fileURLToPath(new URL('fixtures/broken', rootUrl)), join(folder, 'bad', 'broken'), { recursive: true });
+  const good = join(folder, 'good', 'styles', 'index.json');
+  const bad = join(folder, 'bad', 'styles', 'index.json');
+  const empty = join(folder, 'empty', 'styles', 'index.json');
+  await writeFile(
+    good,
+    JSON.stringify({
+      version: 1,
+      styles: [
+        { id: 'fixture-shapes', name: 'Shapes', manifest: 'shapes/manifest.json' },
+        { id: 'fixture-blocks', name: 'Blocks', manifest: 'blocks/manifest.json' },
+      ],
+    }),
+  );
+  await writeFile(bad, JSON.stringify({ version: 1, styles: [{ id: 'fixture-broken', name: 'Broken', manifest: 'broken/manifest.json' }] }));
+  await writeFile(empty, JSON.stringify({ version: 1, styles: [] }));
+
+  // Each index resolves its manifest paths against its own root.
+  const both = await runCli([good, bad]);
+  assert.equal(both.code, 1);
+  assert.match(both.stdout, /Style: fixture-shapes/);
+  assert.match(both.stdout, /Style: fixture-broken/);
+  assert.match(both.stdout, /Render check failed for 1 of 3 styles\./);
+
+  // The order does not matter: a failure in the first index still checks the second.
+  const reversed = await runCli([bad, good]);
+  assert.equal(reversed.code, 1);
+  assert.match(reversed.stdout, /Style: fixture-blocks/);
+  assert.match(reversed.stdout, /Render check failed for 1 of 3 styles\./);
+
+  // An index that can't be read stops the run before any style is checked.
+  const broken = await runCli([good, empty]);
+  assert.equal(broken.code, 2);
+  assert.equal(broken.stdout, '');
+  assert.match(broken.stderr, /empty.styles.index\.json is not a valid style index/);
+  assert.equal((await runCli([good, join(folder, 'missing.json')])).code, 2);
+
+  // The same index twice is checked once.
+  const twice = await runCli([good, good]);
+  assert.equal(twice.code, 0);
+  assert.match(twice.stdout, /Styles checked: 2\nRender check passed\.\n$/);
 });
 
 test('check-styles exits 1 when a listed style fails and 2 when it cannot run', async (t) => {
@@ -273,5 +362,5 @@ test('check-styles exits 1 when a listed style fails and 2 when it cannot run', 
 
   assert.equal((await runCli([join(folder, 'missing.json')])).code, 2);
   assert.equal((await runCli(['--nope'])).code, 2);
-  assert.equal((await runCli([indexPath, indexPath])).code, 2);
+  assert.equal((await runCli([indexPath, '--nope'])).code, 2);
 });
