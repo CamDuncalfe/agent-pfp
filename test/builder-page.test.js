@@ -259,6 +259,15 @@ test('at 900 px and wider the preview column stays in view, and below that the p
   const wide = /@media \(min-width: 900px\)\s*\{\s*\.stage-column\s*\{([^}]*)\}\s*\}/.exec(css);
   assert.ok(wide, 'the sticky rule sits in a min-width: 900px query');
   assert.match(wide[1], /position: sticky;/);
+  // A column taller than the window scrolls on its own, so Download is always in reach.
+  assert.match(wide[1], /max-height: calc\(100vh - 16px\);/);
+  assert.match(wide[1], /overflow-y: auto;/);
+  // The padding, taken back by the margin, is as wide as the stars reach past the card (.sparkles inset -16px).
+  assert.match(wide[1], /padding: 16px;\s*margin: -16px;/);
+  assert.match(css, /\.sparkles \{[^}]*inset: -16px;/);
+  for (const [, offset] of css.matchAll(/\.sparkles span:nth-child\(\d\) \{[^}]*?(?:left|right|top|bottom): (-?\d+)px/g)) {
+    assert.ok(Number(offset) >= 0, 'no star reaches past the sparkles box');
+  }
   assert.equal(css.match(/position:\s*sticky/g).length, 1);
   assert.equal(Object.fromEntries(declarations(css, '.layout'))['align-items'], 'start');
   // Under 900 px one column.
@@ -347,4 +356,18 @@ test('the settle, the sparkle and the pop stop with reduced motion on', async ()
   assert.equal(Object.fromEntries(declarations(css, '.sparkles span')).opacity, '0');
   const js = await read('builder.js');
   assert.match(js, /function replay\(element, className\) \{\n\s*element\.classList\.remove\(className\);\n\s*void element\.offsetWidth;\n\s*element\.classList\.add\(className\);/);
+});
+
+test('on a phone Reset wraps to its own line before the buttons overlap', async () => {
+  const css = plain(await read('builder.css'));
+  // One flex row that wraps, at each width. No grid track pins two buttons side by side.
+  const actions = Object.fromEntries(declarations(css, '.actions'));
+  assert.equal(actions.display, 'flex');
+  assert.equal(actions['flex-wrap'], 'wrap');
+  assert.equal(declarations(css, '.actions').filter(([name]) => name === 'display').length, 1);
+  const phone = /@media \(max-width: 560px\)\s*\{([\s\S]*?)\n\}/.exec(css)[1];
+  assert.match(phone, /#randomize\s*\{\s*flex: 1 1 100%;/);
+  assert.match(phone, /#download\s*\{\s*flex: 1 1 auto;/);
+  // A button is never wider than its row.
+  assert.equal(Object.fromEntries(declarations(css, '.button'))['max-width'], '100%');
 });
