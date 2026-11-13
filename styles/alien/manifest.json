@@ -360,6 +360,11 @@
           "id": "crown",
           "label": "Crown",
           "src": "layers/headwear/crown.png"
+        },
+        {
+          "id": "sweatband",
+          "label": "Sweatband",
+          "src": "layers/headwear/sweatband.png"
         }
       ]
     }
