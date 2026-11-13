@@ -176,9 +176,18 @@ test('Full size saves the preview canvas as it is, and a failed PNG is reported'
 test('compositeLayers draws the picture once and nothing else stacks layers', async () => {
   const js = await read('builder.js');
   assert.equal(js.match(/compositeLayers\(/g).length, 1, 'the page composites in one place');
-  // The one drawImage is the layer loader, at 0,0 with no size.
-  assert.deepEqual(js.match(/drawImage\([^)]*\)/g), ['drawImage(bitmap, 0, 0)']);
-  assert.doesNotMatch(js, /globalCompositeOperation|\.scale\(|setTransform/);
+  assert.equal(js.match(/drawImage\(/g), null, 'the page draws no image itself');
+  // The one drawImage is the layer loader the page and the thumbnail worker share, at 0,0 with no size.
+  const loader = await read('layers.js');
+  assert.deepEqual(loader.match(/drawImage\([^)]*\)/g), ['drawImage(bitmap, 0, 0)']);
+  assert.match(loader, /loadLayerPixels\(resolveLayerUrl\(src, manifestUrl\), manifest\.canvas\)/);
+  // The worker draws with src/thumbnails.js, which composites with compositeLayers, and loads through layers.js.
+  const worker = await read('thumbnail-worker.js');
+  assert.equal(worker.match(/compositeLayers|drawImage|fetch\(/g), null);
+  assert.match(worker, /from '\.\/layers\.js'/);
+  for (const source of [js, loader, worker]) {
+    assert.doesNotMatch(source, /globalCompositeOperation|\.scale\(|setTransform/);
+  }
 
   // The download and scaling modules take a finished picture. Neither composites.
   for (const name of ['download.js', 'scale.js']) {
@@ -232,11 +241,32 @@ test('a click on a tile redraws the preview, the round preview and the layer lis
   assert.match(js, /picked \? choiceFromValue\(picked\.value\) : null/);
 });
 
-test('the thumbnails are drawn by src/thumbnails.js after each render', async () => {
+test('the thumbnails are drawn in a worker after each render, and the page paints a whole group at once', async () => {
   const js = await read('builder.js');
-  assert.match(js, /drawThumbnail\(\{ manifest, selection, group, choice: tile\.choice, pixelsOf, boundsOf \}\)/);
-  assert.match(js, /drawThumbnails\(selection, ticket\)/);
-  assert.match(js, /thumbnailKey\(manifest, selection, group\.id\)/);
+  assert.match(js, /new Worker\(new URL\('thumbnail-worker\.js', import\.meta\.url\), \{ type: 'module' \}\)/);
+  assert.match(js, /requestThumbnails\(selection\);/);
+  assert.match(js, /if \(!redraws\.needsRedraw\(group\.id, key\)\) continue;/);
+  // An answer for an older request is dropped.
+  assert.match(js, /if \(answer\.ticket !== thumbnailTicket \|\| !isOnScreen\(\)\) return;/);
+  // The group's key is cleared before the first tile is painted and set after the last one.
+  const paint = /redraws\.start\(answer\.groupId\);([\s\S]*?)redraws\.finish\(answer\.groupId, answer\.key\);/.exec(js);
+  assert.ok(paint, 'start, then the tiles, then finish');
+  assert.match(paint[1], /for \(const tile of answer\.tiles\)/);
+  assert.match(paint[1], /putPicture\(canvasEl, tile\);/);
+  assert.doesNotMatch(paint[1], /await/, 'the tiles of a group are painted in one go');
+
+  const worker = await read('thumbnail-worker.js');
+  assert.match(worker, /drawThumbnail\(\{ manifest, selection, group, choice: tile\.choice, pixelsOf, boundsOf \}\)/);
+  // The worker drops a request once a newer one has come, also halfway through a group, and sends a group's tiles in one answer.
+  assert.match(worker, /if \(request\.ticket < latest\) return null;/);
+  assert.match(worker, /self\.postMessage\(\{ type: 'tiles', ticket, groupId, key, tiles \}/);
+  assert.match(worker, /createLayerLoader\(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES\)/);
+});
+
+test('the page keeps the layers of the picture on screen up to its limit', async () => {
+  const js = await read('builder.js');
+  assert.match(js, /createLayerLoader\(manifest, baseUrl, PAGE_LAYER_BYTES\)/);
+  assert.doesNotMatch(js, /new Map\(\);\n\s*let latest/, 'no cache without a limit');
 });
 
 test('Lock sits in the heading row of its group and Randomize checks the tiles it picks', async () => {

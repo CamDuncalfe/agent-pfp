@@ -1,13 +1,7 @@
-import { validateManifest, resolveSelection, resolveLayerUrl } from '../src/manifest.js';
-import {
-  choiceFromValue,
-  choiceValue,
-  drawThumbnail,
-  layerBounds,
-  thumbnailKey,
-  thumbnailSources,
-  traitTiles,
-} from '../src/thumbnails.js';
+import { validateManifest, resolveSelection } from '../src/manifest.js';
+import { choiceFromValue, choiceValue, createRedrawTracker, thumbnailKey, traitTiles } from '../src/thumbnails.js';
+import { PAGE_LAYER_BYTES } from '../src/layer-cache.js';
+import { createLayerLoader } from './layers.js';
 import {
   canRandomize,
   lockAccessibleName,
@@ -250,9 +244,26 @@ function thumbCanvas(groupId, value) {
   );
 }
 
-/** Yield to the browser between thumbnails, so the page keeps answering while they are drawn. */
-function nextTask() {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+/**
+ * Thumbnails are drawn in web/thumbnail-worker.js, so compositing a big
+ * canvas for each tile doesn't hold up the page. One worker serves each
+ * style. `thumbnailTicket` goes up with each request, across styles, and an
+ * answer for an older ticket is dropped.
+ */
+let thumbnailWorker = null;
+let thumbnailTicket = 0;
+/** The renderer on screen takes the worker's answers. */
+let receiveThumbnails = null;
+
+function startThumbnailWorker() {
+  if (thumbnailWorker) return thumbnailWorker;
+  thumbnailWorker = new Worker(new URL('thumbnail-worker.js', import.meta.url), { type: 'module' });
+  thumbnailWorker.addEventListener('message', (event) => receiveThumbnails?.(event.data));
+  thumbnailWorker.addEventListener('error', (event) => {
+    event.preventDefault();
+    receiveThumbnails?.({ type: 'error', ticket: thumbnailTicket, message: event.message || 'The thumbnail worker stopped.' });
+  });
+  return thumbnailWorker;
 }
 
 function showSelection(layers) {
@@ -266,85 +277,43 @@ function showSelection(layers) {
   );
 }
 
-/**
- * Load one layer image and read its pixels at the manifest's canvas size.
- * A layer of another size is refused, the same way the render check refuses it.
- *
- * The pixels come back through a 2D canvas, which stores premultiplied
- * alpha. Alpha values and opaque pixels come back exact. The colour of a
- * see-through pixel can shift by a few levels (see docs/render-check.md).
- */
-async function loadLayerPixels(url, canvas) {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Could not load ${url.pathname} (HTTP ${response.status}).`);
-  // Ignore embedded colour profiles, like the PNG reader the render check uses.
-  const bitmap = await createImageBitmap(await response.blob(), { colorSpaceConversion: 'none' });
-  try {
-    if (bitmap.width !== canvas.width || bitmap.height !== canvas.height) {
-      throw new Error(
-        `${url.pathname} is ${bitmap.width}x${bitmap.height}, the canvas is ${canvas.width}x${canvas.height}.`,
-      );
-    }
-    const scratch = new OffscreenCanvas(canvas.width, canvas.height);
-    const context = scratch.getContext('2d', { willReadFrequently: true });
-    context.drawImage(bitmap, 0, 0);
-    return context.getImageData(0, 0, canvas.width, canvas.height);
-  } finally {
-    bitmap.close();
-  }
-}
-
 function createRenderer(manifest, baseUrl, isOnScreen) {
-  /** @type {Map<string, Promise<ImageData>>} */
-  const cache = new Map();
+  // The layers of the picture on screen, up to PAGE_LAYER_BYTES. A failed load is dropped, so the next render tries again.
+  const layerCache = createLayerLoader(manifest, baseUrl, PAGE_LAYER_BYTES);
   let latest = 0;
 
-  function pixelsFor(src) {
-    if (!cache.has(src)) {
-      const pending = loadLayerPixels(resolveLayerUrl(src, baseUrl), manifest.canvas);
-      // A failed load is dropped from the cache, so the next render tries again.
-      pending.catch(() => cache.delete(src));
-      cache.set(src, pending);
-    }
-    return cache.get(src);
-  }
+  /** The thumbnailKey each group's tiles show. */
+  const redraws = createRedrawTracker();
 
-  /** layerBounds of each layer, by its src. A layer's bounds never change. */
-  const bounds = new Map();
-  /** The thumbnailKey each group's thumbnails were last drawn for. */
-  const drawnKeys = new Map();
-
-  /**
-   * Redraw the thumbnails of each group whose thumbnails show another
-   * picture now. A newer render stops this one between two thumbnails.
-   */
-  async function drawThumbnails(selection, ticket) {
-    const stale = () => ticket !== latest || !isOnScreen();
+  /** Ask the worker for each group whose tiles show another picture now. */
+  function requestThumbnails(selection) {
+    const ticket = (thumbnailTicket += 1);
+    const worker = startThumbnailWorker();
     for (const group of manifest.groups) {
       const key = thumbnailKey(manifest, selection, group.id);
-      if (drawnKeys.get(group.id) === key) continue;
-      const sources = thumbnailSources(manifest, selection, group);
-      const loaded = new Map(await Promise.all(sources.map(async (src) => [src, await pixelsFor(src)])));
-      if (stale()) return;
-      const pixelsOf = (src) => loaded.get(src);
-      const boundsOf = (src) => {
-        if (!bounds.has(src)) bounds.set(src, layerBounds(loaded.get(src)));
-        return bounds.get(src);
-      };
-      for (const tile of traitTiles(group)) {
-        const thumbnail = drawThumbnail({ manifest, selection, group, choice: tile.choice, pixelsOf, boundsOf });
-        const canvasEl = thumbCanvas(group.id, tile.value);
-        if (canvasEl) {
-          canvasEl.width = thumbnail.width;
-          canvasEl.height = thumbnail.height;
-          putPicture(canvasEl, thumbnail);
-        }
-        await nextTask();
-        if (stale()) return;
-      }
-      drawnKeys.set(group.id, key);
+      if (!redraws.needsRedraw(group.id, key)) continue;
+      worker.postMessage({ ticket, manifest, manifestUrl: String(baseUrl), selection, groupId: group.id, key });
     }
   }
+
+  /** Paint a group's tiles from the worker's answer, all of them at once. */
+  receiveThumbnails = (answer) => {
+    if (answer.ticket !== thumbnailTicket || !isOnScreen()) return;
+    if (answer.type === 'error') {
+      setStatus(`Could not draw the thumbnails. ${answer.message}`, true);
+      return;
+    }
+    // The key goes before the first tile changes, so a paint that fails halfway is redrawn next time.
+    redraws.start(answer.groupId);
+    for (const tile of answer.tiles) {
+      const canvasEl = thumbCanvas(answer.groupId, tile.value);
+      if (!canvasEl) continue;
+      canvasEl.width = tile.width;
+      canvasEl.height = tile.height;
+      putPicture(canvasEl, tile);
+    }
+    redraws.finish(answer.groupId, answer.key);
+  };
 
   return async function render() {
     const ticket = (latest += 1);
@@ -353,7 +322,7 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
       const selection = readSelection(manifest);
       const layers = resolveSelection(manifest, selection);
       showSelection(layers);
-      const rasters = await Promise.all(layers.map(({ option }) => pixelsFor(option.src)));
+      const rasters = await Promise.all(layers.map(({ option }) => layerCache.get(option.src)));
       // A newer selection or another style started while these layers were loading.
       if (ticket !== latest || !isOnScreen()) return;
       const { width, height } = manifest.canvas;
@@ -361,10 +330,12 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
       showPicture(picture);
       setFinished(picture);
       setStatus('');
-      drawThumbnails(selection, ticket).catch((error) => {
-        if (ticket !== latest || !isOnScreen()) return;
+      try {
+        requestThumbnails(selection);
+      } catch (error) {
+        // A browser without module workers keeps the preview and shows blank tiles.
         setStatus(`Could not draw the thumbnails. ${reason(error)}`, true);
-      });
+      }
     } catch (error) {
       if (ticket !== latest || !isOnScreen()) return;
       setStatus(reason(error), true);

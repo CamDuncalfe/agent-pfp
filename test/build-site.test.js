@@ -216,7 +216,8 @@ test('each path in the site is relative, so it works from a sub-path', async () 
 
     // Each module the page loads is a relative import of a file in the site.
     const seen = new Set();
-    const queue = ['web/builder.js'];
+    // The page starts the thumbnail worker from its own file, so the worker is a module of its own.
+    const queue = ['web/builder.js', 'web/thumbnail-worker.js'];
     while (queue.length > 0) {
       const file = queue.pop();
       if (seen.has(file)) continue;

@@ -14,6 +14,7 @@ import {
   choiceFromValue,
   choiceValue,
   coversCanvas,
+  createRedrawTracker,
   drawThumbnail,
   layerBounds,
   thumbnailKey,
@@ -264,6 +265,23 @@ test('a group whose own pick changes keeps its thumbnails, and a change elsewher
   assert.equal(key(selection, 'eyes'), key({ ...selection, eyes: 'bars' }, 'eyes'));
   assert.notEqual(key(selection, 'eyes'), key({ ...selection, mouth: 'open' }, 'eyes'));
   assert.notEqual(key(selection, 'eyes'), key({ ...selection, headwear: null }, 'eyes'));
+});
+
+test('a redraw that stops halfway is redrawn, also when the picks go back to the ones before', () => {
+  const redraws = createRedrawTracker();
+  assert.ok(redraws.needsRedraw('eyes', 'K0'), 'nothing is drawn at first');
+  redraws.start('eyes');
+  redraws.finish('eyes', 'K0');
+  assert.equal(redraws.needsRedraw('eyes', 'K0'), false);
+  // A redraw for K1 paints some tiles and stops before the last one.
+  assert.ok(redraws.needsRedraw('eyes', 'K1'));
+  redraws.start('eyes');
+  // The user goes back to the picks of K0. Each tile is redrawn, not skipped.
+  assert.ok(redraws.needsRedraw('eyes', 'K0'));
+  assert.ok(redraws.needsRedraw('eyes', 'K1'));
+  // A group's key leaves the other groups alone.
+  redraws.finish('mouth', 'M0');
+  assert.equal(redraws.needsRedraw('mouth', 'M0'), false);
 });
 
 test('thumbnailSources lists the other layers on screen and each option of the group', async () => {

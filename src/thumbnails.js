@@ -197,6 +197,29 @@ export function thumbnailKey(manifest, selection, groupId) {
 }
 
 /**
+ * Which thumbnailKey each group's tiles show. The page calls `start` before
+ * it paints the first tile of a group and `finish` after the last one. A
+ * redraw that stops or fails in between leaves the group with no key, so
+ * the next render redraws it, also when it goes back to the key before.
+ */
+export function createRedrawTracker() {
+  /** @type {Map<string, string>} */
+  const drawn = new Map();
+  return {
+    /** Whether the group's tiles show something other than `key`. */
+    needsRedraw(groupId, key) {
+      return drawn.get(groupId) !== key;
+    },
+    start(groupId) {
+      drawn.delete(groupId);
+    },
+    finish(groupId, key) {
+      drawn.set(groupId, key);
+    },
+  };
+}
+
+/**
  * The layer sources a group's thumbnails need: each layer of `selection`
  * and each option of the group.
  * @param {Manifest} manifest
