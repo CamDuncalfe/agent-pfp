@@ -11,7 +11,7 @@ import {
   randomizeUnlocked,
   startingLocks,
 } from '../src/locks.js';
-import { basePicture, baseLayers, canReset, choiceLabel, resetState, swatchGroup, tabAfterKey, tabGroups } from '../src/builder-layout.js';
+import { canReset, choiceLabel, resetState, swatchGroup, tabAfterKey, tabGroups } from '../src/builder-layout.js';
 import { compositeLayers } from '../src/composite.js';
 import { pictureToSave, planDownload, sizePicker } from '../src/download.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
@@ -386,7 +386,11 @@ let receiveThumbnails = null;
 function startThumbnailWorker() {
   if (thumbnailWorker) return thumbnailWorker;
   thumbnailWorker = new Worker(new URL('thumbnail-worker.js', import.meta.url), { type: 'module' });
-  thumbnailWorker.addEventListener('message', (event) => receiveThumbnails?.(event.data));
+  thumbnailWorker.addEventListener('message', (event) => {
+    if (event.data.type === 'base') paintBaseTile(event.data);
+    // A tile whose picture failed stays blank. Opening the style reports the problem in the status line.
+    else if (event.data.type !== 'base-error') receiveThumbnails?.(event.data);
+  });
   thumbnailWorker.addEventListener('error', (event) => {
     event.preventDefault();
     receiveThumbnails?.({ type: 'error', ticket: thumbnailTicket, message: event.message || 'The thumbnail worker stopped.' });
@@ -579,30 +583,40 @@ function buildBaseRow(styles) {
 }
 
 /**
- * Draw the picture each style opens with on its tile, one style after the
- * other, after the first style is on screen. A style whose manifest or
- * layers don't load keeps a blank tile: picking it shows why.
+ * Ask the thumbnail worker for the picture each style opens with, for its
+ * tile, after the first style is on screen. The worker draws them one after
+ * the other off the main thread, and reuses the layers of the style on
+ * screen. A style whose manifest doesn't load keeps a blank tile: picking it
+ * shows why.
  */
 async function drawBaseTiles(styles) {
+  let worker;
+  try {
+    worker = startThumbnailWorker();
+  } catch {
+    // A browser without module workers shows blank tiles. The row still works.
+    return;
+  }
   for (const entry of styles) {
     try {
       const url = resolveManifestUrl(entry, entry.indexUrl);
       const manifest = await loadManifest(entry, url);
-      const layers = createLayerLoader(manifest, url, PAGE_LAYER_BYTES);
-      const pixels = new Map(
-        await Promise.all(baseLayers(manifest).map(async ({ option }) => [option.src, await layers.get(option.src)])),
-      );
-      const picture = basePicture(manifest, (src) => pixels.get(src));
-      const canvasEl = baseInput(entry.id)?.parentElement.querySelector('canvas.base-thumb');
-      if (!canvasEl) continue;
-      canvasEl.width = picture.width;
-      canvasEl.height = picture.height;
-      canvasEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
-      putPicture(canvasEl, picture);
+      // Small fixture pictures are scaled up on the tile, so keep their pixels sharp.
+      baseInput(entry.id)?.parentElement.querySelector('canvas.base-thumb').classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
+      worker.postMessage({ kind: 'base', id: entry.id, manifest, manifestUrl: String(url) });
     } catch {
       // The tile stays blank. Opening the style reports the problem in the status line.
     }
   }
+}
+
+/** Put the worker's picture on a style's tile in the character row. */
+function paintBaseTile({ id, width, height, data }) {
+  const canvasEl = baseInput(id)?.parentElement.querySelector('canvas.base-thumb');
+  if (!canvasEl) return;
+  canvasEl.width = width;
+  canvasEl.height = height;
+  putPicture(canvasEl, { width, height, data });
 }
 
 function showStyleInAddress(id) {

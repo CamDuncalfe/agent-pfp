@@ -172,9 +172,18 @@ test('the character row has one tile per style in the index, as a radio group, a
   // Picking a tile opens its style, and opening a style checks its tile.
   assert.match(js, /const entry = index\.styles\.find\(\(candidate\) => candidate\.id === target\.value\);\n\s*if \(entry\) switcher\.open\(entry\);/);
   assert.match(js, /const input = baseInput\(entry\.id\);\n\s*if \(input\) input\.checked = true;/);
-  // A tile shows the picture the style opens with, drawn by src/builder-layout.js after the first style is on screen.
-  assert.match(js, /const picture = basePicture\(manifest, \(src\) => pixels\.get\(src\)\);/);
+  // A tile shows the picture the style opens with. The page asks the thumbnail worker for it after the
+  // first style is on screen, and the worker draws it with basePicture from src/builder-layout.js.
   assert.match(js, /await switcher\.open\(entry\);\n\s*await drawBaseTiles\(index\.styles\);/);
+  assert.match(js, /worker\.postMessage\(\{ kind: 'base', id: entry\.id, manifest, manifestUrl: String\(url\) \}\);/);
+  assert.match(js, /if \(event\.data\.type === 'base'\) paintBaseTile\(event\.data\);/);
+  assert.doesNotMatch(js, /basePicture|baseLayers/, 'the main thread composites no tile picture');
+  const worker = await read('thumbnail-worker.js');
+  assert.match(worker, /return basePicture\(manifest, \(src\) => loaded\.get\(src\)\);/);
+  // The style on screen reuses the layers its thumbnails loaded.
+  assert.match(worker, /style && style\.manifestUrl === manifestUrl\s*\? style\.layers\s*: createLayerLoader\(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES\)/);
+  // A tile request has no ticket, so it neither drops nor is dropped by a thumbnail request.
+  assert.match(worker, /if \(request\.kind !== 'base'\) latest = Math\.max\(latest, request\.ticket\);/);
   // The tile picture is hidden from screen readers, and the style's name is the radio button's name.
   assert.match(js, /thumb\.className = 'base-thumb';[\s\S]{0,120}thumb\.setAttribute\('aria-hidden', 'true'\);/);
   const css = await read('builder.css');

@@ -9,8 +9,17 @@
  *
  * The answer is { type: 'tiles', ticket, groupId, key, tiles } with tiles
  * as { value, width, height, data }, or { type: 'error', ticket, message }.
+ *
+ * The page also asks for the picture on each style's tile in the character
+ * row: { kind: 'base', id, manifest, manifestUrl }. The worker draws it with
+ * basePicture and answers { type: 'base', id, width, height, data }, or
+ * { type: 'base-error', id, message }. These requests have no ticket and are
+ * never dropped. The style on screen reuses the layers its thumbnails
+ * loaded; another style gets a loader of its own that goes when its picture
+ * is done.
  */
 import { drawThumbnail, layerBounds, thumbnailSources, traitTiles } from '../src/thumbnails.js';
+import { baseLayers, basePicture } from '../src/builder-layout.js';
 import { THUMBNAIL_LAYER_BYTES } from '../src/layer-cache.js';
 import { createLayerLoader } from './layers.js';
 
@@ -56,10 +65,32 @@ async function drawGroup(request) {
   return request.ticket < latest ? null : tiles;
 }
 
+/** The picture on a style's tile in the character row. */
+async function drawBase(request) {
+  const { manifest, manifestUrl } = request;
+  const layers =
+    style && style.manifestUrl === manifestUrl
+      ? style.layers
+      : createLayerLoader(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES);
+  const sources = baseLayers(manifest).map(({ option }) => option.src);
+  const loaded = new Map(await Promise.all(sources.map(async (src) => [src, await layers.get(src)])));
+  return basePicture(manifest, (src) => loaded.get(src));
+}
+
 async function run() {
   running = true;
   while (queue.length > 0) {
     const request = queue.shift();
+    if (request.kind === 'base') {
+      try {
+        const { width, height, data } = await drawBase(request);
+        self.postMessage({ type: 'base', id: request.id, width, height, data }, [data.buffer]);
+      } catch (error) {
+        self.postMessage({ type: 'base-error', id: request.id, message: error instanceof Error ? error.message : String(error) });
+      }
+      await nextTask();
+      continue;
+    }
     if (request.ticket < latest) continue;
     try {
       const tiles = await drawGroup(request);
@@ -76,7 +107,7 @@ async function run() {
 
 self.addEventListener('message', (event) => {
   const request = event.data;
-  latest = Math.max(latest, request.ticket);
+  if (request.kind !== 'base') latest = Math.max(latest, request.ticket);
   queue.push(request);
   if (!running) run();
 });

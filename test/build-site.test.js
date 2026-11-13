@@ -206,8 +206,12 @@ test('index.html sends the visitor to web/ with a relative link and shows a plai
   }
 });
 
-/** The Adobe Fonts kit the builder page loads: a stylesheet on use.typekit.net named by the kit id. */
-const ADOBE_FONTS_KIT = /^https:\/\/use\.typekit\.net\/[a-z0-9]{7}\.css$/;
+/**
+ * The one absolute link in the site: the Adobe Fonts kit the builder page
+ * loads its typeface from (web/index.html). Any other absolute link, a
+ * second kit included, fails the test below.
+ */
+const ADOBE_FONTS_KIT = 'https://use.typekit.net/dll3tpt.css';
 
 test('each path in the site is relative, so it works from a sub-path', async () => {
   const out = await mkdtemp(join(tmpdir(), 'agent-pfp-site-out-'));
@@ -220,11 +224,9 @@ test('each path in the site is relative, so it works from a sub-path', async () 
       const html = await readFile(join(out, page), 'utf8');
       const links = [...html.matchAll(/(?:href|src)="([^"]*)"|url=([^"\s;]+)/g)].map((match) => match[1] ?? match[2]);
       assert.ok(links.length > 0, `${page} has links`);
-      for (const value of links) {
-        // The one absolute link is the Adobe Fonts kit the builder page loads its typeface from.
-        if (page === 'web/index.html' && ADOBE_FONTS_KIT.test(value)) continue;
-        assert.ok(!value.startsWith('/') && !/^[a-z]+:/i.test(value), `${page}: ${value}`);
-      }
+      const absolute = links.filter((value) => value.startsWith('/') || /^[a-z]+:/i.test(value));
+      // The builder page has the kit, once, and nothing else absolute. The redirect page has nothing absolute.
+      assert.deepEqual(absolute, page === 'web/index.html' ? [ADOBE_FONTS_KIT] : [], page);
     }
 
     // Each module the page loads is a relative import of a file in the site.
