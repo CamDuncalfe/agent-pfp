@@ -15,6 +15,7 @@ import {
   blocks,
   branchFor,
   candidates,
+  carryRunError,
   ciState,
   criteriaList,
   fillPrompt,
@@ -30,7 +31,12 @@ import {
   prBody,
   promptPlaces,
   promptValues,
+  qodoCall,
+  qodoRunArgs,
+  reviewFor,
+  reviewPoll,
   reviewOf,
+  reviewRunState,
   ticketProblems,
 } from '../factory/decisions.js';
 
@@ -653,10 +659,152 @@ test('nextStep: waits for CI and the review, then stops after 15 minutes', () =>
   assert.deepEqual(nextStep({ ci: 'pending', review: null, round: 0, waitedMs: 0 }), { step: 'wait' });
   assert.deepEqual(nextStep({ ci: 'passed', review: null, round: 0, waitedMs: 60000 }), { step: 'wait' });
   assert.deepEqual(nextStep({ ci: 'pending', review: clean, round: 0, waitedMs: 60000 }), { step: 'wait' });
-  const late = nextStep({ ci: 'passed', review: null, round: 0, waitedMs: LIMITS.reviewWaitMs });
+  const late = nextStep({ ci: 'passed', review: null, run: { complete: true, error: null }, round: 0, waitedMs: LIMITS.reviewWaitMs });
   assert.equal(late.step, 'help');
-  assert.match(late.reason, /Qodo did not review the newest commit within 15 minutes/);
+  assert.equal(late.reason, "Qodo's review comment did not name the newest commit within 15 minutes.");
   assert.match(nextStep({ ci: 'pending', review: clean, round: 0, waitedMs: LIMITS.reviewWaitMs }).reason, /CI did not finish/);
+});
+
+/**
+ * What `qodo read pr-review-session findings --pr-url <url> --json` prints,
+ * in the shape of pull request #26: one review_session for the run.
+ */
+function qodoRead(session = {}, extra = {}) {
+  return {
+    code: 0,
+    stderr: '',
+    timedOut: false,
+    stdout: JSON.stringify({
+      review_session: session === null ? null : { run_id: 1932738, commit_sha: SHA_A, status: 'completed', review_complete: true, started_at: '2026-11-12T15:46:34Z', ...session },
+      findings: [{ git_sha: SHA_B, action_level: 'action_required', attribution_status: 'implemented' }],
+      ...extra,
+    }),
+  };
+}
+
+test('qodoRunArgs: the qodo read of the review run on a pull request, as JSON', () => {
+  assert.deepEqual(qodoRunArgs('https://github.com/owner/repo/pull/26'), [
+    'read', 'pr-review-session', 'findings', '--pr-url', 'https://github.com/owner/repo/pull/26', '--json',
+  ]);
+  assert.equal(LIMITS.qodoMs, 30 * 1000);
+});
+
+test('reviewRunState: complete only when the session names the head, reads completed and says review_complete', () => {
+  assert.deepEqual(reviewRunState(qodoRead(), SHA_A), { complete: true, error: null });
+  assert.deepEqual(reviewRunState(qodoRead({ status: 'started', review_complete: false }), SHA_A), { complete: false, error: null });
+  assert.deepEqual(reviewRunState(qodoRead({ status: 'completed', review_complete: false }), SHA_A), { complete: false, error: null });
+  assert.deepEqual(reviewRunState(qodoRead({ status: 'failed' }), SHA_A), { complete: false, error: null });
+  assert.deepEqual(reviewRunState(qodoRead({ review_complete: 'true' }), SHA_A), { complete: false, error: null });
+  // A completed run on the commit before the push doesn't count for the head.
+  assert.deepEqual(reviewRunState(qodoRead(), SHA_B), { complete: false, error: null });
+  // No review yet, and a read Qodo cut short.
+  assert.deepEqual(reviewRunState(qodoRead(null), SHA_A), { complete: false, error: null });
+  assert.deepEqual(reviewRunState(qodoRead({}, { qar_operation_result_truncated: true }), SHA_A), { complete: false, error: null });
+  // A finding's git_sha names where it was first raised, never the commit the run covers.
+  assert.equal(reviewRunState(qodoRead({ commit_sha: SHA_B }), SHA_B).complete, true);
+  assert.equal(reviewRunState(qodoRead({ commit_sha: SHA_A }), SHA_B).complete, false);
+});
+
+test('reviewRunState: a failed qodo read is not complete and keeps a short error', () => {
+  const failed = reviewRunState({ code: 1, stdout: '{"error":{"code":"MT-UPSTREAM-DOWN"}}', stderr: '' }, SHA_A);
+  assert.deepEqual(failed, { complete: false, error: '{"error":{"code":"MT-UPSTREAM-DOWN"}}' });
+  assert.match(reviewRunState({ code: 0, stdout: 'Please sign in', stderr: '' }, SHA_A).error, /^qodo did not print JSON: Please sign in$/);
+  assert.match(reviewRunState({ code: 0, stdout: 'null', stderr: '' }, SHA_A).error, /not print a JSON object/);
+  assert.match(reviewRunState({ code: 0, stdout: '{"error":{"code":"AUTH"}}', stderr: '' }, SHA_A).error, /AUTH/);
+  assert.equal(reviewRunState({ code: 1, stdout: '', stderr: '', timedOut: true }, SHA_A).error, 'qodo did not answer in time.');
+  assert.match(reviewRunState({ code: 1, stdout: '', stderr: '', message: 'spawn qodo ENOENT' }, SHA_A).error, /ENOENT/);
+  assert.equal(reviewRunState({ code: 3, stdout: '', stderr: '' }, SHA_A).error, 'qodo exited with code 3.');
+  const long = reviewRunState({ code: 1, stdout: '', stderr: `x\n${'y'.repeat(1000)}` }, SHA_A).error;
+  assert.equal(long.length, 300);
+  assert.match(long, /^x y+…$/);
+});
+
+test('reviewFor: a comment that names the head does not count while the run on the head is not complete', () => {
+  const comments = [qodo(groupedReview([['High', [['Lock can be skipped', '<code>🐞 Bug</code>']]]]))];
+  const started = reviewRunState(qodoRead({ status: 'started', review_complete: false }), SHA_A);
+  assert.equal(reviewOf(comments, SHA_A).blocking.length, 1);
+  assert.equal(reviewFor(comments, SHA_A, started), null);
+  assert.equal(reviewFor(comments, SHA_A, reviewRunState(qodoRead(null), SHA_A)), null);
+  assert.equal(reviewFor(comments, SHA_A, { complete: false, error: 'qodo did not answer in time.' }), null);
+  // The runner keeps waiting while the run is started, the same as with no review.
+  assert.deepEqual(nextStep({ ci: 'passed', review: reviewFor(comments, SHA_A, started), run: started, round: 0, waitedMs: 3 * 60000 }), { step: 'wait' });
+  // Once the run on the head is complete, the comment's findings count.
+  const done = reviewRunState(qodoRead(), SHA_A);
+  assert.deepEqual(reviewFor(comments, SHA_A, done).blocking.map((f) => f.title), ['Lock can be skipped']);
+  assert.deepEqual(nextStep({ ci: 'passed', review: reviewFor(comments, SHA_A, done), run: done, round: 0, waitedMs: 3 * 60000 }), { step: 'fix' });
+  // A completed run doesn't make an older commit's comment count.
+  assert.equal(reviewFor(comments, SHA_B, reviewRunState(qodoRead({ commit_sha: SHA_B }), SHA_B)), null);
+});
+
+test('nextStep: a review run that never completes stops after the same 15 minutes, with the last qodo error', () => {
+  const started = { complete: false, error: null };
+  assert.deepEqual(nextStep({ ci: 'passed', review: null, run: started, round: 0, waitedMs: LIMITS.reviewWaitMs - 1 }), { step: 'wait' });
+  const late = nextStep({ ci: 'passed', review: null, run: started, round: 0, waitedMs: LIMITS.reviewWaitMs });
+  assert.deepEqual(late, { step: 'help', reason: "Qodo's review run on the newest commit did not complete within 15 minutes." });
+  const failing = nextStep({ ci: 'passed', review: null, run: { complete: false, error: 'spawn qodo ENOENT' }, round: 0, waitedMs: LIMITS.reviewWaitMs });
+  assert.equal(failing.reason, "Qodo's review run on the newest commit did not complete within 15 minutes. The last qodo error: spawn qodo ENOENT");
+  // CI that hasn't finished is named first.
+  assert.match(nextStep({ ci: 'pending', review: null, run: started, round: 0, waitedMs: LIMITS.reviewWaitMs }).reason, /^CI did not finish/);
+});
+
+test('carryRunError: a failed read followed by reads that work keeps its error for the stop reason', () => {
+  const failed = reviewRunState({ code: 1, stdout: '{"error":{"code":"MT-UPSTREAM-DOWN"}}', stderr: '' }, SHA_A);
+  const started = reviewRunState(qodoRead({ status: 'started', review_complete: false }), SHA_A);
+  let state = carryRunError(null, started);
+  assert.deepEqual(state, { complete: false, error: null });
+  state = carryRunError(state, failed);
+  state = carryRunError(state, started);
+  state = carryRunError(state, started);
+  assert.deepEqual(state, { complete: false, error: '{"error":{"code":"MT-UPSTREAM-DOWN"}}' });
+  assert.equal(
+    nextStep({ ci: 'passed', review: null, run: state, round: 0, waitedMs: LIMITS.reviewWaitMs }).reason,
+    'Qodo\'s review run on the newest commit did not complete within 15 minutes. The last qodo error: {"error":{"code":"MT-UPSTREAM-DOWN"}}',
+  );
+  // A newer error replaces the older one, and a complete run is complete whatever failed before.
+  assert.equal(carryRunError(state, { complete: false, error: 'qodo did not answer in time.' }).error, 'qodo did not answer in time.');
+  assert.equal(carryRunError(state, reviewRunState(qodoRead(), SHA_A)).complete, true);
+});
+
+test('qodoCall: the qodo command, the read of the review run and a 30-second timeout', () => {
+  assert.deepEqual(qodoCall('qodo', 'https://github.com/owner/repo/pull/26'), {
+    command: 'qodo',
+    args: qodoRunArgs('https://github.com/owner/repo/pull/26'),
+    options: { timeout: 30 * 1000 },
+  });
+  assert.equal(qodoCall('/opt/qodo/bin/qodo', 'u').command, '/opt/qodo/bin/qodo');
+});
+
+test('reviewPoll: one wait through an outage logs each qodo error once, keeps it, and counts the review once the run completes', () => {
+  const comments = [qodo(groupedReview([['Medium', [['Lock can be skipped', '<code>🐞 Bug</code>']]]]))];
+  const down = { code: 1, stdout: '{"error":{"code":"MT-UPSTREAM-DOWN"}}', stderr: '' };
+  const started = qodoRead({ status: 'started', review_complete: false });
+  const reads = [started, down, down, started, down, qodoRead()];
+  let previous = null;
+  let lastLogged = null;
+  const logged = [];
+  const steps = [];
+  reads.forEach((result, i) => {
+    const poll = reviewPoll({ previous, lastLogged, result, comments, head: SHA_A, ci: 'passed', round: 0, waitedMs: i * LIMITS.pollMs });
+    if (poll.logError) logged.push(poll.logError);
+    ({ run: previous, lastLogged } = poll);
+    steps.push([poll.next.step, poll.run.error, poll.review ? poll.review.blocking.length : null]);
+  });
+  const error = '{"error":{"code":"MT-UPSTREAM-DOWN"}}';
+  // Logged when it starts, not on the poll after, and again when it comes back after a read that worked.
+  assert.deepEqual(logged, [error, error]);
+  assert.deepEqual(steps, [
+    ['wait', null, null],
+    ['wait', error, null],
+    ['wait', error, null],
+    ['wait', error, null],
+    ['wait', error, null],
+    ['fix', error, 1],
+  ]);
+  // Time runs out while the run is started after the outage: the stop reason keeps the error.
+  const late = reviewPoll({ previous: { complete: false, error }, lastLogged: null, result: started, comments, head: SHA_A, ci: 'passed', round: 0, waitedMs: LIMITS.reviewWaitMs });
+  assert.equal(late.logError, null);
+  assert.equal(late.review, null);
+  assert.deepEqual(late.next, { step: 'help', reason: `Qodo's review run on the newest commit did not complete within 15 minutes. The last qodo error: ${error}` });
 });
 
 test('nextStep: failed CI stops the run, a clean review ends it', () => {

@@ -32,10 +32,10 @@ import {
   guardedFiles,
   labelledBy,
   lockCommand,
-  nextStep,
   prBody,
   promptValues,
-  reviewOf,
+  qodoCall,
+  reviewPoll,
   ticketProblems,
 } from './decisions.js';
 
@@ -43,6 +43,7 @@ const FACTORY = dirname(fileURLToPath(import.meta.url));
 const REPO_DIR = dirname(FACTORY);
 const HOME = process.env.FACTORY_HOME || join(homedir(), '.agent-pfp-factory');
 const CLAUDE = process.env.FACTORY_CLAUDE || 'claude';
+const QODO = process.env.FACTORY_QODO || 'qodo';
 const LOCK = join(HOME, 'tick.lock');
 /** Set on the second start of this script, the one that runs while the lock is held. */
 const HOLDING_LOCK = '--holding-lock';
@@ -73,7 +74,8 @@ function run(command, args, { cwd = REPO_DIR, timeout = 5 * 60 * 1000, input } =
       (error, stdout, stderr) => {
         const timedOut = Boolean(error?.killed);
         const code = error ? (typeof error.code === 'number' ? error.code : 1) : 0;
-        resolve({ code, stdout, stderr, timedOut });
+        // message says why a command that printed nothing failed, such as one that is not installed.
+        resolve({ code, stdout, stderr, timedOut, message: error?.message });
       },
     );
     if (input !== undefined) child.stdin.end(input);
@@ -191,17 +193,33 @@ async function inspect(worktree, before) {
   return { problem: null, head };
 }
 
-async function waitForReview(repo, pr, head, round) {
+/**
+ * Wait for CI and for Qodo's review of the head. Each poll asks qodo whether
+ * the review run on the head is complete before it reads the comment, so a
+ * comment Qodo is still editing never counts. A failed qodo read is logged
+ * and counts as not complete, and the last qodo error of the wait stays in
+ * the run state for the stop reason.
+ */
+async function waitForReview(repo, pr, url, head, round) {
   const started = Date.now();
+  const call = qodoCall(QODO, url);
+  let lastLogged = null;
+  let reviewRun = null;
   for (;;) {
     const pages = await ghJson(['api', '--paginate', '--slurp', `repos/${repo}/commits/${head}/check-runs?per_page=100`]);
     const ci = ciState(pages.flatMap((page) => page.check_runs).filter((check) => check.app?.slug === 'github-actions'));
+    const result = await run(call.command, call.args, call.options);
     const comments = await ghPages(`repos/${repo}/issues/${pr}/comments`);
-    const review = reviewOf(comments, head);
-    const next = nextStep({ ci, review, round, waitedMs: Date.now() - started });
+    const poll = reviewPoll({ previous: reviewRun, lastLogged, result, comments, head, ci, round, waitedMs: Date.now() - started });
+    if (poll.logError) await log(`The qodo read failed: ${poll.logError}`);
+    ({ lastLogged, run: reviewRun } = poll);
+    const { review, next } = poll;
     if (next.step !== 'wait') {
       const waited = ((Date.now() - started) / 60000).toFixed(1);
-      await log(`CI ${ci}, Qodo ${review ? `${review.findings.length} findings, ${review.blocking.length} High or Medium open, ${review.low.length} Low open` : 'no review'} on ${head.slice(0, 7)} after ${waited} min.`);
+      const qodo = review
+        ? `${review.findings.length} findings, ${review.blocking.length} High or Medium open, ${review.low.length} Low open`
+        : `no review, run ${reviewRun.complete ? 'complete' : 'not complete'}`;
+      await log(`CI ${ci}, Qodo ${qodo} on ${head.slice(0, 7)} after ${waited} min.`);
       return { ...next, review };
     }
     await sleep(LIMITS.pollMs);
@@ -271,7 +289,7 @@ async function work(repo, ticket) {
   // no High or Medium finding open on the newest commit.
   let low = [];
   for (;;) {
-    const next = await waitForReview(repo, pr, state.head, round);
+    const next = await waitForReview(repo, pr, url, state.head, round);
     if (next.step === 'help') return stop(next.reason);
     if (next.step === 'review') {
       low = next.review.low;
