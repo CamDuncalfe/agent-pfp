@@ -43,6 +43,8 @@
   /* The room between swatches, and the ring around the picked one. */
   --swatch-gap: 8px;
   --ring: 3px;
+  /* How far the picked ring and the focus ring reach past a swatch, at most. */
+  --swatch-reach: 5px;
 
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -430,8 +432,8 @@ label.base:has(input:focus-visible) {
   align-self: stretch;
   min-height: 0;
   gap: var(--swatch-gap);
-  /* Room for the picked swatch's ring at the ends of the list. */
-  padding: calc(var(--ring) + 2px) 0;
+  /* Room at the ends of the list for the picked ring and the focus ring. */
+  padding: var(--swatch-reach) 0;
   overflow-y: auto;
   scrollbar-width: thin;
 }
@@ -466,9 +468,17 @@ label.swatch:has(input:checked) {
     0 0 0 calc(var(--ring) + 2px) var(--ink);
 }
 
+/*
+ * A focused swatch: a 3 px yellow halo inside a 2 px ink outline, 5 px out
+ * in all (--swatch-reach), so the list's padding and the column's 6 px a
+ * side hold it whole, at the first and last swatch too. In a radio group
+ * focus and the pick move together, so the halo takes the place of the
+ * picked ring while the swatch has focus.
+ */
 label.swatch:has(input:focus-visible) {
-  outline: 3px solid var(--ink);
-  outline-offset: 6px;
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--accent);
 }
 
 .stage-card {
@@ -1116,7 +1126,7 @@ label.tile:not(.swatch):has(input:focus-visible) {
   }
 
   .stage-row {
-    gap: 8px;
+    gap: 6px;
   }
 
   .circle-switch {

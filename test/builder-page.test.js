@@ -243,17 +243,29 @@ test('the background group is a column of swatches on the left of the preview', 
   assert.match(Object.fromEntries(declarations(css, 'label.swatch:has(input:checked)'))['box-shadow'], /var\(--ink\)/);
 });
 
-test('ten swatches and the Lock fit beside the preview at 390 px', async () => {
+test('ten swatches and the Lock fit beside the preview at 390 px, with room for each ring', async () => {
   const css = plain(await read('builder.css'));
   const phone = /@media \(max-width: 560px\) \{\s*:root \{([^}]*)\}/.exec(css)[1];
   const value = (name) => Number.parseFloat(new RegExp(`--${name}:\\s*([\\d.]+)px`).exec(phone)[1]);
   const [swatch, gap, ring] = [value('swatch'), value('swatch-gap'), value('ring')];
-  // The page is 16 px from each edge, the column is the swatch plus 12 px and the gap beside it 8 px.
-  const card = 390 - 2 * 16 - (swatch + 12) - 8;
-  // The column holds ten swatches and the Lock, with a gap between each, room for the ring at both ends of
-  // the list and 2 px under the Lock for its focus ring.
-  const column = 11 * swatch + 10 * gap + 2 * (ring + 2) + 2;
+  const reach = Number.parseFloat(/--swatch-reach:\s*([\d.]+)px/.exec(css)[1]);
+  const rowGap = Number.parseFloat(/@media \(max-width: 560px\)[\s\S]*?\.stage-row \{\s*gap: ([\d.]+)px;/.exec(css)[1]);
+  // The page is 16 px from each edge and the column is the swatch plus 12 px.
+  const card = 390 - 2 * 16 - (swatch + 12) - rowGap;
+  // Ten swatches and the Lock with a gap between each, the reach at both ends of the list and 2 px under the Lock.
+  const column = 11 * swatch + 10 * gap + 2 * reach + 2;
   assert.ok(column <= card, `${column} px of swatches beside a ${card} px preview`);
+  // The picked ring (paper, then 2 px of ink) and the focus ring (3 px of yellow, then 2 px of ink) stay inside the reach.
+  assert.ok(ring + 2 <= reach, 'the picked ring fits');
+  const focus = Object.fromEntries(declarations(css, 'label.swatch:has(input:focus-visible)'));
+  const outline = Number.parseFloat(focus.outline);
+  const offset = Number.parseFloat(focus['outline-offset']);
+  assert.equal(focus['box-shadow'], '0 0 0 3px var(--accent)');
+  assert.ok(offset >= 3, 'the outline sits outside the yellow halo');
+  assert.ok(outline + offset <= reach, 'the focus ring fits');
+  // The list keeps the reach at its ends and the column keeps 6 px a side.
+  assert.equal(Object.fromEntries(declarations(css, '.swatch-list')).padding, 'var(--swatch-reach) 0');
+  assert.ok(reach <= 6, 'the column has 6 px a side');
 });
 
 test('the other groups are tabs in one panel, and the arrow keys move along them', async () => {
