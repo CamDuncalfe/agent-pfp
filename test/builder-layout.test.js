@@ -9,6 +9,7 @@ import {
   SWATCH_GROUP_ID,
   baseLayers,
   basePicture,
+  characterTabOpens,
   mayDrawBase,
   reusesThumbnailLayers,
   canReset,
@@ -137,7 +138,7 @@ test('the arrow keys move along the tabs and wrap at the ends, and Home and End 
   assert.equal(tabAfterKey(-1, 'ArrowRight', 5), 0);
 });
 
-test('a style tile in the character row shows the picture the style opens with', async () => {
+test('a style tile in the Character tab shows the picture the style opens with', async () => {
   for (const name of ['shapes', 'blocks']) {
     const url = new URL(`../fixtures/${name}/manifest.json`, import.meta.url);
     const manifest = JSON.parse(await readFile(url, 'utf8'));
@@ -170,4 +171,14 @@ test('a character picture reuses the thumbnails layers only for the style the th
   assert.equal(reusesThumbnailLayers(alien, alien), true);
   assert.equal(reusesThumbnailLayers(alien, shapes), false, 'another style loads its own layers');
   assert.equal(reusesThumbnailLayers(null, alien), false, 'no thumbnails drawn yet');
+});
+
+test('the Character tab opens first only when there is a choice, and stays open after a switch', () => {
+  // The page opens on the first trait tab when there is one character, and on the Character tab when there are more.
+  assert.equal(characterTabOpens({ styleCount: 1, firstStyle: true }), false);
+  assert.equal(characterTabOpens({ styleCount: 2, firstStyle: true }), true);
+  assert.equal(characterTabOpens({ styleCount: 12, firstStyle: true }), true);
+  // A switch comes from the Character tab, so the tab stays open for the next pick.
+  assert.equal(characterTabOpens({ styleCount: 1, firstStyle: false }), true);
+  assert.equal(characterTabOpens({ styleCount: 12, firstStyle: false }), true);
 });

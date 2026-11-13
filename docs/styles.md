@@ -1,6 +1,6 @@
 # Style index
 
-[`styles/index.json`](../styles/index.json) lists the styles the builder offers. The builder page reads it and shows one tile per style in the character row at the top of the page, in the order of the file. A tile shows the picture the style opens with and the style's name. The first style opens by default. It lists the alien:
+[`styles/index.json`](../styles/index.json) lists the styles the builder offers. The builder page reads it and shows one tile per style in the Character tab, the first tab of the trait panel, in the order of the file. A tile shows the picture the style opens with, and the panel names the picked style. The first style opens by default. It lists the alien:
 
 ```json
 {
@@ -22,16 +22,16 @@ The fixture styles are test data, so the builder doesn't offer them. [`fixtures/
 | `version` | number | Format version. It is `1`. |
 | `styles` | array | The styles, at least one. |
 | `styles[].id` | string | The style's id. It is the `style` value of the style's manifest, and each id appears once. |
-| `styles[].name` | string | Name shown under the style's tile in the character row. |
+| `styles[].name` | string | Name of the style's tile in the Character tab: the panel shows it for the picked style, and a screen reader reads it. |
 | `styles[].manifest` | string | Path of the style's `manifest.json`, with forward slashes. It is relative to the folder that holds the index's folder. For `styles/index.json` and `fixtures/index.json` that is the root of this repository. It follows the same character rules as a layer `src` in [manifest.md](manifest.md), so it cannot use `..` or point at another site. |
 
 `validateStyleIndex(index)` in [`src/styles.js`](../src/styles.js) checks a parsed index and lists what is wrong with it. `resolveManifestUrl(entry, indexUrl)` turns an entry into the URL of its manifest.
 
 ## In the builder
 
-- `?style=<id>` in the address opens that style. The address follows the character row, so a link opens the style that was on screen.
+- `?style=<id>` in the address opens that style. The address follows the Character tab, so a link opens the style that was on screen.
 - An id the index does not list opens the first style, and the page says which id it did not know.
-- When a style's manifest cannot be loaded, is not valid or belongs to another style id, the page says which style failed and why, and the style's tile stays blank. The character row keeps working.
+- When a style's manifest cannot be loaded, is not valid or belongs to another style id, the page says which style failed and why, and the style's tile stays blank. The Character tab keeps working.
 
 ## Checking the styles
 
@@ -65,7 +65,7 @@ my-styles/
 - Each folder directly inside the styles folder that has a `manifest.json` is one style.
 - The server sends the folder's `.json` and `.png` files under `/local-styles/`, for GET and HEAD requests only. It answers 404 for dotfiles, for other file types and for a path or a symlink that leaves the folder. It copies nothing into the repository.
 - `/local-styles/index.json` lists the styles in the format above, sorted by id, with manifest paths like `local-styles/marker/manifest.json`. The server builds the list on each request, so a style added while it runs shows up when the page is reloaded.
-- The character row shows the repository's styles first and the local ones after them, with "(local)" after the name.
+- The Character tab shows the repository's styles first and the local ones after them, with "(local)" after the name.
 - A folder is left out of the list, and the server prints one line that says why, when its `manifest.json` is not valid JSON, fails `validateManifest`, uses a style id that another style already has, or when the folder's name uses characters other than letters, digits, hyphens, underscores and dots.
 - When the styles folder does not exist or is not a folder, the server prints a message and exits with code 2.
 

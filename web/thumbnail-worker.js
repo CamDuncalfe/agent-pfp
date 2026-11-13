@@ -10,8 +10,8 @@
  * The answer is { type: 'tiles', ticket, groupId, key, tiles } with tiles
  * as { value, width, height, data }, or { type: 'error', ticket, message }.
  *
- * The page also asks for the picture on each style's tile in the character
- * row: { kind: 'base', id, manifest, manifestUrl }. The worker draws it with
+ * The page also asks for the picture on each style's tile in the Character
+ * tab: { kind: 'base', id, manifest, manifestUrl }. The worker draws it with
  * basePicture and answers { type: 'base', id, width, height, data }, or
  * { type: 'base-error', id, message }. These requests have no ticket and are
  * never dropped. The style on screen reuses the layers its thumbnails
@@ -73,7 +73,7 @@ async function drawGroup(request) {
   return request.ticket < latest ? null : tiles;
 }
 
-/** The picture on a style's tile in the character row. */
+/** The picture on a style's tile in the Character tab. */
 async function drawBase(request) {
   const { manifest, manifestUrl } = request;
   const layers = reusesThumbnailLayers(style?.manifestUrl ?? null, manifestUrl)

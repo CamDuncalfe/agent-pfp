@@ -14,20 +14,10 @@
     </header>
 
     <main>
-      <div class="top">
-        <div class="intro">
-          <h1>Give your agent a face</h1>
-          <p class="lede">Pick each trait, or let Randomize pick. Download it when it looks right.</p>
-          <p id="notice" class="notice" role="status"></p>
-        </div>
-
-        <section class="bases" aria-labelledby="bases-heading">
-          <h2 id="bases-heading" class="bases-heading">Character</h2>
-          <div class="bases-row">
-            <div id="bases" class="base-list" role="radiogroup" aria-labelledby="bases-heading"></div>
-            <p class="bases-note">More characters on the way.</p>
-          </div>
-        </section>
+      <div class="intro">
+        <h1>Give your agent a face</h1>
+        <p class="lede">Pick each trait, or let Randomize pick. Download it when it looks right.</p>
+        <p id="notice" class="notice" role="status"></p>
       </div>
 
       <form id="controls" class="layout" aria-label="Profile picture">
@@ -71,8 +61,19 @@
         </section>
 
         <section class="panel" aria-label="Traits">
-          <div id="tabs" class="tabs" role="tablist" aria-label="Traits"></div>
-          <div id="panels"></div>
+          <div id="tabs" class="tabs" role="tablist" aria-label="Character and traits">
+            <button type="button" id="character-tab" class="tab" role="tab" aria-controls="character-panel" aria-selected="false" tabindex="-1">Character</button>
+          </div>
+          <div id="panels">
+            <div id="character-panel" class="trait" role="tabpanel" aria-labelledby="character-tab" hidden>
+              <div class="trait-heading">
+                <h2 id="character-heading">Character</h2>
+                <p id="character-pick" class="pick"></p>
+              </div>
+              <div id="bases" class="tiles" role="radiogroup" aria-labelledby="character-heading"></div>
+              <p class="bases-note">More characters on the way.</p>
+            </div>
+          </div>
         </section>
       </form>
     </main>

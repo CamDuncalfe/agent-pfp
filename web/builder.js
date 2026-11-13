@@ -11,7 +11,7 @@ import {
   randomizeUnlocked,
   startingLocks,
 } from '../src/locks.js';
-import { canReset, choiceLabel, resetState, swatchGroup, tabAfterKey, tabGroups } from '../src/builder-layout.js';
+import { canReset, characterTabOpens, choiceLabel, resetState, swatchGroup, tabAfterKey, tabGroups } from '../src/builder-layout.js';
 import { NAME, pageTitle } from '../src/brand.js';
 import { compositeLayers } from '../src/composite.js';
 import { pictureToSave, planDownload, sizePicker } from '../src/download.js';
@@ -30,12 +30,13 @@ const STYLE_INDEX = '../styles/index.json';
 const LOCAL_STYLE_INDEX = `../${LOCAL_STYLES_PREFIX}/index.json`;
 /** The name of the Size radio buttons. A group id has no colon, so no group's tiles share it. */
 const SIZE_NAME = 'download:size';
-/** The name of the character row's radio buttons. It has a colon too, and the row is outside the form. */
+/** The name of the Character tab's radio buttons. It has a colon too, so no group's tiles share it. */
 const BASE_NAME = 'style:base';
 
 const statusEl = document.querySelector('#status');
 const noticeEl = document.querySelector('#notice');
 const basesEl = document.querySelector('#bases');
+const characterPickEl = document.querySelector('#character-pick');
 const controlsEl = document.querySelector('#controls');
 const swatchesEl = document.querySelector('#swatches');
 const tabsEl = document.querySelector('#tabs');
@@ -291,30 +292,33 @@ function buildSwatches(group, locks, pixelArt) {
 }
 
 /**
- * The trait panel: one tab per group, and under the tabs that group's
- * panel. A panel's heading holds the group's name, the name of its pick
- * and its Lock, then its grid of tiles. The first tab starts open.
+ * The trait panel: after the Character tab, one tab per group, and under
+ * the tabs that group's panel. A panel's heading holds the group's name,
+ * the name of its pick and its Lock, then its grid of tiles. The trait tabs
+ * and panels carry data-trait, so a new style replaces them and leaves the
+ * Character tab as it is.
  */
 function buildTabs(groups, locks, pixelArt) {
-  groups.forEach((group, index) => {
-    const open = index === 0;
+  for (const group of groups) {
     const tab = document.createElement('button');
     tab.type = 'button';
     tab.id = `tab-${group.id}`;
     tab.className = 'tab';
+    tab.dataset.trait = '';
     tab.setAttribute('role', 'tab');
     tab.setAttribute('aria-controls', `panel-${group.id}`);
-    tab.setAttribute('aria-selected', String(open));
-    tab.tabIndex = open ? 0 : -1;
+    tab.setAttribute('aria-selected', 'false');
+    tab.tabIndex = -1;
     tab.textContent = group.label;
     tabsEl.append(tab);
 
     const panel = document.createElement('div');
     panel.id = `panel-${group.id}`;
     panel.className = 'trait';
+    panel.dataset.trait = '';
     panel.setAttribute('role', 'tabpanel');
     panel.setAttribute('aria-labelledby', tab.id);
-    panel.hidden = !open;
+    panel.hidden = true;
 
     const heading = document.createElement('div');
     heading.className = 'trait-heading';
@@ -328,8 +332,7 @@ function buildTabs(groups, locks, pixelArt) {
 
     panel.append(heading, makeGrid(group, 'tiles', 'tile', title.id, pixelArt));
     panelsEl.append(panel);
-  });
-  tabsEl.hidden = groups.length === 0;
+  }
 }
 
 function buildControls(manifest) {
@@ -340,10 +343,12 @@ function buildControls(manifest) {
   buildTabs(tabGroups(manifest), locks, pixelArt);
 }
 
+/** Take the last style's swatches and trait tabs off the page. The Character tab stays. */
 function clearControls() {
   swatchesEl.replaceChildren();
-  tabsEl.replaceChildren();
-  panelsEl.replaceChildren();
+  for (const element of [...tabsEl.children, ...panelsEl.children]) {
+    if (element.hasAttribute('data-trait')) element.remove();
+  }
 }
 
 /** Open the tab at `index` and close the others. */
@@ -360,7 +365,7 @@ function openTab(index, focus) {
 
 /** Write the name of each group's pick next to the group's name. */
 function showPicks(manifest, selection) {
-  for (const pick of panelsEl.querySelectorAll('p.pick')) {
+  for (const pick of panelsEl.querySelectorAll('p.pick[data-group]')) {
     const group = manifest.groups.find((item) => item.id === pick.dataset.group);
     pick.textContent = choiceLabel(group, selection[group.id] ?? null);
   }
@@ -549,33 +554,35 @@ function clearStyle() {
   clearPreview();
 }
 
-/** The radio button of a style in the character row. */
+/** The radio button of a style in the Character tab. */
 function baseInput(id) {
   return [...basesEl.querySelectorAll(`input[name="${BASE_NAME}"]`)].find((input) => input.value === id);
 }
 
 /**
- * The character row: one tile per style in the style index, in its order.
- * Each tile is a radio button named by the style's name, so the row is a
- * radio group like the trait grids. A new style in the index is a new tile.
+ * The Character tab's tiles: one per style in the style index, in its
+ * order, styled like the trait tiles. Each tile is a radio button named by
+ * the style's name, so the grid is a radio group like the trait grids. A new
+ * style in the index is a new tile.
  */
 function buildBaseRow(styles) {
   basesEl.replaceChildren(
     ...styles.map((entry) => {
       const label = document.createElement('label');
-      label.className = 'base';
+      label.className = 'tile base';
       label.title = entry.name;
       const input = document.createElement('input');
       input.type = 'radio';
       input.name = BASE_NAME;
       input.value = entry.id;
       const thumb = document.createElement('canvas');
-      thumb.className = 'base-thumb';
+      thumb.className = 'thumb base-thumb';
       thumb.width = 1;
       thumb.height = 1;
       thumb.setAttribute('aria-hidden', 'true');
+      // The style's name is the radio button's accessible name. It is hidden on screen, like a trait tile's.
       const name = document.createElement('span');
-      name.className = 'base-name';
+      name.className = 'tile-name';
       name.textContent = entry.name;
       label.append(input, thumb, name);
       return label;
@@ -611,7 +618,7 @@ async function drawBaseTiles(styles) {
   }
 }
 
-/** Put the worker's picture on a style's tile in the character row. */
+/** Put the worker's picture on a style's tile in the Character tab. */
 function paintBaseTile({ id, width, height, data }) {
   const canvasEl = baseInput(id)?.parentElement.querySelector('canvas.base-thumb');
   if (!canvasEl) return;
@@ -627,16 +634,19 @@ function showStyleInAddress(id) {
 }
 
 /**
- * Puts one style on screen at a time. The character row stays usable the
+ * Puts one style on screen at a time. The Character tab stays usable the
  * whole time, so a style that fails to load can be swapped for another one.
  * createStyleSwitcher drops a style that finishes loading after a newer pick.
  */
 function createSwitcher() {
+  /** Whether a style was on screen before this one. */
+  let shownBefore = false;
   return createStyleSwitcher({
     clear(entry) {
       clearStyle();
       const input = baseInput(entry.id);
       if (input) input.checked = true;
+      characterPickEl.textContent = entry.name;
       showStyleInAddress(entry.id);
       setStatus(`Loading ${entry.name}...`);
     },
@@ -649,6 +659,10 @@ function createSwitcher() {
       previewEl.height = manifest.canvas.height;
       previewEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
       buildControls(manifest);
+      // The Character tab is the first tab. Which tab opens is characterTabOpens in src/builder-layout.js.
+      const characterOpens = characterTabOpens({ styleCount: basesEl.children.length, firstStyle: !shownBefore });
+      openTab(characterOpens || tabsEl.children.length === 1 ? 0 : 1, false);
+      shownBefore = true;
       buildSizePicker(manifest);
       const render = createRenderer(manifest, url, isOnScreen);
       current = { manifest, render };
@@ -689,8 +703,8 @@ async function start() {
       if (!(target instanceof HTMLInputElement)) return;
       // The Circle switch shows the preview cut to a circle. The picture stays as it is.
       if (target === circleEl) stageCardEl.classList.toggle('round', circleEl.checked);
-      // A size changes what Download saves next. The picture stays as it is.
-      else if (target.name === SIZE_NAME) return;
+      // A size changes what Download saves next, and a character tile opens another style (see basesEl). Neither redraws here.
+      else if (target.name === SIZE_NAME || target.name === BASE_NAME) return;
       // A lock changes what Randomize does next. The picture stays as it is.
       else if (target.type === 'checkbox') updateButtons();
       // A tile's radio button changes the picture.

@@ -171,21 +171,35 @@ test('the logo is the wordmark, with no image, and the name is written in src/br
   }
 });
 
-test('the character row has one tile per style in the index, as a radio group, and replaces the Style dropdown', async () => {
+test('the Character tab is the first tab, with one tile per style in the index, as a radio group', async () => {
   const html = await read('index.html');
-  assert.match(html, /<h2 id="bases-heading" class="bases-heading">Character<\/h2>/);
-  assert.match(html, /<div id="bases" class="base-list" role="radiogroup" aria-labelledby="bases-heading"><\/div>/);
-  assert.match(html, /<p class="bases-note">More characters on the way\.<\/p>/);
-  // The row sits above the builder, outside the form, so picking a style never reads as a trait.
-  assert.ok(html.indexOf('id="bases"') < html.indexOf('<form id="controls"'));
+  // The tab and its panel are in the page, before any trait tab, so a new style never removes them.
+  const tablist = /<div id="tabs" class="tabs" role="tablist" aria-label="Character and traits">\s*<button ([^>]*)>Character<\/button>\s*<\/div>/.exec(html);
+  assert.ok(tablist, 'the tablist starts with the Character tab and holds nothing else in the markup');
+  assert.match(tablist[1], /id="character-tab"/);
+  assert.match(tablist[1], /role="tab"/);
+  assert.match(tablist[1], /aria-controls="character-panel"/);
+  assert.match(html, /<div id="character-panel" class="trait" role="tabpanel" aria-labelledby="character-tab" hidden>/);
+  assert.match(html, /<h2 id="character-heading">Character<\/h2>\s*<p id="character-pick" class="pick"><\/p>/);
+  assert.match(html, /<div id="bases" class="tiles" role="radiogroup" aria-labelledby="character-heading"><\/div>\s*<p class="bases-note">More characters on the way\.<\/p>/);
+  // No row of styles sits above the panel.
+  assert.doesNotMatch(html, /class="bases"|class="top"/);
   const js = await read('builder.js');
   assert.match(js, /buildBaseRow\(index\.styles\);/);
   assert.match(js, /input\.type = 'radio';\n\s*input\.name = BASE_NAME;\n\s*input\.value = entry\.id;/);
-  assert.match(js, /name\.textContent = entry\.name;/);
   assert.match(js, /const BASE_NAME = 'style:base';/);
-  // Picking a tile opens its style, and opening a style checks its tile.
+  // A character tile is a trait tile: same classes, a canvas hidden from screen readers, the style's name as its accessible name.
+  assert.match(js, /label\.className = 'tile base';/);
+  assert.match(js, /thumb\.className = 'thumb base-thumb';[\s\S]{0,120}thumb\.setAttribute\('aria-hidden', 'true'\);/);
+  assert.match(js, /name\.className = 'tile-name';\n\s*name\.textContent = entry\.name;/);
+  // Picking a tile opens its style, and opening a style checks its tile and names it in the panel heading.
   assert.match(js, /const entry = index\.styles\.find\(\(candidate\) => candidate\.id === target\.value\);\n\s*if \(entry\) switcher\.open\(entry\);/);
-  assert.match(js, /const input = baseInput\(entry\.id\);\n\s*if \(input\) input\.checked = true;/);
+  assert.match(js, /const input = baseInput\(entry\.id\);\n\s*if \(input\) input\.checked = true;\n\s*characterPickEl\.textContent = entry\.name;/);
+  // A new style replaces the trait tabs only: they carry data-trait, and the Character tab doesn't.
+  assert.match(js, /if \(element\.hasAttribute\('data-trait'\)\) element\.remove\(\);/);
+  assert.doesNotMatch(js, /tabsEl\.replaceChildren\(|panelsEl\.replaceChildren\(/);
+  // Which tab opens comes from src/builder-layout.js.
+  assert.match(js, /const characterOpens = characterTabOpens\(\{ styleCount: basesEl\.children\.length, firstStyle: !shownBefore \}\);\n\s*openTab\(characterOpens \|\| tabsEl\.children\.length === 1 \? 0 : 1, false\);/);
   // A tile shows the picture the style opens with. The page asks the thumbnail worker for it after the
   // first style is on screen, and the worker draws it with basePicture from src/builder-layout.js.
   assert.match(js, /await switcher\.open\(entry\);\n\s*await drawBaseTiles\(index\.styles\);/);
@@ -204,20 +218,16 @@ test('the character row has one tile per style in the index, as a radio group, a
   assert.doesNotMatch(run, /drawBase|base/);
   // The decision is mayDrawBase in src/builder-layout.js (test/builder-layout.test.js); the worker calls it before compositing.
   assert.match(worker, /while \(!mayDrawBase\(\{ running, waiting: queue\.length \}\)\) await nextTask\(\);\n\s*return basePicture\(/);
-  // The tile picture is hidden from screen readers, and the style's name is the radio button's name.
-  assert.match(js, /thumb\.className = 'base-thumb';[\s\S]{0,120}thumb\.setAttribute\('aria-hidden', 'true'\);/);
+  // The character tiles take the trait tiles' look; the sharp-pixel rule is the one style of their own.
   const css = await read('builder.css');
-  assert.equal(Object.fromEntries(declarations(css, 'label.base input')).opacity, '0');
-  assert.ok(Object.fromEntries(declarations(css, 'label.base:has(input:checked)'))['box-shadow'], 'the picked tile has a shadow');
-  assert.equal(Object.fromEntries(declarations(css, 'label.base:has(input:checked)::after')).content, "'✓'");
-  // When the tiles don't fit, the row scrolls sideways.
-  assert.equal(Object.fromEntries(declarations(css, '.base-list'))['overflow-x'], 'auto');
+  assert.ok(declarations(css, '.base-thumb.pixel-art').length > 0);
+  assert.doesNotMatch(plain(css), /label\.base\b|\.base-list|\.bases-row/);
 });
 
 test('each group gets tiles and no dropdown', async () => {
   const js = await read('builder.js');
   const html = await read('index.html');
-  // The page has no dropdown. Styles are tiles in the character row.
+  // The page has no dropdown. Styles are tiles in the Character tab.
   assert.doesNotMatch(html, /<select/);
   assert.equal(js.match(/createElement\('select'\)/g), null, 'the page makes no dropdown');
   // One tile per entry of traitTiles, each a radio button named after its group. The first one starts picked.
@@ -300,22 +310,22 @@ test('ten swatches and the Lock fit beside the preview at 390 px, with room for 
 test('the other groups are tabs in one panel, and the arrow keys move along them', async () => {
   const js = await read('builder.js');
   const html = await read('index.html');
-  assert.match(html, /<div id="tabs" class="tabs" role="tablist" aria-label="Traits"><\/div>/);
+  assert.match(html, /<div id="tabs" class="tabs" role="tablist" aria-label="Character and traits">/);
   assert.match(js, /buildTabs\(tabGroups\(manifest\), locks, pixelArt\);/);
-  assert.match(js, /tab\.setAttribute\('role', 'tab'\);\n\s*tab\.setAttribute\('aria-controls', `panel-\$\{group\.id\}`\);\n\s*tab\.setAttribute\('aria-selected', String\(open\)\);/);
-  assert.match(js, /panel\.setAttribute\('role', 'tabpanel'\);\n\s*panel\.setAttribute\('aria-labelledby', tab\.id\);\n\s*panel\.hidden = !open;/);
-  // One tab is in the Tab order, the open one.
-  assert.match(js, /tab\.tabIndex = open \? 0 : -1;/);
+  assert.match(js, /tab\.setAttribute\('role', 'tab'\);\n\s*tab\.setAttribute\('aria-controls', `panel-\$\{group\.id\}`\);\n\s*tab\.setAttribute\('aria-selected', 'false'\);/);
+  assert.match(js, /panel\.setAttribute\('role', 'tabpanel'\);\n\s*panel\.setAttribute\('aria-labelledby', tab\.id\);\n\s*panel\.hidden = true;/);
+  // One tab is in the Tab order, the open one, and openTab opens one tab and closes the others.
+  assert.match(js, /const open = at === index;\n\s*tab\.setAttribute\('aria-selected', String\(open\)\);\n\s*tab\.tabIndex = open \? 0 : -1;/);
   assert.match(js, /const next = tabAfterKey\(tabs\.indexOf\(document\.activeElement\), event\.key, tabs\.length\);/);
   // The panel names the group's pick.
   assert.match(js, /pick\.textContent = choiceLabel\(group, selection\[group\.id\] \?\? null\);/);
 });
 
-test('a click on a tile redraws the preview with a settle, and a lock, the Circle switch or a size do not', async () => {
+test('a click on a tile redraws the preview with a settle, and a lock, the Circle switch, a size or a character tile do not', async () => {
   const js = await read('builder.js');
   const change = /controlsEl\.addEventListener\('change', \(event\) => \{([\s\S]*?)\n    \}\);/.exec(js)[1];
   assert.match(change, /if \(target === circleEl\)/);
-  assert.match(change, /else if \(target\.name === SIZE_NAME\) return;/);
+  assert.match(change, /else if \(target\.name === SIZE_NAME \|\| target\.name === BASE_NAME\) return;/);
   assert.match(change, /else if \(target\.type === 'checkbox'\) updateButtons\(\);/);
   assert.match(change, /else current\?\.render\(\{ settle: true \}\);/);
   // The render reads the picked tiles and writes the preview.

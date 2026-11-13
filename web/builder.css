@@ -40,8 +40,6 @@
 
   /* How wide a thumbnail is. src/thumbnails.js has the same 120. */
   --thumbnail: 120px;
-  /* How wide a tile is in the character row. */
-  --base: 76px;
   /* How wide a swatch is in the column next to the preview. */
   --swatch: 34px;
   /* The room between swatches, and the ring around the picked one. */
@@ -138,28 +136,10 @@ main {
   padding: 8px 32px 64px;
 }
 
-/*
- * The heading and the character row share a line on a wide page, in the
- * same two columns as the preview and the trait panel below them. Under
- * 900 px the row goes under the heading.
- */
-.top {
-  display: grid;
-  grid-template-columns: minmax(0, 600px) minmax(0, 1fr);
-  gap: 20px 40px;
-  align-items: end;
-  margin-bottom: 28px;
-}
-
-@media (max-width: 899px) {
-  .top {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .intro {
   display: grid;
   gap: 6px;
+  margin-bottom: 28px;
 }
 
 h1 {
@@ -188,131 +168,20 @@ h1 {
   display: none;
 }
 
-/* ---- Character row --------------------------------------------------- */
+/* ---- Character tab -------------------------------------------------- */
 
 /*
- * One tile per style in the style index: the picture it opens with and its
- * name under it. The row scrolls sideways when the tiles don't fit.
+ * The Character tab is the panel's first tab. Its tiles are the trait tiles'
+ * (label.tile in the panel), one per style, and this line sits under them.
  */
-.bases {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-}
-
-.bases-heading {
-  color: var(--muted);
-  font-size: var(--t-small);
-  font-weight: 500;
-}
-
-.bases-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  min-width: 0;
-}
-
-.base-list {
-  display: flex;
-  gap: 12px;
-  min-width: 0;
-  /* Room for the picked tile's shadow and a focus ring, inside the scrolling box. */
-  padding: 6px;
-  margin: -6px;
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-label.base {
-  position: relative;
-  display: grid;
-  flex: none;
-  justify-items: center;
-  gap: 6px;
-  width: var(--base);
-  padding: 6px 6px 8px;
-  border: 2px solid var(--line);
-  border-radius: var(--r-tile);
-  background: var(--card);
-  cursor: pointer;
-  transition:
-    border-color 0.18s var(--ease-out),
-    transform 0.18s var(--ease-out);
-}
-
-label.base:hover {
-  border-color: var(--ink);
-  transform: translateY(-2px);
-}
-
-/* The radio button is hidden on screen and keeps focus, the arrow keys and its name. */
-label.base input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1px;
-  height: 1px;
-  margin: 0;
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* 14 px corners on the card, 6 px in: 8 px on the picture. */
-.base-thumb {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 1;
-  border-radius: 8px;
-  background: var(--paper);
-}
-
-.base-thumb.pixel-art {
-  image-rendering: pixelated;
-}
-
-.base-name {
-  max-width: 100%;
-  overflow: hidden;
-  font-size: var(--t-small);
-  font-weight: 500;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The picked tile: ink frame, hard shadow and the yellow check, like a trait tile. */
-label.base:has(input:checked) {
-  border-color: var(--ink);
-  box-shadow: 0 4px 0 var(--ink);
-}
-
-label.base:has(input:checked)::after {
-  content: '✓';
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 22px;
-  height: 22px;
-  border: var(--stroke);
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--ink);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 18px;
-  text-align: center;
-}
-
-label.base:has(input:focus-visible) {
-  outline: 3px solid var(--ink);
-  outline-offset: 3px;
-}
-
 .bases-note {
   color: var(--muted);
   font-size: var(--t-small);
+}
+
+/* Small fixture pictures are scaled up on a character tile, so keep their pixels sharp. */
+.base-thumb.pixel-art {
+  image-rendering: pixelated;
 }
 
 /*
@@ -824,6 +693,8 @@ label.swatch:has(input:focus-visible) {
 /* ---- Trait panel ----------------------------------------------------- */
 
 .panel {
+  /* The tabs change shape with the panel's width (the container query below). */
+  container-type: inline-size;
   min-width: 0;
   border: var(--stroke);
   border-radius: var(--r-card);
@@ -832,7 +703,11 @@ label.swatch:has(input:focus-visible) {
   overflow: hidden;
 }
 
-/* The tabs scroll sideways when they don't fit, so they never wrap into two rows. */
+/*
+ * One row of tabs on a yellow bar when the panel has room for all of them.
+ * When it doesn't, on a phone or in a narrow window, they wrap as pills
+ * (the container query below), so no tab is ever cut off.
+ */
 .tabs {
   display: flex;
   gap: 4px;
@@ -851,7 +726,7 @@ label.swatch:has(input:focus-visible) {
   flex: none;
   position: relative;
   min-height: 44px;
-  padding: 0 16px;
+  padding: 0 11px;
   border: 0;
   border-radius: var(--r-tile) var(--r-tile) 0 0;
   background: transparent;
@@ -884,6 +759,45 @@ label.swatch:has(input:focus-visible) {
 
 .tab:focus-visible {
   outline-offset: -3px;
+}
+
+/*
+ * Six tabs need about 540 px in one row. In a narrower panel they wrap as
+ * pills, and the open one is yellow with the art's outline, like a Lock
+ * that is on.
+ */
+@container (max-width: 559px) {
+  .tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px;
+    overflow: visible;
+  }
+
+  .tab {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 2px solid var(--line);
+    border-radius: var(--r-pill);
+    font-size: var(--t-small);
+  }
+
+  .tab:hover {
+    border-color: var(--ink);
+  }
+
+  .tab[aria-selected='true'] {
+    border-color: var(--ink);
+    background: var(--accent);
+  }
+
+  .tab[aria-selected='true']::after {
+    display: none;
+  }
+
+  .tab:focus-visible {
+    outline-offset: 3px;
+  }
 }
 
 .trait {
@@ -1115,7 +1029,7 @@ label.tile:not(.swatch):has(input:focus-visible) {
     padding: 4px 16px 48px;
   }
 
-  .top {
+  .intro {
     margin-bottom: 20px;
   }
 
@@ -1158,22 +1072,6 @@ label.tile:not(.swatch):has(input:focus-visible) {
 
   .trait {
     padding: 16px;
-  }
-
-  /* The five tabs fit the panel at 390 px. More of them scroll sideways. */
-  .tabs {
-    gap: 0;
-    padding: 10px 10px 0;
-  }
-
-  .tab {
-    padding: 0 7px;
-    font-size: var(--t-small);
-  }
-
-  .tab[aria-selected='true']::after {
-    left: 6px;
-    right: 6px;
   }
 
   .tiles {

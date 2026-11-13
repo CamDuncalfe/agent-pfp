@@ -8,8 +8,9 @@
  * - Each other group with tiles is a tab in one panel (tabGroups).
  * - Reset gives each group the choice the page opens with, its first tile,
  *   and turns each Lock off (resetState).
- * - Each style is a tile in the character row at the top, showing the
- *   picture the style opens with (basePicture).
+ * - Each style is a tile in the Character tab, the first tab of the panel,
+ *   showing the picture the style opens with (basePicture). Which tab
+ *   opens with a style is characterTabOpens.
  *
  * This module has no Node or browser dependencies.
  */
@@ -135,7 +136,7 @@ export function baseLayers(manifest) {
 }
 
 /**
- * The picture on a style's tile in the character row: the picture the
+ * The picture on a style's tile in the Character tab: the picture the
  * style opens with, drawn by compositeLayers at canvas size, then its middle
  * square at THUMBNAIL_MAX_SIDE pixels a side at most (thumbnailPicture).
  * No layer is moved, cropped or scaled (AGENTS.md rules 1 and 3).
@@ -155,7 +156,7 @@ export function basePicture(manifest, pixelsOf) {
 /**
  * Whether the thumbnail worker may composite a character picture now: only
  * while no trait thumbnail request is running or waiting, so a trait change
- * never waits behind the character row.
+ * never waits behind the character pictures.
  * @param {{ running: boolean, waiting: number }} thumbnails the worker's trait thumbnail loop
  */
 export function mayDrawBase({ running, waiting }) {
@@ -171,4 +172,15 @@ export function mayDrawBase({ running, waiting }) {
  */
 export function reusesThumbnailLayers(thumbnailStyleUrl, manifestUrl) {
   return thumbnailStyleUrl !== null && thumbnailStyleUrl === manifestUrl;
+}
+
+/**
+ * Whether the Character tab is the open tab when a style goes on screen.
+ * When the page opens, it is open only if there is more than one style to
+ * pick from; with one, the first trait tab opens instead. After a switch
+ * from the Character tab, it stays open, so the next pick is one click away.
+ * @param {{ styleCount: number, firstStyle: boolean }} state firstStyle is true for the style the page opens with
+ */
+export function characterTabOpens({ styleCount, firstStyle }) {
+  return !firstStyle || styleCount > 1;
 }
