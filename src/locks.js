@@ -1,7 +1,7 @@
 /**
  * Trait locks in the builder. A locked group keeps its option when the user
- * hits Randomize. A lock does nothing else: the group's own picker still
- * changes it.
+ * hits Randomize. A lock does nothing else: a click on one of the group's
+ * thumbnails still changes it.
  *
  * This module has no Node or browser dependencies. The builder page reads
  * the lock checkboxes, calls these functions and writes the result back.
@@ -18,7 +18,7 @@ import { randomChoice } from './manifest.js';
 
 /**
  * The form name of a group's lock checkbox. A group id has no colon, so the
- * name never matches the name of a group's picker.
+ * name never matches the name of a group's tiles.
  * @param {string} groupId
  */
 export function lockControlName(groupId) {
@@ -85,7 +85,7 @@ export function canRandomize(manifest, locks) {
  * group, and the choice `selection` already has for each locked group,
  * "None" (`null`) included. With no locks this is `randomSelection`.
  * @param {Manifest} manifest
- * @param {Selection} selection what the pickers show now
+ * @param {Selection} selection the tiles picked now
  * @param {Locks} locks
  * @param {() => number} [random] returns a number in [0, 1), like Math.random
  * @returns {Selection}
