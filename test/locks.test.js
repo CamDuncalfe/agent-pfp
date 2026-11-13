@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { groupChoices, randomSelection, resolveSelection } from '../src/manifest.js';
 import {
   canRandomize,
+  hasLock,
   lockControlName,
   lockAccessibleName,
   lockText,
@@ -186,6 +187,54 @@ test('a lock for a group the style does not have is ignored', async () => {
   const oneOpen = { ...allLocked(manifest), eyes: false, tail: true };
   assert.equal(canRandomize(manifest, oneOpen), true);
   assert.equal(canRandomize(manifest, { ...allLocked(manifest), tail: true }), false);
+});
+
+/** The shapes fixture with one body, like the alien's one Character. */
+async function loadOneBody() {
+  const manifest = await loadFixture('shapes');
+  const body = manifest.groups.find((group) => group.id === 'body');
+  body.options = [body.options[0]];
+  return manifest;
+}
+
+test('a group with one option and no None gets no Lock', async () => {
+  const manifest = await loadOneBody();
+  const byId = (id) => manifest.groups.find((group) => group.id === id);
+  assert.equal(hasLock(byId('body')), false);
+  for (const id of ['background', 'eyes', 'mouth', 'headwear']) assert.equal(hasLock(byId(id)), true, id);
+  assert.deepEqual(Object.keys(startingLocks(manifest)), ['background', 'eyes', 'mouth', 'headwear']);
+  // An optional group with one option has two choices, so it keeps its Lock.
+  assert.equal(hasLock({ ...byId('headwear'), options: [byId('headwear').options[0]] }), true);
+  // The alien's Character is such a group.
+  const alien = JSON.parse(await readFile(new URL('../styles/alien/manifest.json', import.meta.url), 'utf8'));
+  assert.deepEqual(alien.groups.filter((group) => !hasLock(group)).map((group) => group.id), ['character']);
+});
+
+test('Randomize leaves a one-choice group on its option and uses no random number for it', async () => {
+  const manifest = await loadOneBody();
+  const selection = { background: 'grey', body: 'round', eyes: 'dots', mouth: 'line', headwear: null };
+  for (const value of [0, 0.5, 0.999]) {
+    const random = sequence([value]);
+    const next = randomizeUnlocked(manifest, selection, startingLocks(manifest), random);
+    assert.equal(next.body, 'round');
+    assert.equal(random.calls(), manifest.groups.length - 1);
+    // Its layer is still drawn and listed.
+    assert.ok(resolveSelection(manifest, next).some((layer) => layer.group.id === 'body'));
+  }
+  // A selection that leaves it out gets its one option.
+  const { body, ...rest } = selection;
+  assert.equal(randomizeUnlocked(manifest, rest, {}, () => 0.5).body, body);
+});
+
+test('Randomize is off once each group with a Lock is locked, and a lock on a one-choice group is ignored', async () => {
+  const manifest = await loadOneBody();
+  const locks = { background: true, eyes: true, mouth: true, headwear: true };
+  assert.equal(canRandomize(manifest, locks), false);
+  assert.equal(canRandomize(manifest, { ...locks, mouth: false }), true);
+  assert.deepEqual(lockedGroupIds(manifest, { body: true }), []);
+  // A style whose groups all have one choice has nothing to randomize.
+  const only = { ...manifest, groups: [manifest.groups.find((group) => group.id === 'body')] };
+  assert.equal(canRandomize(only, startingLocks(only)), false);
 });
 
 test('only true locks a group', async () => {

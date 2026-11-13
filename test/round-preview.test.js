@@ -343,7 +343,13 @@ test('the page is wide enough for both previews side by side and the controls li
     withoutComments(css),
     /@media \(max-width: 560px\) \{\s*\.layout \{\s*grid-template-columns: minmax\(0, 1fr\);\s*\}\s*\}/,
   );
-  assert.equal(withoutComments(css).match(/@media/g).length, 1, 'no other width changes the layout');
+  // The one other query, from 900 px up, only keeps the preview column in view (test/builder-page.test.js).
+  assert.deepEqual(
+    withoutComments(css).match(/@media[^{]*/g).map((query) => query.trim()),
+    ['@media (max-width: 560px)', '@media (min-width: 900px)'],
+    'no other width changes the layout',
+  );
+  assert.match(withoutComments(css), /@media \(min-width: 900px\) \{\s*\.preview-column \{[^}]*\}\s*\}/);
 
   // The controls under the preview are as wide as the big preview at most.
   assert.equal(px(rule(css, '.actions')['max-width']), big);

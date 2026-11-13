@@ -7,7 +7,7 @@
  * the lock checkboxes, calls these functions and writes the result back.
  */
 
-import { randomChoice } from './manifest.js';
+import { groupChoices, hasOneChoice, randomChoice } from './manifest.js';
 
 /**
  * @typedef {import('./manifest.js').Manifest} Manifest
@@ -49,41 +49,57 @@ export function lockAccessibleName(group) {
 }
 
 /**
- * The locks a style opens with: one per group, each of them off. The page
- * writes these when it builds the controls of a style, so the locks of the
- * style before it are gone.
+ * Whether a group gets a Lock. A group with one choice has nothing for
+ * Randomize to change, so it gets none.
+ * @param {Group} group
+ */
+export function hasLock(group) {
+  return !hasOneChoice(group);
+}
+
+/**
+ * The locks a style opens with: one per group that has a Lock, each of
+ * them off. The page writes these when it builds the controls of a style,
+ * so the locks of the style before it are gone.
  * @param {Manifest} manifest
  * @returns {Locks}
  */
 export function startingLocks(manifest) {
-  return Object.fromEntries(manifest.groups.map((group) => [group.id, false]));
+  return Object.fromEntries(manifest.groups.filter(hasLock).map((group) => [group.id, false]));
 }
 
 /**
  * The ids of the style's groups that are locked, in draw order. A lock for a
- * group id the style doesn't have is ignored. Only `true` locks a group.
+ * group id the style doesn't have, or for a group without a Lock, is
+ * ignored. Only `true` locks a group.
  * @param {Manifest} manifest
  * @param {Locks} locks
  * @returns {string[]}
  */
 export function lockedGroupIds(manifest, locks) {
-  return manifest.groups.filter((group) => Object.hasOwn(locks, group.id) && locks[group.id] === true).map((group) => group.id);
+  return manifest.groups
+    .filter((group) => hasLock(group) && Object.hasOwn(locks, group.id) && locks[group.id] === true)
+    .map((group) => group.id);
 }
 
 /**
- * Whether Randomize has anything to pick. It has not when each group is
- * locked, and the page disables the button then.
+ * Whether Randomize has anything to pick. It has not when each group with a
+ * Lock is locked, or when no group has one, and the page disables the
+ * button then.
  * @param {Manifest} manifest
  * @param {Locks} locks
  */
 export function canRandomize(manifest, locks) {
-  return lockedGroupIds(manifest, locks).length < manifest.groups.length;
+  const locked = new Set(lockedGroupIds(manifest, locks));
+  return manifest.groups.some((group) => hasLock(group) && !locked.has(group.id));
 }
 
 /**
  * What Randomize picks: a new choice from all the choices of each unlocked
  * group, and the choice `selection` already has for each locked group,
- * "None" (`null`) included. With no locks this is `randomSelection`.
+ * "None" (`null`) included. A group with one choice keeps its pick too, and
+ * gets its one option when `selection` has none for it. With no locks and
+ * no such group this is `randomSelection`.
  * @param {Manifest} manifest
  * @param {Selection} selection the tiles picked now
  * @param {Locks} locks
@@ -94,7 +110,8 @@ export function randomizeUnlocked(manifest, selection, locks, random = Math.rand
   const locked = new Set(lockedGroupIds(manifest, locks));
   const next = {};
   for (const group of manifest.groups) {
-    next[group.id] = locked.has(group.id) ? (selection[group.id] ?? null) : randomChoice(group, random);
+    if (hasOneChoice(group)) next[group.id] = selection[group.id] ?? groupChoices(group)[0];
+    else next[group.id] = locked.has(group.id) ? (selection[group.id] ?? null) : randomChoice(group, random);
   }
   return next;
 }

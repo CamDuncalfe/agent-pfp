@@ -1,7 +1,9 @@
 /**
  * The thumbnails the builder page shows for each trait group. A thumbnail
  * is the current picture with that one option swapped in, cut to a square
- * around the part of the canvas the option's layer draws in. A layer that
+ * around the part of the canvas the option's layer draws in. The layers of
+ * each group whose `over` list names the tile's group are left out, so a
+ * hat or glasses never hide the eyes on an Eyes tile. A layer that
  * covers the whole canvas, like a flat background colour, would be hidden
  * by everything on top of it, so its thumbnail is the layer on its own.
  *
@@ -13,7 +15,7 @@
  * pixels, calls these functions and puts the result on a canvas per tile.
  */
 import { compositeLayers, createRaster, isRaster } from './composite.js';
-import { groupChoices, resolveSelection } from './manifest.js';
+import { groupChoices, hasOneChoice, resolveSelection } from './manifest.js';
 import { middleSquare } from './round-preview.js';
 import { scaleDown } from './scale.js';
 
@@ -65,13 +67,28 @@ export function choiceFromValue(value) {
 }
 
 /**
+ * The choice a group has on the page: its one option when it has one
+ * choice and so no tiles, else the choice of its picked tile, or null
+ * when no tile is picked.
+ * @param {Group} group
+ * @param {string | undefined} pickedValue the radio value of the picked tile
+ * @returns {string | null}
+ */
+export function pageChoice(group, pickedValue) {
+  if (hasOneChoice(group)) return groupChoices(group)[0];
+  return pickedValue === undefined ? null : choiceFromValue(pickedValue);
+}
+
+/**
  * The tiles of a group's grid, in order: a None tile first when the group
  * is optional, then one per option in the manifest's order. The label is
- * the tile's accessible name.
+ * the tile's accessible name. A group with one choice gets no tiles,
+ * because there is nothing to pick.
  * @param {Group} group
  * @returns {{ choice: string | null, value: string, label: string }[]}
  */
 export function traitTiles(group) {
+  if (hasOneChoice(group)) return [];
   return groupChoices(group).map((choice) => ({
     choice,
     value: choiceValue(choice),
@@ -182,9 +199,36 @@ export function thumbnailSelection(selection, groupId, choice) {
 }
 
 /**
- * What a group's thumbnails depend on: the choice of each other group. The
- * page redraws a group's thumbnails only when this changes, so picking a
- * tile redraws the other groups' thumbnails and leaves its own as they are.
+ * Whether a group's layers are left out of the thumbnails of another
+ * group: they are when the group's `over` list names it.
+ * @param {Group} group
+ * @param {string} tileGroupId
+ */
+export function coversInThumbnails(group, tileGroupId) {
+  return Array.isArray(group.over) && group.over.includes(tileGroupId);
+}
+
+/**
+ * The layers a tile's thumbnail draws, bottom first: the layers of
+ * `selection` with `choice` in the tile's group, less the layers of each
+ * group whose `over` list names the tile's group. The main preview and the
+ * download draw each layer of the selection and don't use this.
+ * @param {Manifest} manifest
+ * @param {Selection} selection
+ * @param {string} groupId the tile's group
+ * @param {string | null} choice the tile's option id, or null for None
+ */
+export function thumbnailLayers(manifest, selection, groupId, choice) {
+  return resolveSelection(manifest, thumbnailSelection(selection, groupId, choice)).filter(
+    (layer) => !coversInThumbnails(layer.group, groupId),
+  );
+}
+
+/**
+ * What a group's thumbnails depend on: the choice of each other group that
+ * they draw. The page redraws a group's thumbnails only when this changes,
+ * so picking a tile redraws the other groups' thumbnails and leaves its own
+ * as they are. A change in a group drawn over it leaves them as they are too.
  * @param {Manifest} manifest
  * @param {Selection} selection
  * @param {string} groupId
@@ -192,7 +236,9 @@ export function thumbnailSelection(selection, groupId, choice) {
  */
 export function thumbnailKey(manifest, selection, groupId) {
   return JSON.stringify(
-    manifest.groups.filter((group) => group.id !== groupId).map((group) => selection[group.id] ?? null),
+    manifest.groups
+      .filter((group) => group.id !== groupId && !coversInThumbnails(group, groupId))
+      .map((group) => selection[group.id] ?? null),
   );
 }
 
@@ -221,7 +267,7 @@ export function createRedrawTracker() {
 
 /**
  * The layer sources a group's thumbnails need: each layer of `selection`
- * and each option of the group.
+ * that the thumbnails draw and each option of the group.
  * @param {Manifest} manifest
  * @param {Selection} selection
  * @param {Group} group
@@ -230,6 +276,7 @@ export function createRedrawTracker() {
 export function thumbnailSources(manifest, selection, group) {
   const sources = new Set(
     resolveSelection(manifest, selection)
+      .filter((layer) => !coversInThumbnails(layer.group, group.id))
       .filter((layer) => layer.group.id !== group.id)
       .map(({ option }) => option.src),
   );
@@ -245,6 +292,7 @@ export function thumbnailSources(manifest, selection, group) {
  * other option is drawn on the current picture and cut to a square around
  * its layer's drawn pixels. The None tile shows the picture without the
  * group, cut to a square around the drawn pixels of each of its options.
+ * Both leave out the groups drawn over the tile's group (thumbnailLayers).
  *
  * @param {object} args
  * @param {Manifest} args.manifest
@@ -264,7 +312,7 @@ export function drawThumbnail({ manifest, selection, group, choice, pixelsOf, bo
     const own = bounds(option.src);
     if (coversCanvas(own, canvas)) return thumbnailPicture(pixelsOf(option.src), middleSquare(canvas));
   }
-  const layers = resolveSelection(manifest, thumbnailSelection(selection, group.id, choice));
+  const layers = thumbnailLayers(manifest, selection, group.id, choice);
   const picture = compositeLayers(
     canvas.width,
     canvas.height,

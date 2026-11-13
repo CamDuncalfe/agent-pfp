@@ -220,6 +220,16 @@ export function groupChoices(group) {
 }
 
 /**
+ * Whether a group leaves the user nothing to pick: one option and no "None"
+ * choice. The builder shows no tiles and no Lock for such a group, and
+ * Randomize keeps its option. Its layer is still drawn.
+ * @param {Group} group
+ */
+export function hasOneChoice(group) {
+  return groupChoices(group).length === 1;
+}
+
+/**
  * Turn a selection into the list of layers to draw, bottom first.
  * Throws when the selection names an unknown group or option, or leaves a
  * required group empty.
