@@ -151,3 +151,24 @@ export function basePicture(manifest, pixelsOf) {
   );
   return thumbnailPicture(picture, middleSquare(manifest.canvas));
 }
+
+/**
+ * Whether the thumbnail worker may composite a character picture now: only
+ * while no trait thumbnail request is running or waiting, so a trait change
+ * never waits behind the character row.
+ * @param {{ running: boolean, waiting: number }} thumbnails the worker's trait thumbnail loop
+ */
+export function mayDrawBase({ running, waiting }) {
+  return !running && waiting === 0;
+}
+
+/**
+ * Whether a character picture reuses the layers the trait thumbnails
+ * loaded: only when it is for the style those thumbnails show. Another
+ * style gets a loader of its own.
+ * @param {string | null} thumbnailStyleUrl the manifest URL of the style the thumbnails show, or null before the first
+ * @param {string} manifestUrl the manifest URL of the character picture's style
+ */
+export function reusesThumbnailLayers(thumbnailStyleUrl, manifestUrl) {
+  return thumbnailStyleUrl !== null && thumbnailStyleUrl === manifestUrl;
+}

@@ -24,7 +24,7 @@
  * waits to composite until no thumbnail request is running or waiting.
  */
 import { drawThumbnail, layerBounds, thumbnailSources, traitTiles } from '../src/thumbnails.js';
-import { baseLayers, basePicture } from '../src/builder-layout.js';
+import { baseLayers, basePicture, mayDrawBase, reusesThumbnailLayers } from '../src/builder-layout.js';
 import { THUMBNAIL_LAYER_BYTES } from '../src/layer-cache.js';
 import { createLayerLoader } from './layers.js';
 
@@ -76,14 +76,13 @@ async function drawGroup(request) {
 /** The picture on a style's tile in the character row. */
 async function drawBase(request) {
   const { manifest, manifestUrl } = request;
-  const layers =
-    style && style.manifestUrl === manifestUrl
-      ? style.layers
-      : createLayerLoader(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES);
+  const layers = reusesThumbnailLayers(style?.manifestUrl ?? null, manifestUrl)
+    ? style.layers
+    : createLayerLoader(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES);
   const sources = baseLayers(manifest).map(({ option }) => option.src);
   const loaded = new Map(await Promise.all(sources.map(async (src) => [src, await layers.get(src)])));
   // Trait thumbnails go first: composite only while none is running or waiting.
-  while (running || queue.length > 0) await nextTask();
+  while (!mayDrawBase({ running, waiting: queue.length })) await nextTask();
   return basePicture(manifest, (src) => loaded.get(src));
 }
 

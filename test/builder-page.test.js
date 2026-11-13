@@ -194,15 +194,16 @@ test('the character row has one tile per style in the index, as a radio group, a
   assert.doesNotMatch(js, /basePicture|baseLayers/, 'the main thread composites no tile picture');
   const worker = await read('thumbnail-worker.js');
   assert.match(worker, /return basePicture\(manifest, \(src\) => loaded\.get\(src\)\);/);
-  // The style on screen reuses the layers its thumbnails loaded.
-  assert.match(worker, /style && style\.manifestUrl === manifestUrl\s*\? style\.layers\s*: createLayerLoader\(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES\)/);
+  // The style on screen reuses the layers its thumbnails loaded. The decision is reusesThumbnailLayers in src/builder-layout.js.
+  assert.match(worker, /reusesThumbnailLayers\(style\?\.manifestUrl \?\? null, manifestUrl\)\s*\? style\.layers\s*: createLayerLoader\(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES\)/);
   // A tile request has no ticket and a queue of its own, so it neither drops nor is dropped by a thumbnail request.
   assert.match(worker, /if \(request\.kind === 'base'\) \{\n\s*baseQueue\.push\(request\);\n\s*if \(!basesRunning\) runBases\(\);\n\s*return;\n\s*\}\n\s*latest = Math\.max\(latest, request\.ticket\);/);
   // Trait thumbnails go first: the thumbnail loop never draws a character picture, and a character picture
   // composites only while no thumbnail request is running or waiting.
   const run = /async function run\(\) \{([\s\S]*?)\n\}/.exec(worker)[1];
   assert.doesNotMatch(run, /drawBase|base/);
-  assert.match(worker, /while \(running \|\| queue\.length > 0\) await nextTask\(\);\n\s*return basePicture\(/);
+  // The decision is mayDrawBase in src/builder-layout.js (test/builder-layout.test.js); the worker calls it before compositing.
+  assert.match(worker, /while \(!mayDrawBase\(\{ running, waiting: queue\.length \}\)\) await nextTask\(\);\n\s*return basePicture\(/);
   // The tile picture is hidden from screen readers, and the style's name is the radio button's name.
   assert.match(js, /thumb\.className = 'base-thumb';[\s\S]{0,120}thumb\.setAttribute\('aria-hidden', 'true'\);/);
   const css = await read('builder.css');

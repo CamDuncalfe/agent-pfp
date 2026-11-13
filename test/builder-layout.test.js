@@ -9,6 +9,8 @@ import {
   SWATCH_GROUP_ID,
   baseLayers,
   basePicture,
+  mayDrawBase,
+  reusesThumbnailLayers,
   canReset,
   choiceLabel,
   defaultSelection,
@@ -153,4 +155,19 @@ test('a style tile in the character row shows the picture the style opens with',
     assert.deepEqual(picture, thumbnailPicture(whole, middleSquare(manifest.canvas)), name);
     assert.equal(picture.width, Math.min(width, height, THUMBNAIL_MAX_SIDE), name);
   }
+});
+
+test('a character picture composites only while no trait thumbnail request is running or waiting', () => {
+  assert.equal(mayDrawBase({ running: false, waiting: 0 }), true);
+  assert.equal(mayDrawBase({ running: true, waiting: 0 }), false, 'a trait group is being drawn');
+  assert.equal(mayDrawBase({ running: false, waiting: 1 }), false, 'a trait request is queued');
+  assert.equal(mayDrawBase({ running: true, waiting: 3 }), false);
+});
+
+test('a character picture reuses the thumbnails layers only for the style the thumbnails show', () => {
+  const alien = 'https://example.test/styles/alien/manifest.json';
+  const shapes = 'https://example.test/fixtures/shapes/manifest.json';
+  assert.equal(reusesThumbnailLayers(alien, alien), true);
+  assert.equal(reusesThumbnailLayers(alien, shapes), false, 'another style loads its own layers');
+  assert.equal(reusesThumbnailLayers(null, alien), false, 'no thumbnails drawn yet');
 });
