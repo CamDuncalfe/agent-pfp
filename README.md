@@ -1,5 +1,7 @@
 # Agent PFP
 
+Try it: https://camduncalfe.github.io/agent-pfp/
+
 Agent PFP is a builder for coding-agent profile pictures. You pick an art style, choose one layer in each trait group (body, eyes, headwear and so on), hit randomize if you want a surprise, and download the picture.
 
 Each style is a fixed set of layers prepared ahead of time. The app does not generate images.
@@ -32,7 +34,7 @@ npm run check    # render check on each style in styles/index.json
 npm start        # builder page at http://127.0.0.1:4173/web/
 ```
 
-To build the builder as a static site for GitHub Pages, run `npm run build:site`. It empties `_site/` and writes the builder page, its code, `styles/index.json` and the manifests and layers that index lists there. `_site/index.html` takes you to the builder, and each link in the site is relative, so it works from a sub-path like `https://camduncalfe.github.io/agent-pfp/`. The build exits with 1 and says what is wrong when the index or a manifest isn't valid or a file it names is missing. [docs/styles.md](docs/styles.md#the-static-site) has the details.
+To build the builder as a static site for GitHub Pages, run `npm run build:site`. It empties `_site/` and writes the builder page, its code, `styles/index.json` and the manifests and layers that index lists there. `_site/index.html` takes you to the builder, and each link in the site is relative, so it works from a sub-path like `https://camduncalfe.github.io/agent-pfp/`. The build exits with 1 and says what is wrong when the index or a manifest isn't valid or a file it names is missing. [docs/styles.md](docs/styles.md#the-static-site) has the details. After each merge to `main`, the Pages workflow in [.github/workflows/pages.yml](.github/workflows/pages.yml) runs `npm test` and `npm run check`, and only when both pass does it build the site and deploy it to that address.
 
 To check another style, pass its manifest: `node bin/render-check.js path/to/manifest.json`.
 
