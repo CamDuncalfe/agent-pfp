@@ -59,7 +59,20 @@ export function chooseSize(canvas, pickedId) {
  */
 export function sizePicker(canvas, pickedId) {
   const options = sizesFor(canvas).map(({ id, label }) => ({ id, label }));
-  return { options, value: chooseSize(canvas, pickedId).id, shown: options.length > 1 };
+  return { options, value: chooseSize(canvas, pickedId).id, shown: sizePickerShown(canvas) };
+}
+
+/**
+ * Whether the Size picker is on screen. It is hidden while no style is on
+ * screen, which is while one loads and after one failed to load, so the
+ * choices of the last style never show beside an empty preview. It is also
+ * hidden for a style that offers one size.
+ * @param {{ width: number, height: number } | null} canvas the canvas of the
+ *   style on screen, or null when there is none
+ * @returns {boolean}
+ */
+export function sizePickerShown(canvas) {
+  return canvas !== null && sizesFor(canvas).length > 1;
 }
 
 /**

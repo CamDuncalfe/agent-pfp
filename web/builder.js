@@ -27,7 +27,7 @@ import {
 } from '../src/builder-layout.js';
 import { NAME, pageTitle } from '../src/brand.js';
 import { compositeLayers } from '../src/composite.js';
-import { pictureToSave, planDownload, sizePicker } from '../src/download.js';
+import { pictureToSave, planDownload, sizePicker, sizePickerShown } from '../src/download.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
 
 import {
@@ -560,11 +560,17 @@ function download(manifest) {
   }
 }
 
-/** Empty the page of the last style, so a failed switch never shows a mix of two styles. */
+/**
+ * Empty the page of the last style, so a failed switch never shows a mix of
+ * two styles. The Size picker goes off screen with its choices left in
+ * place: buildSizePicker reads the pick from them for the next style that
+ * opens, and shows the picker again when that style offers more than one size.
+ */
 function clearStyle() {
   current = null;
   updateButtons();
   setFinished(null);
+  sizeEl.hidden = !sizePickerShown(null);
   clearControls();
   clearPreview();
 }

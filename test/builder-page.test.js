@@ -87,6 +87,12 @@ test('the Size picker sits under the buttons, starts hidden and disabled, and is
   // A style with one size gets no picker.
   assert.match(js, /const \{ options, value, shown \} = sizePicker\(manifest\.canvas, pickedSize\(\)\);/);
   assert.match(js, /sizeEl\.hidden = !shown;/);
+  // With no style on screen the picker is hidden, so a style that fails to load never leaves the last style's choices behind.
+  // clearStyle runs before each load and after a failed one, and src/download.js gives the answer.
+  assert.match(js, /function clearStyle\(\) \{\n\s*current = null;\n\s*updateButtons\(\);\n\s*setFinished\(null\);\n\s*sizeEl\.hidden = !sizePickerShown\(null\);/);
+  // Nothing else shows or hides it, and the choices are replaced only when a style opens, so the pick lasts through a failed load.
+  assert.equal(js.match(/sizeEl\.hidden\s*=/g).length, 2);
+  assert.equal(js.match(/sizeEl\.replaceChildren\(/g).length, 1);
   // The sizes are radio buttons of one name no group can have, since a group id has no colon.
   assert.match(js, /const SIZE_NAME = 'download:size';/);
   assert.match(js, /input\.type = 'radio';\n\s*input\.name = SIZE_NAME;/);

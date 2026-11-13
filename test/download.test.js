@@ -14,6 +14,7 @@ import {
   pictureToSave,
   planDownload,
   sizePicker,
+  sizePickerShown,
   sizesFor,
 } from '../src/download.js';
 import { readPng, writePng } from '../src/png.js';
@@ -75,6 +76,19 @@ test('the picker lists Full size first and starts on it', () => {
       value: 'full',
       shown: true,
     });
+  }
+});
+
+test('the picker is on screen only for a style on screen that offers more than one size', () => {
+  // No style on screen: one is loading, or one failed to load.
+  assert.equal(sizePickerShown(null), false);
+  assert.equal(sizePickerShown(big.canvas), true);
+  for (const [width, height] of [[499, 499], [64, 64], [96, 64], [1024, 500]]) {
+    assert.equal(sizePickerShown({ width, height }), false, `${width}x${height}`);
+  }
+  // sizePicker reports the same answer for the style it lists.
+  for (const canvas of [big.canvas, { width: 64, height: 64 }, { width: 96, height: 64 }]) {
+    assert.equal(sizePicker(canvas, 'github').shown, sizePickerShown(canvas));
   }
 });
 
