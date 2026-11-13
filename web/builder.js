@@ -11,15 +11,28 @@ import {
   randomizeUnlocked,
   startingLocks,
 } from '../src/locks.js';
-import { canReset, characterTabOpens, choiceLabel, resetState, swatchGroup, tabAfterKey, tabGroups } from '../src/builder-layout.js';
+import {
+  COMING_SOON_TAG,
+  canReset,
+  characterKeyMove,
+  characterTabOpens,
+  characterTiles,
+  choiceLabel,
+  resetState,
+  swatchGroup,
+  tabAfterKey,
+  tabGroups,
+} from '../src/builder-layout.js';
 import { NAME, pageTitle } from '../src/brand.js';
 import { compositeLayers } from '../src/composite.js';
 import { pictureToSave, planDownload, sizePicker } from '../src/download.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
 
 import {
+  comingSoonEntries,
   createStyleSwitcher,
   resolveManifestUrl,
+  resolvePictureUrl,
   styleFromSearch,
   styleMismatch,
   validateStyleIndex,
@@ -559,35 +572,86 @@ function baseInput(id) {
   return [...basesEl.querySelectorAll(`input[name="${BASE_NAME}"]`)].find((input) => input.value === id);
 }
 
+/** The caption under a character tile's picture: the character's name, and the tag when it has one. */
+function makeCaption(name, tag) {
+  const caption = document.createElement('span');
+  caption.className = 'base-caption';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'base-name';
+  nameEl.textContent = name;
+  caption.append(nameEl);
+  if (tag) {
+    const tagEl = document.createElement('span');
+    tagEl.className = 'base-tag';
+    tagEl.textContent = tag;
+    caption.append(tagEl);
+  }
+  return caption;
+}
+
 /**
- * The Character tab's tiles: one per style in the style index, in its
- * order, styled like the trait tiles. Each tile is a radio button named by
- * the style's name, so the grid is a radio group like the trait grids. A new
- * style in the index is a new tile.
+ * The tile of a style: a radio button named by the style's name, so the
+ * styles are a radio group like a trait's tiles. The canvas holds the
+ * picture the style opens with and is hidden from screen readers.
  */
-function buildBaseRow(styles) {
-  basesEl.replaceChildren(
-    ...styles.map((entry) => {
-      const label = document.createElement('label');
-      label.className = 'tile base';
-      label.title = entry.name;
-      const input = document.createElement('input');
-      input.type = 'radio';
-      input.name = BASE_NAME;
-      input.value = entry.id;
-      const thumb = document.createElement('canvas');
-      thumb.className = 'thumb base-thumb';
-      thumb.width = 1;
-      thumb.height = 1;
-      thumb.setAttribute('aria-hidden', 'true');
-      // The style's name is the radio button's accessible name. It is hidden on screen, like a trait tile's.
-      const name = document.createElement('span');
-      name.className = 'tile-name';
-      name.textContent = entry.name;
-      label.append(input, thumb, name);
-      return label;
-    }),
-  );
+function makeStyleTile(tile) {
+  const label = document.createElement('label');
+  label.className = 'tile base';
+  // A name too long for the caption is cut short there, and the tooltip has all of it.
+  label.title = tile.name;
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = BASE_NAME;
+  input.value = tile.id;
+  const thumb = document.createElement('canvas');
+  thumb.className = 'thumb base-thumb';
+  thumb.width = 1;
+  thumb.height = 1;
+  thumb.setAttribute('aria-hidden', 'true');
+  label.append(input, thumb, makeCaption(tile.name, null));
+  return label;
+}
+
+/**
+ * The tile of a coming-soon character: its picture, its name and the tag.
+ * It holds no radio button, so it is never the group's pick and no form
+ * control of the page reads it. It is a radio that says it is disabled
+ * (aria-disabled) and its name ends with the tag, the reason. The arrow keys
+ * reach it (see the keydown listener on the tiles) and Tab passes it.
+ */
+function makeComingSoonTile(tile, indexUrl) {
+  const item = document.createElement('div');
+  item.className = 'tile base coming-soon';
+  item.setAttribute('role', 'radio');
+  item.setAttribute('aria-checked', 'false');
+  item.setAttribute('aria-disabled', 'true');
+  item.tabIndex = -1;
+  const picture = document.createElement('img');
+  picture.className = 'thumb base-thumb';
+  // The name and the tag are in the caption, so the picture adds nothing for a screen reader.
+  picture.alt = '';
+  // The picture loads when its tile is first on screen, so a page that opens on another tab doesn't fetch it.
+  picture.loading = 'lazy';
+  picture.decoding = 'async';
+  try {
+    picture.src = String(resolvePictureUrl(tile, indexUrl));
+  } catch {
+    // A picture path that leaves the site is not loaded. The tile keeps its name and its tag.
+  }
+  item.append(picture, makeCaption(tile.name, COMING_SOON_TAG));
+  return item;
+}
+
+/**
+ * The Character tab's tiles, styled like the trait tiles: one per style in
+ * the style index, in its order, then one per coming-soon character
+ * (characterTiles in src/builder-layout.js). A new style in the index is a
+ * new tile.
+ * @param {ReturnType<typeof characterTiles>} tiles
+ * @param {URL} indexUrl the index the coming-soon pictures are relative to
+ */
+function buildBaseRow(tiles, indexUrl) {
+  basesEl.replaceChildren(...tiles.map((tile) => (tile.comingSoon ? makeComingSoonTile(tile, indexUrl) : makeStyleTile(tile))));
 }
 
 /**
@@ -637,8 +701,9 @@ function showStyleInAddress(id) {
  * Puts one style on screen at a time. The Character tab stays usable the
  * whole time, so a style that fails to load can be swapped for another one.
  * createStyleSwitcher drops a style that finishes loading after a newer pick.
+ * @param {number} styleCount how many styles the Character tab offers
  */
-function createSwitcher() {
+function createSwitcher(styleCount) {
   /** Whether a style was on screen before this one. */
   let shownBefore = false;
   return createStyleSwitcher({
@@ -660,7 +725,8 @@ function createSwitcher() {
       previewEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
       buildControls(manifest);
       // The Character tab is the first tab. Which tab opens is characterTabOpens in src/builder-layout.js.
-      const characterOpens = characterTabOpens({ styleCount: basesEl.children.length, firstStyle: !shownBefore });
+      // styleCount is the styles that can be picked: a coming-soon tile is not one.
+      const characterOpens = characterTabOpens({ styleCount, firstStyle: !shownBefore });
       openTab(characterOpens || tabsEl.children.length === 1 ? 0 : 1, false);
       shownBefore = true;
       buildSizePicker(manifest);
@@ -687,15 +753,41 @@ async function start() {
     const indexUrl = new URL(STYLE_INDEX, location.href);
     const localIndexUrl = new URL(LOCAL_STYLE_INDEX, location.href);
     const [repoIndex, localIndex] = await Promise.all([loadStyleIndex(indexUrl), loadLocalStyleIndex(localIndexUrl)]);
-    const index = { styles: mergeStyleLists(repoIndex, indexUrl, localIndex, localIndexUrl) };
-    buildBaseRow(index.styles);
-    const switcher = createSwitcher();
+    // The coming-soon characters come from the repository's index only. They are tiles, never styles:
+    // the index keeps them apart, so the notice for the address can name one and nothing opens it.
+    const index = {
+      styles: mergeStyleLists(repoIndex, indexUrl, localIndex, localIndexUrl),
+      comingSoon: comingSoonEntries(repoIndex),
+    };
+    const tiles = characterTiles(index.styles, index.comingSoon);
+    buildBaseRow(tiles, indexUrl);
+    const switcher = createSwitcher(index.styles.length);
     basesEl.addEventListener('change', (event) => {
       const { target } = event;
       if (!(target instanceof HTMLInputElement) || target.name !== BASE_NAME) return;
       noticeEl.textContent = '';
       const entry = index.styles.find((candidate) => candidate.id === target.value);
       if (entry) switcher.open(entry);
+    });
+    // The arrow keys walk every tile, coming-soon ones too, so a keyboard user reaches each tag.
+    // A style becomes the pick when focus lands on it, as in any radio group. A coming-soon tile never does.
+    basesEl.addEventListener('keydown', (event) => {
+      const elements = [...basesEl.children];
+      const move = characterKeyMove(
+        tiles,
+        elements.findIndex((element) => element.contains(document.activeElement)),
+        event.key,
+        event.altKey || event.ctrlKey || event.metaKey,
+      );
+      if (move === null) return;
+      event.preventDefault();
+      const element = elements[move.index];
+      const input = element.querySelector('input');
+      (input ?? element).focus();
+      if (move.pick && input && !input.checked) {
+        input.checked = true;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
     });
     controlsEl.addEventListener('submit', (event) => event.preventDefault());
     controlsEl.addEventListener('change', (event) => {

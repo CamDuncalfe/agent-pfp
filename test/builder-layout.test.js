@@ -9,7 +9,10 @@ import {
   SWATCH_GROUP_ID,
   baseLayers,
   basePicture,
+  COMING_SOON_TAG,
+  characterKeyMove,
   characterTabOpens,
+  characterTiles,
   mayDrawBase,
   reusesThumbnailLayers,
   canReset,
@@ -181,4 +184,94 @@ test('the Character tab opens first only when there is a choice, and stays open 
   // A switch comes from the Character tab, so the tab stays open for the next pick.
   assert.equal(characterTabOpens({ styleCount: 1, firstStyle: false }), true);
   assert.equal(characterTabOpens({ styleCount: 12, firstStyle: false }), true);
+});
+
+test('with the alien and eleven coming-soon characters the page still opens on the first trait tab', async () => {
+  const index = await readJson('styles/index.json');
+  const tiles = characterTiles(index.styles, index.comingSoon);
+  assert.equal(tiles.length, 12);
+  // Only a style counts as a character to pick from.
+  const styleCount = tiles.filter((tile) => !tile.comingSoon).length;
+  assert.equal(styleCount, 1);
+  assert.equal(characterTabOpens({ styleCount, firstStyle: true }), false);
+});
+
+test('the Character tab shows each style, then each coming-soon character, in index order', async () => {
+  const index = await readJson('styles/index.json');
+  const tiles = characterTiles(index.styles, index.comingSoon);
+  assert.deepEqual(
+    tiles.map((tile) => tile.name),
+    ['Alien', 'Bear', 'Fox', 'Cat', 'Duck', 'Penguin', 'Raccoon', 'Owl', 'Rabbit', 'Frog', 'Skeleton', 'Cyclops'],
+  );
+  assert.deepEqual(tiles[0], { id: 'alien', name: 'Alien', comingSoon: false, style: index.styles[0] });
+  assert.deepEqual(tiles[1], { id: 'bear', name: 'Bear', comingSoon: true, picture: 'styles/coming-soon/bear.png' });
+  // A coming-soon tile carries a picture and no style: nothing on it names a manifest.
+  for (const tile of tiles.slice(1)) {
+    assert.equal(tile.comingSoon, true, tile.id);
+    assert.deepEqual(Object.keys(tile).sort(), ['comingSoon', 'id', 'name', 'picture'], tile.id);
+  }
+  assert.deepEqual(characterTiles(index.styles, []), [tiles[0]]);
+});
+
+test('a style takes the place of the coming-soon tile with its id', () => {
+  const alien = { id: 'alien', name: 'Alien', manifest: 'styles/alien/manifest.json' };
+  const bear = { id: 'bear', name: 'Bear (local)', manifest: 'local-styles/bear/manifest.json', local: true };
+  const coming = [
+    { id: 'bear', name: 'Bear', picture: 'styles/coming-soon/bear.png' },
+    { id: 'fox', name: 'Fox', picture: 'styles/coming-soon/fox.png' },
+  ];
+  assert.deepEqual(characterTiles([alien, bear], coming), [
+    { id: 'alien', name: 'Alien', comingSoon: false, style: alien },
+    { id: 'bear', name: 'Bear (local)', comingSoon: false, style: bear },
+    { id: 'fox', name: 'Fox', comingSoon: true, picture: 'styles/coming-soon/fox.png' },
+  ]);
+});
+
+test('the tag on a coming-soon tile is sentence case', () => {
+  assert.equal(COMING_SOON_TAG, 'Coming soon');
+});
+
+test('the arrow keys walk each character tile and never pick a coming-soon one', () => {
+  const tiles = [{ comingSoon: false }, { comingSoon: true }, { comingSoon: true }, { comingSoon: false }];
+  // Right and Down go on, Left and Up go back, and both wrap.
+  assert.deepEqual(characterKeyMove(tiles, 0, 'ArrowRight'), { index: 1, pick: false });
+  assert.deepEqual(characterKeyMove(tiles, 1, 'ArrowDown'), { index: 2, pick: false });
+  assert.deepEqual(characterKeyMove(tiles, 2, 'ArrowRight'), { index: 3, pick: true });
+  assert.deepEqual(characterKeyMove(tiles, 3, 'ArrowRight'), { index: 0, pick: true });
+  assert.deepEqual(characterKeyMove(tiles, 0, 'ArrowLeft'), { index: 3, pick: true });
+  assert.deepEqual(characterKeyMove(tiles, 3, 'ArrowUp'), { index: 2, pick: false });
+  // Any other key is the browser's, and so is a key pressed with no tile in focus.
+  for (const key of [' ', 'Enter', 'Tab', 'Home', 'End', 'a']) assert.equal(characterKeyMove(tiles, 0, key), null, key);
+  // Alt, Control or Meta with an arrow is a browser shortcut, like going back a page.
+  assert.equal(characterKeyMove(tiles, 0, 'ArrowLeft', true), null);
+  assert.deepEqual(characterKeyMove(tiles, 0, 'ArrowLeft', false), { index: 3, pick: true });
+  assert.equal(characterKeyMove(tiles, -1, 'ArrowRight'), null);
+  assert.equal(characterKeyMove(tiles, 4, 'ArrowRight'), null);
+  assert.equal(characterKeyMove([], 0, 'ArrowRight'), null);
+  // With one style, the pick never leaves it: every other tile it reaches is coming soon.
+  const live = [{ comingSoon: false }, ...Array.from({ length: 11 }, () => ({ comingSoon: true }))];
+  let at = 0;
+  for (let step = 0; step < 11; step += 1) {
+    const move = characterKeyMove(live, at, 'ArrowRight');
+    assert.equal(move.pick, false, `step ${step}`);
+    at = move.index;
+  }
+  assert.deepEqual(characterKeyMove(live, at, 'ArrowRight'), { index: 0, pick: true });
+});
+
+test('Randomize and Reset work from the manifest of the style on screen, which names no coming-soon character', async () => {
+  const index = await readJson('styles/index.json');
+  const manifest = await alien();
+  const comingIds = index.comingSoon.map((entry) => entry.id);
+  const optionIds = manifest.groups.flatMap((group) => [group.id, ...group.options.map((option) => option.id)]);
+  for (const id of comingIds) assert.ok(!optionIds.includes(id), id);
+  // Neither Reset nor Randomize gives back a group or a choice that is a coming-soon character.
+  const reset = resetState(manifest);
+  const random = randomizeUnlocked(manifest, reset.selection, reset.locks, () => 0.99);
+  for (const selection of [reset.selection, random]) {
+    for (const [groupId, choice] of Object.entries(selection)) {
+      assert.ok(!comingIds.includes(groupId), groupId);
+      assert.ok(!comingIds.includes(choice), String(choice));
+    }
+  }
 });

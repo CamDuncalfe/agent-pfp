@@ -38,6 +38,11 @@
   --stroke: 2px solid var(--ink);
   --lift: 0 4px 0 var(--ink);
 
+  /* The ground under a coming-soon character's picture: the yellow of the alien's first background. */
+  --character-ground: #f6d44a;
+  /* How wide a character tile gets at most. The pictures in styles/coming-soon/ are twice its 176 px picture. */
+  --character-tile: 180px;
+
   /* How wide a thumbnail is. src/thumbnails.js has the same 120. */
   --thumbnail: 120px;
   /* How wide a swatch is in the column next to the preview. */
@@ -171,12 +176,51 @@ h1 {
 /* ---- Character tab -------------------------------------------------- */
 
 /*
- * The Character tab is the panel's first tab. Its tiles are the trait tiles'
- * (label.tile in the panel), one per style, and this line sits under them.
+ * The Character tab is the panel's first tab. Its tiles are the trait
+ * tiles' (.tile in the panel) with a caption under the picture: the
+ * character's name, and for a character that can't be picked yet a small
+ * "Coming soon" tag. A style's tile is a label with a radio button. A
+ * coming-soon tile is a div with its picture as an image, on the ground
+ * the alien's tile opens on.
  */
-.bases-note {
-  color: var(--muted);
+.tiles.characters > * {
+  max-width: var(--character-tile);
+}
+
+.base-caption {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  padding: 6px 8px 7px;
+  background: var(--card);
   font-size: var(--t-small);
+  line-height: 1.25;
+}
+
+.base-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Muted text on paper is 5.6:1. */
+.base-tag {
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tile.coming-soon .thumb {
+  background: var(--character-ground);
+}
+
+.tile.coming-soon:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
 }
 
 /* Small fixture pictures are scaled up on a character tile, so keep their pixels sharp. */
@@ -922,7 +966,8 @@ label.lock.compact .lock-text {
   gap: 12px;
 }
 
-label.tile:not(.swatch) {
+label.tile:not(.swatch),
+.tile.coming-soon {
   position: relative;
   display: block;
   min-width: 0;
@@ -936,12 +981,18 @@ label.tile:not(.swatch) {
     transform 0.18s var(--ease-out);
 }
 
+/* A coming-soon tile can't be picked, so it gets no pointer and no lift. Its picture stays as clear as the alien's. */
+.tile.coming-soon {
+  cursor: default;
+}
+
 label.tile:not(.swatch):hover {
   border-color: var(--ink);
   transform: translateY(-2px);
 }
 
-label.tile:not(.swatch) .thumb {
+label.tile:not(.swatch) .thumb,
+.tile.coming-soon .thumb {
   display: block;
   width: 100%;
   height: auto;
@@ -1077,6 +1128,11 @@ label.tile:not(.swatch):has(input:focus-visible) {
   .tiles {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  /* A character tile has to hold its tag on one line, so the Character tab keeps the wide rule: two to a row at 390 px. */
+  .tiles.characters {
+    grid-template-columns: repeat(auto-fill, minmax(min(var(--thumbnail), 100%), 1fr));
   }
 }
 

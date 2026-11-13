@@ -186,17 +186,26 @@ test('the Character tab is the first tab, with one tile per style in the index, 
   assert.match(tablist[1], /aria-controls="character-panel"/);
   assert.match(html, /<div id="character-panel" class="trait" role="tabpanel" aria-labelledby="character-tab" hidden>/);
   assert.match(html, /<h2 id="character-heading">Character<\/h2>\s*<p id="character-pick" class="pick"><\/p>/);
-  assert.match(html, /<div id="bases" class="tiles" role="radiogroup" aria-labelledby="character-heading"><\/div>\s*<p class="bases-note">More characters on the way\.<\/p>/);
+  // The grid is the last thing in the panel. The coming-soon tiles say what the "More characters on the way." line used to.
+  assert.match(html, /<div id="bases" class="tiles characters" role="radiogroup" aria-labelledby="character-heading"><\/div>\s*<\/div>/);
+  assert.doesNotMatch(html, /on the way|bases-note/);
   // No row of styles sits above the panel.
   assert.doesNotMatch(html, /class="bases"|class="top"/);
   const js = await read('builder.js');
-  assert.match(js, /buildBaseRow\(index\.styles\);/);
-  assert.match(js, /input\.type = 'radio';\n\s*input\.name = BASE_NAME;\n\s*input\.value = entry\.id;/);
+  assert.match(js, /const tiles = characterTiles\(index\.styles, index\.comingSoon\);\n\s*buildBaseRow\(tiles, indexUrl\);/);
+  // The address is read with the coming-soon characters in the index, so their ids get the coming-soon notice.
+  assert.match(js, /comingSoon: comingSoonEntries\(repoIndex\),\n\s*\};/);
+  assert.match(js, /const \{ entry, notice \} = styleFromSearch\(index, location\.search\);/);
+  assert.match(js, /input\.type = 'radio';\n\s*input\.name = BASE_NAME;\n\s*input\.value = tile\.id;/);
   assert.match(js, /const BASE_NAME = 'style:base';/);
-  // A character tile is a trait tile: same classes, a canvas hidden from screen readers, the style's name as its accessible name.
+  // A character tile is a trait tile with a caption: same classes, a canvas hidden from screen readers, and the
+  // style's name under the picture, which is the radio button's accessible name.
   assert.match(js, /label\.className = 'tile base';/);
   assert.match(js, /thumb\.className = 'thumb base-thumb';[\s\S]{0,120}thumb\.setAttribute\('aria-hidden', 'true'\);/);
-  assert.match(js, /name\.className = 'tile-name';\n\s*name\.textContent = entry\.name;/);
+  assert.match(js, /label\.append\(input, thumb, makeCaption\(tile\.name, null\)\);/);
+  // The caption cuts a long name short, so the tooltip carries the whole name.
+  assert.match(js, /label\.title = tile\.name;/);
+  assert.match(js, /nameEl\.className = 'base-name';\n\s*nameEl\.textContent = name;/);
   // Picking a tile opens its style, and opening a style checks its tile and names it in the panel heading.
   assert.match(js, /const entry = index\.styles\.find\(\(candidate\) => candidate\.id === target\.value\);\n\s*if \(entry\) switcher\.open\(entry\);/);
   assert.match(js, /const input = baseInput\(entry\.id\);\n\s*if \(input\) input\.checked = true;\n\s*characterPickEl\.textContent = entry\.name;/);
@@ -204,7 +213,10 @@ test('the Character tab is the first tab, with one tile per style in the index, 
   assert.match(js, /if \(element\.hasAttribute\('data-trait'\)\) element\.remove\(\);/);
   assert.doesNotMatch(js, /tabsEl\.replaceChildren\(|panelsEl\.replaceChildren\(/);
   // Which tab opens comes from src/builder-layout.js.
-  assert.match(js, /const characterOpens = characterTabOpens\(\{ styleCount: basesEl\.children\.length, firstStyle: !shownBefore \}\);\n\s*openTab\(characterOpens \|\| tabsEl\.children\.length === 1 \? 0 : 1, false\);/);
+  // It counts the styles, never the tiles, so eleven coming-soon tiles don't change which tab opens.
+  assert.match(js, /const characterOpens = characterTabOpens\(\{ styleCount, firstStyle: !shownBefore \}\);\n\s*openTab\(characterOpens \|\| tabsEl\.children\.length === 1 \? 0 : 1, false\);/);
+  assert.match(js, /const switcher = createSwitcher\(index\.styles\.length\);/);
+  assert.doesNotMatch(js, /basesEl\.children\.length/);
   // A tile shows the picture the style opens with. The page asks the thumbnail worker for it after the
   // first style is on screen, and the worker draws it with basePicture from src/builder-layout.js.
   assert.match(js, /await switcher\.open\(entry\);\n\s*await drawBaseTiles\(index\.styles\);/);
@@ -223,10 +235,80 @@ test('the Character tab is the first tab, with one tile per style in the index, 
   assert.doesNotMatch(run, /drawBase|base/);
   // The decision is mayDrawBase in src/builder-layout.js (test/builder-layout.test.js); the worker calls it before compositing.
   assert.match(worker, /while \(!mayDrawBase\(\{ running, waiting: queue\.length \}\)\) await nextTask\(\);\n\s*return basePicture\(/);
-  // The character tiles take the trait tiles' look; the sharp-pixel rule is the one style of their own.
+  // The character tiles take the trait tiles' look. Their own rules are the caption, the sharp-pixel rule and the coming-soon tile.
   const css = await read('builder.css');
   assert.ok(declarations(css, '.base-thumb.pixel-art').length > 0);
   assert.doesNotMatch(plain(css), /label\.base\b|\.base-list|\.bases-row/);
+});
+
+test('a coming-soon tile shows its picture, its name and a small tag, and can\'t be picked', async () => {
+  const js = await read('builder.js');
+  const make = /function makeComingSoonTile\(tile, indexUrl\) \{([\s\S]*?)\n\}/.exec(js)[1];
+  // The trait tile's classes, so it is the same tile, and one more for what differs.
+  assert.match(make, /item\.className = 'tile base coming-soon';/);
+  // It holds no radio button and no other form control: it is never the group's pick, and neither
+  // readSelection, Randomize, Reset nor Download, which read the form's inputs and the manifest, reach it.
+  assert.doesNotMatch(make, /createElement\('(input|button|select|label)'\)|BASE_NAME|\.checked|\.name =/);
+  // To a screen reader it is a radio of the group that is disabled and not checked.
+  assert.match(make, /item\.setAttribute\('role', 'radio'\);/);
+  assert.match(make, /item\.setAttribute\('aria-checked', 'false'\);/);
+  assert.match(make, /item\.setAttribute\('aria-disabled', 'true'\);/);
+  // Tab passes it and the arrow keys reach it, so a keyboard user gets to the tag.
+  assert.match(make, /item\.tabIndex = -1;/);
+  // Its picture is one image of this site, found through resolvePictureUrl, and loaded when the tile is on screen.
+  assert.match(make, /picture\.src = String\(resolvePictureUrl\(tile, indexUrl\)\);/);
+  assert.match(make, /picture\.alt = '';/);
+  assert.match(make, /picture\.loading = 'lazy';/);
+  // The name and the tag are the caption, and the tag's text is COMING_SOON_TAG from src/builder-layout.js.
+  assert.match(make, /item\.append\(picture, makeCaption\(tile\.name, COMING_SOON_TAG\)\);/);
+  assert.doesNotMatch(js, /['"`]Coming soon/i, 'the page holds no copy of the tag');
+  // Nothing asks the thumbnail worker for a coming-soon picture or loads a manifest for one: both walk the styles.
+  assert.match(js, /await drawBaseTiles\(index\.styles\);/);
+  assert.equal(js.match(/comingSoonEntries\(/g).length, 1);
+  assert.doesNotMatch(make, /manifest|worker|canvas/i);
+
+  // A click does nothing: only an input of the group opens a style.
+  assert.match(js, /if \(!\(target instanceof HTMLInputElement\) \|\| target\.name !== BASE_NAME\) return;/);
+  // The arrow keys come from characterKeyMove, and only a tile with a radio button becomes the pick.
+  const keys = /basesEl\.addEventListener\('keydown', \(event\) => \{([\s\S]*?)\n    \}\);/.exec(js)[1];
+  assert.match(keys, /const move = characterKeyMove\(/);
+  assert.match(keys, /event\.key,\n\s*event\.altKey \|\| event\.ctrlKey \|\| event\.metaKey,\n\s*\);/);
+  assert.match(keys, /if \(move === null\) return;\n\s*event\.preventDefault\(\);/);
+  assert.match(keys, /\(input \?\? element\)\.focus\(\);/);
+  assert.match(keys, /if \(move\.pick && input && !input\.checked\) \{\n\s*input\.checked = true;\n\s*input\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\);/);
+});
+
+test('the tag is small and quiet, the picture stays clear, and a focused coming-soon tile has an outline', async () => {
+  const css = plain(await read('builder.css'));
+  const caption = Object.fromEntries(declarations(css, '.base-caption'));
+  const tag = Object.fromEntries(declarations(css, '.base-tag'));
+  // One size from the page's scale for the caption, and the tag sets none of its own.
+  assert.equal(caption['font-size'], 'var(--t-small)');
+  assert.equal(tag['font-size'], undefined);
+  assert.equal(tag.color, 'var(--muted)');
+  assert.equal(tag.background, 'var(--paper)');
+  assert.equal(tag['white-space'], 'nowrap');
+  // Sentence case as written: nothing in the stylesheet turns text into capitals.
+  assert.doesNotMatch(css, /text-transform|font-variant(-caps)?:\s*(all-)?small-caps/);
+  // The tag sits in the caption under the picture, never across it.
+  assert.equal(tag.position, undefined);
+  assert.equal(caption.position, undefined);
+  // No grey-out: no rule for a coming-soon tile dims or filters it.
+  for (const rule of rules(css).filter((item) => item.selectors.some((selector) => selector.includes('coming-soon')))) {
+    assert.doesNotMatch(rule.body, /opacity|filter|grayscale|mix-blend-mode/, rule.selectors.join(', '));
+  }
+  // It is no button to press: the default pointer, and no lift on hover.
+  assert.equal(Object.fromEntries(declarations(css, '.tile.coming-soon')).cursor, 'default');
+  assert.equal(declarations(css, '.tile.coming-soon:hover').length, 0);
+  assert.match(Object.fromEntries(declarations(css, '.tile.coming-soon:focus-visible')).outline ?? '', /solid/);
+  // The cut-out picture sits on the yellow the alien's tile opens on.
+  assert.equal(Object.fromEntries(declarations(css, '.tile.coming-soon .thumb')).background, 'var(--character-ground)');
+  assert.match(css, /--character-ground: #f6d44a;/);
+  // On a phone the Character tab keeps the wide rule, so a tile is wide enough for its tag on one line.
+  assert.match(
+    css,
+    /@media \(max-width: 560px\)[\s\S]*?\.tiles\.characters\s*\{\s*grid-template-columns: repeat\(auto-fill, minmax\(min\(var\(--thumbnail\), 100%\), 1fr\)\);/,
+  );
 });
 
 test('each group gets tiles and no dropdown', async () => {

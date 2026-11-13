@@ -11,6 +11,8 @@
  * - Each style is a tile in the Character tab, the first tab of the panel,
  *   showing the picture the style opens with (basePicture). Which tab
  *   opens with a style is characterTabOpens.
+ * - After the styles, the Character tab shows each coming-soon character
+ *   as a tile that can't be picked (characterTiles, characterKeyMove).
  *
  * This module has no Node or browser dependencies.
  */
@@ -179,8 +181,76 @@ export function reusesThumbnailLayers(thumbnailStyleUrl, manifestUrl) {
  * When the page opens, it is open only if there is more than one style to
  * pick from; with one, the first trait tab opens instead. After a switch
  * from the Character tab, it stays open, so the next pick is one click away.
- * @param {{ styleCount: number, firstStyle: boolean }} state firstStyle is true for the style the page opens with
+ * A coming-soon character is no style to pick from, so it doesn't count.
+ * @param {{ styleCount: number, firstStyle: boolean }} state styleCount is the number of styles that can be
+ *   picked, and firstStyle is true for the style the page opens with
  */
 export function characterTabOpens({ styleCount, firstStyle }) {
   return !firstStyle || styleCount > 1;
+}
+
+/** The tag on the tile of a character that can't be picked yet. It is the reason the tile gives. */
+export const COMING_SOON_TAG = 'Coming soon';
+
+/**
+ * @typedef {{ id: string, name: string, comingSoon: false, style: object }} StyleTile
+ * @typedef {{ id: string, name: string, comingSoon: true, picture: string }} ComingSoonTile
+ */
+
+/**
+ * The tiles of the Character tab, in order: one per style, then one per
+ * coming-soon character. A style can be picked. A coming-soon character
+ * can't: its tile has a picture, a name and the tag, and no manifest.
+ *
+ * A coming-soon character whose id a style already uses is left out, so a
+ * style looked at from a local folder takes the place of its coming-soon
+ * tile.
+ *
+ * @param {{ id: string, name: string }[]} styles the styles the tab offers (mergeStyleLists)
+ * @param {{ id: string, name: string, picture: string }[]} comingSoon the index's coming-soon characters
+ * @returns {(StyleTile | ComingSoonTile)[]}
+ */
+export function characterTiles(styles, comingSoon) {
+  const taken = new Set(styles.map((style) => style.id));
+  return [
+    ...styles.map((style) => ({ id: style.id, name: style.name, comingSoon: false, style })),
+    ...comingSoon
+      .filter((entry) => !taken.has(entry.id))
+      .map((entry) => ({ id: entry.id, name: entry.name, comingSoon: true, picture: entry.picture })),
+  ];
+}
+
+/**
+ * Where an arrow key takes the focus in the Character tab, and whether the
+ * tile it lands on becomes the pick. The keys are a radio group's: Right and
+ * Down go to the next tile, Left and Up to the one before, and both wrap
+ * around the ends. Focus reaches a coming-soon tile, so a keyboard user gets
+ * to its tag, and that tile is never picked: the pick stays where it was.
+ *
+ * An arrow key pressed with Alt, Control or Meta is the browser's, for
+ * going back a page for one, so the tab leaves it alone.
+ *
+ * @param {{ comingSoon: boolean }[]} tiles the tab's tiles (characterTiles)
+ * @param {number} index the tile with focus
+ * @param {string} key KeyboardEvent.key
+ * @param {boolean} [modified] whether Alt, Control or Meta is held
+ * @returns {{ index: number, pick: boolean } | null} null for a key the tab doesn't use, or when no tile has focus
+ */
+export function characterKeyMove(tiles, index, key, modified = false) {
+  const count = tiles.length;
+  if (modified || count < 1 || index < 0 || index >= count) return null;
+  let next;
+  switch (key) {
+    case 'ArrowRight':
+    case 'ArrowDown':
+      next = (index + 1) % count;
+      break;
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      next = (index - 1 + count) % count;
+      break;
+    default:
+      return null;
+  }
+  return { index: next, pick: !tiles[next].comingSoon };
 }
