@@ -285,8 +285,10 @@ h1 {
 
 /*
  * The swatch column on the left of the preview. The column takes no height
- * of its own (contain: size), so the preview sets the row's height and a
- * style with more colours than fit scrolls inside the column.
+ * of its own (contain: size), so the preview sets the row's height. When
+ * the swatches don't all fit, in a short window or for a style with more
+ * colours, the list of swatches scrolls with a thin scrollbar and the Lock
+ * stays at the foot of the column, always in view.
  */
 .stage-row {
   display: grid;
@@ -305,9 +307,9 @@ h1 {
   flex-direction: column;
   align-items: center;
   gap: var(--swatch-gap);
-  padding: calc(var(--ring) + 2px) 0;
-  overflow-y: auto;
-  scrollbar-width: none;
+  /* Room for the Lock's focus ring, drawn 2 px outside it. */
+  padding-bottom: 2px;
+  overflow: hidden;
 }
 
 .swatches[hidden] {
@@ -318,7 +320,14 @@ h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex: 0 1 auto;
+  align-self: stretch;
+  min-height: 0;
   gap: var(--swatch-gap);
+  /* Room for the picked swatch's ring at the ends of the list. */
+  padding: calc(var(--ring) + 2px) 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 label.swatch {
@@ -861,11 +870,16 @@ label.lock:has(input:focus-visible) {
 
 /* In the swatch column the Lock is a round button with the padlock only. */
 label.lock.compact {
+  flex: none;
   justify-content: center;
   width: var(--swatch);
   min-height: var(--swatch);
   padding: 0;
-  flex: none;
+}
+
+/* The column clips what reaches past it, so the compact Lock's focus ring sits close in. */
+label.lock.compact:has(input:focus-visible) {
+  outline-offset: -1px;
 }
 
 label.lock.compact .lock-text {

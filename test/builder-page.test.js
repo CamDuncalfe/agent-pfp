@@ -183,7 +183,14 @@ test('the background group is a column of swatches on the left of the preview', 
   const column = Object.fromEntries(declarations(css, '.swatches'));
   assert.equal(column.contain, 'size');
   assert.equal(column['flex-direction'], 'column');
-  assert.equal(column['overflow-y'], 'auto');
+  // When the swatches don't fit, only the list scrolls, with a scrollbar, and the Lock stays in view at the foot.
+  assert.equal(column.overflow, 'hidden');
+  const list = Object.fromEntries(declarations(css, '.swatch-list'));
+  assert.equal(list['overflow-y'], 'auto');
+  assert.equal(list['min-height'], '0');
+  assert.match(list.flex, /^0 1 /, 'the list shrinks, the Lock does not');
+  assert.notEqual(list['scrollbar-width'], 'none', 'the scrollbar shows');
+  assert.equal(Object.fromEntries(declarations(css, 'label.lock.compact')).flex, 'none');
   const grid = Object.fromEntries(declarations(css, '.stage-row'));
   assert.deepEqual(tracks(grid['grid-template-columns']), ['calc(var(--swatch) + 12px)', 'minmax(0, 1fr)']);
   // The picked swatch has two rings, so it doesn't show by colour alone.
@@ -197,8 +204,9 @@ test('ten swatches and the Lock fit beside the preview at 390 px', async () => {
   const [swatch, gap, ring] = [value('swatch'), value('swatch-gap'), value('ring')];
   // The page is 16 px from each edge, the column is the swatch plus 12 px and the gap beside it 8 px.
   const card = 390 - 2 * 16 - (swatch + 12) - 8;
-  // The column holds ten swatches and the Lock, with a gap between each and room for the ring at both ends.
-  const column = 11 * swatch + 10 * gap + 2 * (ring + 2);
+  // The column holds ten swatches and the Lock, with a gap between each, room for the ring at both ends of
+  // the list and 2 px under the Lock for its focus ring.
+  const column = 11 * swatch + 10 * gap + 2 * (ring + 2) + 2;
   assert.ok(column <= card, `${column} px of swatches beside a ${card} px preview`);
 });
 
