@@ -206,6 +206,9 @@ test('index.html sends the visitor to web/ with a relative link and shows a plai
   }
 });
 
+/** The Adobe Fonts kit the builder page loads: a stylesheet on use.typekit.net named by the kit id. */
+const ADOBE_FONTS_KIT = /^https:\/\/use\.typekit\.net\/[a-z0-9]{7}\.css$/;
+
 test('each path in the site is relative, so it works from a sub-path', async () => {
   const out = await mkdtemp(join(tmpdir(), 'agent-pfp-site-out-'));
   try {
@@ -218,6 +221,8 @@ test('each path in the site is relative, so it works from a sub-path', async () 
       const links = [...html.matchAll(/(?:href|src)="([^"]*)"|url=([^"\s;]+)/g)].map((match) => match[1] ?? match[2]);
       assert.ok(links.length > 0, `${page} has links`);
       for (const value of links) {
+        // The one absolute link is the Adobe Fonts kit the builder page loads its typeface from.
+        if (page === 'web/index.html' && ADOBE_FONTS_KIT.test(value)) continue;
         assert.ok(!value.startsWith('/') && !/^[a-z]+:/i.test(value), `${page}: ${value}`);
       }
     }

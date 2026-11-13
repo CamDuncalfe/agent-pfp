@@ -8,12 +8,16 @@
  * - Each other group with tiles is a tab in one panel (tabGroups).
  * - Reset gives each group the choice the page opens with, its first tile,
  *   and turns each Lock off (resetState).
+ * - Each style is a tile in the character row at the top, showing the
+ *   picture the style opens with (basePicture).
  *
  * This module has no Node or browser dependencies.
  */
-import { groupChoices } from './manifest.js';
+import { compositeLayers } from './composite.js';
+import { groupChoices, resolveSelection } from './manifest.js';
 import { hasLock, startingLocks } from './locks.js';
-import { NONE_LABEL, traitTiles } from './thumbnails.js';
+import { middleSquare } from './round-preview.js';
+import { NONE_LABEL, thumbnailPicture, traitTiles } from './thumbnails.js';
 
 /** The id of the group whose options are swatches next to the preview. */
 export const SWATCH_GROUP_ID = 'background';
@@ -121,3 +125,29 @@ export function tabAfterKey(index, key, count) {
   }
 }
 
+/**
+ * The layers of the picture a style opens with, bottom first: its default
+ * selection (defaultSelection).
+ * @param {Manifest} manifest
+ */
+export function baseLayers(manifest) {
+  return resolveSelection(manifest, defaultSelection(manifest));
+}
+
+/**
+ * The picture on a style's tile in the character row: the picture the
+ * style opens with, drawn by compositeLayers at canvas size, then its middle
+ * square at THUMBNAIL_MAX_SIDE pixels a side at most (thumbnailPicture).
+ * No layer is moved, cropped or scaled (AGENTS.md rules 1 and 3).
+ * @param {Manifest} manifest
+ * @param {(src: string) => import('./composite.js').Raster} pixelsOf the layer's pixels at canvas size
+ */
+export function basePicture(manifest, pixelsOf) {
+  const { width, height } = manifest.canvas;
+  const picture = compositeLayers(
+    width,
+    height,
+    baseLayers(manifest).map(({ option }) => pixelsOf(option.src)),
+  );
+  return thumbnailPicture(picture, middleSquare(manifest.canvas));
+}

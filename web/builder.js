@@ -11,7 +11,7 @@ import {
   randomizeUnlocked,
   startingLocks,
 } from '../src/locks.js';
-import { canReset, choiceLabel, resetState, swatchGroup, tabAfterKey, tabGroups } from '../src/builder-layout.js';
+import { basePicture, baseLayers, canReset, choiceLabel, resetState, swatchGroup, tabAfterKey, tabGroups } from '../src/builder-layout.js';
 import { compositeLayers } from '../src/composite.js';
 import { pictureToSave, planDownload, sizePicker } from '../src/download.js';
 import { LOCAL_STYLES_PREFIX, isPixelArt, mayLoadLocalStyles, mergeStyleLists } from '../src/local-styles.js';
@@ -29,10 +29,12 @@ const STYLE_INDEX = '../styles/index.json';
 const LOCAL_STYLE_INDEX = `../${LOCAL_STYLES_PREFIX}/index.json`;
 /** The name of the Size radio buttons. A group id has no colon, so no group's tiles share it. */
 const SIZE_NAME = 'download:size';
+/** The name of the character row's radio buttons. It has a colon too, and the row is outside the form. */
+const BASE_NAME = 'style:base';
 
 const statusEl = document.querySelector('#status');
 const noticeEl = document.querySelector('#notice');
-const styleEl = document.querySelector('#style');
+const basesEl = document.querySelector('#bases');
 const controlsEl = document.querySelector('#controls');
 const swatchesEl = document.querySelector('#swatches');
 const tabsEl = document.querySelector('#tabs');
@@ -542,6 +544,67 @@ function clearStyle() {
   clearPreview();
 }
 
+/** The radio button of a style in the character row. */
+function baseInput(id) {
+  return [...basesEl.querySelectorAll(`input[name="${BASE_NAME}"]`)].find((input) => input.value === id);
+}
+
+/**
+ * The character row: one tile per style in the style index, in its order.
+ * Each tile is a radio button named by the style's name, so the row is a
+ * radio group like the trait grids. A new style in the index is a new tile.
+ */
+function buildBaseRow(styles) {
+  basesEl.replaceChildren(
+    ...styles.map((entry) => {
+      const label = document.createElement('label');
+      label.className = 'base';
+      label.title = entry.name;
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = BASE_NAME;
+      input.value = entry.id;
+      const thumb = document.createElement('canvas');
+      thumb.className = 'base-thumb';
+      thumb.width = 1;
+      thumb.height = 1;
+      thumb.setAttribute('aria-hidden', 'true');
+      const name = document.createElement('span');
+      name.className = 'base-name';
+      name.textContent = entry.name;
+      label.append(input, thumb, name);
+      return label;
+    }),
+  );
+}
+
+/**
+ * Draw the picture each style opens with on its tile, one style after the
+ * other, after the first style is on screen. A style whose manifest or
+ * layers don't load keeps a blank tile: picking it shows why.
+ */
+async function drawBaseTiles(styles) {
+  for (const entry of styles) {
+    try {
+      const url = resolveManifestUrl(entry, entry.indexUrl);
+      const manifest = await loadManifest(entry, url);
+      const layers = createLayerLoader(manifest, url, PAGE_LAYER_BYTES);
+      const pixels = new Map(
+        await Promise.all(baseLayers(manifest).map(async ({ option }) => [option.src, await layers.get(option.src)])),
+      );
+      const picture = basePicture(manifest, (src) => pixels.get(src));
+      const canvasEl = baseInput(entry.id)?.parentElement.querySelector('canvas.base-thumb');
+      if (!canvasEl) continue;
+      canvasEl.width = picture.width;
+      canvasEl.height = picture.height;
+      canvasEl.classList.toggle('pixel-art', isPixelArt(manifest.canvas.width));
+      putPicture(canvasEl, picture);
+    } catch {
+      // The tile stays blank. Opening the style reports the problem in the status line.
+    }
+  }
+}
+
 function showStyleInAddress(id) {
   const url = new URL(location.href);
   url.searchParams.set('style', id);
@@ -549,7 +612,7 @@ function showStyleInAddress(id) {
 }
 
 /**
- * Puts one style on screen at a time. The Style picker stays usable the
+ * Puts one style on screen at a time. The character row stays usable the
  * whole time, so a style that fails to load can be swapped for another one.
  * createStyleSwitcher drops a style that finishes loading after a newer pick.
  */
@@ -557,7 +620,8 @@ function createSwitcher() {
   return createStyleSwitcher({
     clear(entry) {
       clearStyle();
-      styleEl.value = entry.id;
+      const input = baseInput(entry.id);
+      if (input) input.checked = true;
       showStyleInAddress(entry.id);
       setStatus(`Loading ${entry.name}...`);
     },
@@ -588,16 +652,13 @@ async function start() {
     const localIndexUrl = new URL(LOCAL_STYLE_INDEX, location.href);
     const [repoIndex, localIndex] = await Promise.all([loadStyleIndex(indexUrl), loadLocalStyleIndex(localIndexUrl)]);
     const index = { styles: mergeStyleLists(repoIndex, indexUrl, localIndex, localIndexUrl) };
-    for (const entry of index.styles) {
-      const option = document.createElement('option');
-      option.value = entry.id;
-      option.textContent = entry.name;
-      styleEl.append(option);
-    }
+    buildBaseRow(index.styles);
     const switcher = createSwitcher();
-    styleEl.addEventListener('change', () => {
+    basesEl.addEventListener('change', (event) => {
+      const { target } = event;
+      if (!(target instanceof HTMLInputElement) || target.name !== BASE_NAME) return;
       noticeEl.textContent = '';
-      const entry = index.styles.find((candidate) => candidate.id === styleEl.value);
+      const entry = index.styles.find((candidate) => candidate.id === target.value);
       if (entry) switcher.open(entry);
     });
     controlsEl.addEventListener('submit', (event) => event.preventDefault());
@@ -644,11 +705,10 @@ async function start() {
     downloadEl.addEventListener('click', () => {
       if (current) download(current.manifest);
     });
-    styleEl.disabled = false;
-
     const { entry, notice } = styleFromSearch(index, location.search);
     noticeEl.textContent = notice;
     await switcher.open(entry);
+    await drawBaseTiles(index.styles);
   } catch (error) {
     setStatus(reason(error), true);
   }

@@ -132,18 +132,64 @@ test('compositeLayers draws the picture once and nothing else stacks layers', as
   }
 });
 
-test('the stylesheet loads no font file and no image other than inline data, so rule 4 holds', async () => {
+test('the typeface is Hoss Round from one Adobe Fonts kit, and the page loads nothing else from another origin', async () => {
+  const html = await read('index.html');
+  // The one link to another origin is the kit's stylesheet, before the page's own.
+  const external = [...html.matchAll(/(?:href|src)="(https?:[^"]+)"/g)].map((match) => match[1]);
+  assert.deepEqual(external, ['https://use.typekit.net/dll3tpt.css']);
+  assert.ok(html.indexOf('use.typekit.net') < html.indexOf('href="builder.css"'), 'the kit comes first');
+  // The stylesheet loads no font file of its own, and its only images are inline.
   const css = plain(await read('builder.css'));
   assert.doesNotMatch(css, /@font-face|@import/);
   for (const [, url] of css.matchAll(/url\(\s*["']?([^"')]+)/g)) assert.match(url, /^data:/);
-  assert.match(css, /font-family: ui-rounded,/, 'the system rounded face first');
+  // Hoss Round first, then the system face while the kit loads or when it can't. No free font in the stack.
+  assert.match(css, /font-family: 'hoss-round', system-ui, -apple-system, 'Segoe UI', sans-serif;/);
+  // The kit holds 400 and 700, so the page uses those two weights only.
+  const weights = new Set([...css.matchAll(/font-weight:\s*(\d+)/g)].map((match) => match[1]));
+  assert.deepEqual([...weights].sort(), ['400', '700']);
+});
+
+test('the logo is the alien head cut from its layers, next to the wordmark', async () => {
+  const html = await read('index.html');
+  assert.match(html, /<p class="wordmark"><img class="mark" src="mark.png" width="36" height="36" alt="" \/>Agent PFP<\/p>/);
+  // The image is a file of the page, next to it, so the site build copies it.
+  const png = await readFile(new URL('../web/mark.png', import.meta.url));
+  assert.deepEqual([...png.subarray(1, 4)], [0x50, 0x4e, 0x47], 'web/mark.png is a PNG');
+});
+
+test('the character row has one tile per style in the index, as a radio group, and replaces the Style dropdown', async () => {
+  const html = await read('index.html');
+  assert.match(html, /<h2 id="bases-heading" class="bases-heading">Character<\/h2>/);
+  assert.match(html, /<div id="bases" class="base-list" role="radiogroup" aria-labelledby="bases-heading"><\/div>/);
+  assert.match(html, /<p class="bases-note">More characters on the way\.<\/p>/);
+  // The row sits above the builder, outside the form, so picking a style never reads as a trait.
+  assert.ok(html.indexOf('id="bases"') < html.indexOf('<form id="controls"'));
+  const js = await read('builder.js');
+  assert.match(js, /buildBaseRow\(index\.styles\);/);
+  assert.match(js, /input\.type = 'radio';\n\s*input\.name = BASE_NAME;\n\s*input\.value = entry\.id;/);
+  assert.match(js, /name\.textContent = entry\.name;/);
+  assert.match(js, /const BASE_NAME = 'style:base';/);
+  // Picking a tile opens its style, and opening a style checks its tile.
+  assert.match(js, /const entry = index\.styles\.find\(\(candidate\) => candidate\.id === target\.value\);\n\s*if \(entry\) switcher\.open\(entry\);/);
+  assert.match(js, /const input = baseInput\(entry\.id\);\n\s*if \(input\) input\.checked = true;/);
+  // A tile shows the picture the style opens with, drawn by src/builder-layout.js after the first style is on screen.
+  assert.match(js, /const picture = basePicture\(manifest, \(src\) => pixels\.get\(src\)\);/);
+  assert.match(js, /await switcher\.open\(entry\);\n\s*await drawBaseTiles\(index\.styles\);/);
+  // The tile picture is hidden from screen readers, and the style's name is the radio button's name.
+  assert.match(js, /thumb\.className = 'base-thumb';[\s\S]{0,120}thumb\.setAttribute\('aria-hidden', 'true'\);/);
+  const css = await read('builder.css');
+  assert.equal(Object.fromEntries(declarations(css, 'label.base input')).opacity, '0');
+  assert.ok(Object.fromEntries(declarations(css, 'label.base:has(input:checked)'))['box-shadow'], 'the picked tile has a shadow');
+  assert.equal(Object.fromEntries(declarations(css, 'label.base:has(input:checked)::after')).content, "'✓'");
+  // When the tiles don't fit, the row scrolls sideways.
+  assert.equal(Object.fromEntries(declarations(css, '.base-list'))['overflow-x'], 'auto');
 });
 
 test('each group gets tiles and no dropdown', async () => {
   const js = await read('builder.js');
   const html = await read('index.html');
-  // The one dropdown on the page is the Style picker.
-  assert.deepEqual([...html.matchAll(/<select id="([^"]+)"/g)].map((match) => match[1]), ['style']);
+  // The page has no dropdown. Styles are tiles in the character row.
+  assert.doesNotMatch(html, /<select/);
   assert.equal(js.match(/createElement\('select'\)/g), null, 'the page makes no dropdown');
   // One tile per entry of traitTiles, each a radio button named after its group. The first one starts picked.
   assert.match(js, /traitTiles\(group\)\.forEach\(\(tile, index\) => grid\.append\(makeTile\(group, tile, index === 0, tileClass, pixelArt\)\)\);/);

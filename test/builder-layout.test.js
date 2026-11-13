@@ -2,8 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+import { compositeLayers } from '../src/composite.js';
+import { readPng } from '../src/png.js';
+import { middleSquare } from '../src/round-preview.js';
 import {
   SWATCH_GROUP_ID,
+  baseLayers,
+  basePicture,
   canReset,
   choiceLabel,
   defaultSelection,
@@ -14,7 +19,7 @@ import {
 } from '../src/builder-layout.js';
 import { randomizeUnlocked, startingLocks } from '../src/locks.js';
 import { resolveSelection } from '../src/manifest.js';
-import { NONE_LABEL, traitTiles } from '../src/thumbnails.js';
+import { NONE_LABEL, THUMBNAIL_MAX_SIDE, thumbnailPicture, traitTiles } from '../src/thumbnails.js';
 
 const readJson = async (path) => JSON.parse(await readFile(new URL(`../${path}`, import.meta.url), 'utf8'));
 
@@ -128,4 +133,24 @@ test('the arrow keys move along the tabs and wrap at the ends, and Home and End 
   assert.equal(tabAfterKey(0, 'ArrowRight', 0), null, 'no tabs');
   // Focus outside the tabs (-1) goes to the first one on ArrowRight.
   assert.equal(tabAfterKey(-1, 'ArrowRight', 5), 0);
+});
+
+test('a style tile in the character row shows the picture the style opens with', async () => {
+  for (const name of ['shapes', 'blocks']) {
+    const url = new URL(`../fixtures/${name}/manifest.json`, import.meta.url);
+    const manifest = JSON.parse(await readFile(url, 'utf8'));
+    const pixels = new Map();
+    for (const group of manifest.groups) {
+      for (const option of group.options) pixels.set(option.src, await readPng(new URL(option.src, url)));
+    }
+    const pixelsOf = (src) => pixels.get(src);
+    // The layers of the default selection, bottom first.
+    assert.deepEqual(baseLayers(manifest), resolveSelection(manifest, defaultSelection(manifest)));
+    // The picture is compositeLayers over those layers, cut to its middle square.
+    const { width, height } = manifest.canvas;
+    const whole = compositeLayers(width, height, baseLayers(manifest).map(({ option }) => pixelsOf(option.src)));
+    const picture = basePicture(manifest, pixelsOf);
+    assert.deepEqual(picture, thumbnailPicture(whole, middleSquare(manifest.canvas)), name);
+    assert.equal(picture.width, Math.min(width, height, THUMBNAIL_MAX_SIDE), name);
+  }
 });
