@@ -108,14 +108,17 @@ export function choiceLabel(group, choice) {
 /**
  * The tab a key moves to in a tablist of `count` tabs, or null for a key
  * the tablist doesn't use. The arrow keys wrap around the ends, and Home
- * and End go to the first and the last tab.
+ * and End go to the first and the last tab. A key pressed with Alt, Control
+ * or Meta is the browser's, like Alt and Left for going back a page, so the
+ * tablist leaves it alone.
  * @param {number} index the tab with focus
  * @param {string} key KeyboardEvent.key
  * @param {number} count
+ * @param {boolean} [modified] whether Alt, Control or Meta is held
  * @returns {number | null}
  */
-export function tabAfterKey(index, key, count) {
-  if (count < 1) return null;
+export function tabAfterKey(index, key, count, modified = false) {
+  if (modified || count < 1) return null;
   switch (key) {
     case 'ArrowRight':
       return (index + 1) % count;
@@ -158,13 +161,27 @@ export function basePicture(manifest, pixelsOf) {
 }
 
 /**
- * Whether the thumbnail worker may composite a character picture now: only
- * while no trait thumbnail request is running or waiting, so a trait change
- * never waits behind the character pictures.
- * @param {{ running: boolean, waiting: number }} thumbnails the worker's trait thumbnail loop
+ * How long a character picture waits for the trait thumbnails at most, in
+ * milliseconds. The alien's first set of trait thumbnails takes about two
+ * seconds on a fast machine, so the limit is well past that: when a style
+ * opens, the trait thumbnails still all come first.
  */
-export function mayDrawBase({ running, waiting }) {
-  return !running && waiting === 0;
+export const BASE_WAIT_LIMIT_MS = 8000;
+
+/** How long the thumbnail worker sleeps between two looks at whether a character picture may draw, in milliseconds. */
+export const BASE_POLL_MS = 50;
+
+/**
+ * Whether the thumbnail worker may composite a character picture now: while
+ * no trait thumbnail request is running or waiting, so a trait change
+ * doesn't wait behind the character pictures. A picture that has waited
+ * BASE_WAIT_LIMIT_MS draws anyway, between two trait thumbnails, so a tile
+ * never stays blank while trait changes keep coming.
+ * @param {{ running: boolean, waiting: number, waitedMs?: number }} thumbnails the worker's trait thumbnail
+ *   loop, and how long this picture has waited for it
+ */
+export function mayDrawBase({ running, waiting, waitedMs = 0 }) {
+  return (!running && waiting === 0) || waitedMs >= BASE_WAIT_LIMIT_MS;
 }
 
 /**

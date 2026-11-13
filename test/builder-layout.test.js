@@ -14,6 +14,8 @@ import {
   characterKeyMove,
   characterTabOpens,
   characterTiles,
+  BASE_POLL_MS,
+  BASE_WAIT_LIMIT_MS,
   mayDrawBase,
   reusesThumbnailLayers,
   canReset,
@@ -141,6 +143,9 @@ test('the arrow keys move along the tabs and wrap at the ends, and Home and End 
   assert.equal(tabAfterKey(2, 'End', 5), 4);
   assert.equal(tabAfterKey(2, 'Enter', 5), null, 'a key the tablist does not use');
   assert.equal(tabAfterKey(0, 'ArrowRight', 0), null, 'no tabs');
+  // Alt, Control or Meta with a key is a browser shortcut: Alt and Left goes back a page.
+  for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) assert.equal(tabAfterKey(2, key, 5, true), null, key);
+  assert.equal(tabAfterKey(2, 'ArrowLeft', 5, false), 1);
   // Focus outside the tabs (-1) goes to the first one on ArrowRight.
   assert.equal(tabAfterKey(-1, 'ArrowRight', 5), 0);
 });
@@ -170,6 +175,22 @@ test('a character picture composites only while no trait thumbnail request is ru
   assert.equal(mayDrawBase({ running: true, waiting: 0 }), false, 'a trait group is being drawn');
   assert.equal(mayDrawBase({ running: false, waiting: 1 }), false, 'a trait request is queued');
   assert.equal(mayDrawBase({ running: true, waiting: 3 }), false);
+});
+
+test('a character picture that has waited the limit draws anyway, so its tile never stays blank', () => {
+  // Well past the two seconds or so the alien's first trait thumbnails take, so those still come first when a style opens.
+  assert.equal(BASE_WAIT_LIMIT_MS, 8000);
+  // Under the limit it still waits for the trait thumbnails.
+  assert.equal(mayDrawBase({ running: true, waiting: 2, waitedMs: 0 }), false);
+  assert.equal(mayDrawBase({ running: true, waiting: 0, waitedMs: BASE_WAIT_LIMIT_MS - 1 }), false);
+  // At the limit it draws, whatever the trait loop is doing.
+  assert.equal(mayDrawBase({ running: true, waiting: 0, waitedMs: BASE_WAIT_LIMIT_MS }), true);
+  assert.equal(mayDrawBase({ running: false, waiting: 5, waitedMs: BASE_WAIT_LIMIT_MS + 300 }), true);
+  // With nothing to wait for, how long it waited makes no difference.
+  assert.equal(mayDrawBase({ running: false, waiting: 0, waitedMs: 0 }), true);
+  // The worker sleeps between two looks, and gets many looks in before the limit.
+  assert.ok(BASE_POLL_MS >= 16, 'no tight loop');
+  assert.ok(BASE_WAIT_LIMIT_MS / BASE_POLL_MS >= 10);
 });
 
 test('a character picture reuses the thumbnails layers only for the style the thumbnails show', () => {

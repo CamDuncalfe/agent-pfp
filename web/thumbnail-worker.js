@@ -19,12 +19,15 @@
  * is done.
  *
  * Trait thumbnails come first. Character pictures wait in a queue of their
- * own and run in a loop of their own, so a trait request never waits behind
- * one. A character picture loads its layers alongside the thumbnails, and
- * waits to composite until no thumbnail request is running or waiting.
+ * own and run in a loop of their own, so a trait request doesn't wait behind
+ * the queue of them. A character picture loads its layers alongside the
+ * thumbnails, and waits to composite until no thumbnail request is running
+ * or waiting. It looks every BASE_POLL_MS, and after BASE_WAIT_LIMIT_MS it
+ * composites between two trait thumbnails, so a tile never stays blank while
+ * trait changes keep coming (mayDrawBase in src/builder-layout.js).
  */
 import { drawThumbnail, layerBounds, thumbnailSources, traitTiles } from '../src/thumbnails.js';
-import { baseLayers, basePicture, mayDrawBase, reusesThumbnailLayers } from '../src/builder-layout.js';
+import { BASE_POLL_MS, baseLayers, basePicture, mayDrawBase, reusesThumbnailLayers } from '../src/builder-layout.js';
 import { THUMBNAIL_LAYER_BYTES } from '../src/layer-cache.js';
 import { createLayerLoader } from './layers.js';
 
@@ -49,6 +52,11 @@ function styleFor(manifest, manifestUrl) {
 /** Let the next message in, so a newer request can stop this one. */
 function nextTask() {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/** Sleep, so a wait doesn't wake the worker in a tight loop. */
+function pause(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function drawGroup(request) {
@@ -81,8 +89,9 @@ async function drawBase(request) {
     : createLayerLoader(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES);
   const sources = baseLayers(manifest).map(({ option }) => option.src);
   const loaded = new Map(await Promise.all(sources.map(async (src) => [src, await layers.get(src)])));
-  // Trait thumbnails go first: composite only while none is running or waiting.
-  while (!mayDrawBase({ running, waiting: queue.length })) await nextTask();
+  // Trait thumbnails go first: composite while none is running or waiting, or once the wait has reached its limit.
+  const waitingSince = performance.now();
+  while (!mayDrawBase({ running, waiting: queue.length, waitedMs: performance.now() - waitingSince })) await pause(BASE_POLL_MS);
   return basePicture(manifest, (src) => loaded.get(src));
 }
 

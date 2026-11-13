@@ -238,7 +238,9 @@ test('the Character tab is the first tab, with one tile per style in the index, 
   const run = /async function run\(\) \{([\s\S]*?)\n\}/.exec(worker)[1];
   assert.doesNotMatch(run, /drawBase|base/);
   // The decision is mayDrawBase in src/builder-layout.js (test/builder-layout.test.js); the worker calls it before compositing.
-  assert.match(worker, /while \(!mayDrawBase\(\{ running, waiting: queue\.length \}\)\) await nextTask\(\);\n\s*return basePicture\(/);
+  // It looks every BASE_POLL_MS and tells mayDrawBase how long it has waited, so the wait has an end and no tight loop.
+  assert.match(worker, /const waitingSince = performance\.now\(\);\n\s*while \(!mayDrawBase\(\{ running, waiting: queue\.length, waitedMs: performance\.now\(\) - waitingSince \}\)\) await pause\(BASE_POLL_MS\);\n\s*return basePicture\(/);
+  assert.match(worker, /function pause\(milliseconds\) \{\n\s*return new Promise\(\(resolve\) => setTimeout\(resolve, milliseconds\)\);/);
   // The character tiles take the trait tiles' look. Their own rules are the caption, the sharp-pixel rule and the coming-soon tile.
   const css = await read('builder.css');
   assert.ok(declarations(css, '.base-thumb.pixel-art').length > 0);
@@ -407,7 +409,8 @@ test('the other groups are tabs in one panel, and the arrow keys move along them
   assert.match(js, /panel\.setAttribute\('role', 'tabpanel'\);\n\s*panel\.setAttribute\('aria-labelledby', tab\.id\);\n\s*panel\.hidden = true;/);
   // One tab is in the Tab order, the open one, and openTab opens one tab and closes the others.
   assert.match(js, /const open = at === index;\n\s*tab\.setAttribute\('aria-selected', String\(open\)\);\n\s*tab\.tabIndex = open \? 0 : -1;/);
-  assert.match(js, /const next = tabAfterKey\(tabs\.indexOf\(document\.activeElement\), event\.key, tabs\.length\);/);
+  // A key held with Alt, Control or Meta stays the browser's: tabAfterKey gets told and gives null.
+  assert.match(js, /const modified = event\.altKey \|\| event\.ctrlKey \|\| event\.metaKey;\n\s*const next = tabAfterKey\(tabs\.indexOf\(document\.activeElement\), event\.key, tabs\.length, modified\);\n\s*if \(next === null\) return;\n\s*event\.preventDefault\(\);/);
   // The panel names the group's pick.
   assert.match(js, /pick\.textContent = choiceLabel\(group, selection\[group\.id\] \?\? null\);/);
 });

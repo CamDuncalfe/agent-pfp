@@ -811,7 +811,8 @@ async function start() {
     });
     tabsEl.addEventListener('keydown', (event) => {
       const tabs = [...tabsEl.children];
-      const next = tabAfterKey(tabs.indexOf(document.activeElement), event.key, tabs.length);
+      const modified = event.altKey || event.ctrlKey || event.metaKey;
+      const next = tabAfterKey(tabs.indexOf(document.activeElement), event.key, tabs.length, modified);
       if (next === null) return;
       event.preventDefault();
       openTab(next, true);
