@@ -238,7 +238,49 @@ test('a click on a tile redraws the preview, the round preview and the layer lis
   // The render reads the picked tiles and writes both previews and the list.
   assert.match(js, /const selection = readSelection\(manifest\);\n\s*const layers = resolveSelection\(manifest, selection\);\n\s*showSelection\(layers\);/);
   assert.match(js, /putPicture\(previewEl, picture\);\n\s*putPicture\(roundPreviewEl, roundPreviewPicture\(picture\)\);/);
-  assert.match(js, /picked \? choiceFromValue\(picked\.value\) : null/);
+  assert.match(js, /selection\[group\.id\] = pageChoice\(group, picked\?\.value\);/);
+});
+
+test('the preview and the download draw every picked layer, and only the thumbnails leave out the groups drawn over', async () => {
+  const js = await read('builder.js');
+  // The preview is compositeLayers over each layer of resolveSelection, and the download saves that picture.
+  assert.match(js, /const rasters = await Promise\.all\(layers\.map\(\(\{ option \}\) => layerCache\.get\(option\.src\)\)\);/);
+  assert.match(js, /const picture = compositeLayers\(width, height, rasters\);\n\s*showPicture\(picture\);\n\s*setFinished\(picture\);/);
+  assert.match(js, /if \(!plan\.scaled\) return previewEl;\n\s*const picture = pictureToSave\(finished, plan\);/);
+  // The page never filters layers by over. That is drawThumbnail's job, in the worker.
+  assert.doesNotMatch(js, /thumbnailLayers|coversInThumbnails|\.over\b/);
+});
+
+test('a group with one choice gets no section, no Lock and no thumbnails on the page', async () => {
+  const js = await read('builder.js');
+  assert.match(js, /for \(const group of manifest\.groups\) \{\n\s*if \(!hasLock\(group\)\) continue;\n\s*const row = document\.createElement\('div'\);/);
+  assert.match(js, /for \(const group of manifest\.groups\.filter\(hasLock\)\) \{\n\s*locks\[group\.id\] = controlsEl\.elements\.namedItem/);
+  assert.match(js, /if \(traitTiles\(group\)\.length === 0\) continue;\n\s*const key = thumbnailKey/);
+});
+
+test('at 900 px and wider the preview column stays in view, and below that the layout is as before', async () => {
+  const css = await read('builder.css');
+  const html = await read('index.html');
+  // The column holds both previews and Randomize, Size and Download.
+  const column = /<section class="preview-column" aria-label="Preview">([\s\S]*?)<\/section>/.exec(html);
+  assert.ok(column, 'the preview section has the class');
+  for (const id of ['preview', 'round-preview', 'randomize', 'size', 'download']) {
+    assert.match(column[1], new RegExp(`id="${id}"`), id);
+  }
+  // One rule for the column, inside the 900 px query, and nothing else in the page sticks.
+  const plain = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.equal(plain.match(/\.preview-column/g).length, 1);
+  const wide = /@media \(min-width: 900px\)\s*\{\s*\.preview-column\s*\{([^}]*)\}\s*\}/.exec(plain);
+  assert.ok(wide, 'the column rule sits in a min-width: 900px query');
+  const rule = Object.fromEntries(
+    wide[1].split(';').filter((line) => line.includes(':')).map((line) => line.split(':').map((part) => part.trim())),
+  );
+  assert.equal(rule.position, 'sticky');
+  assert.equal(rule.top, '16px');
+  assert.equal(plain.match(/position:\s*sticky/g).length, 1);
+  // The grid stays as it was: two columns, one under 560 px, aligned to the top so the column can stick.
+  const layout = Object.fromEntries(declarations(css, '.layout'));
+  assert.equal(layout['align-items'], 'start');
 });
 
 test('the thumbnails are drawn in a worker after each render, and the page paints a whole group at once', async () => {

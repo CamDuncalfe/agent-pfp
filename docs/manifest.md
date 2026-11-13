@@ -25,10 +25,12 @@ A style is a folder that holds one `manifest.json` and the layer images it names
 | `base` | boolean, optional | When `true`, any group drawn later may cover this one. Backgrounds and bodies are base groups. |
 | `bleed` | array, optional | Canvas edges this group may touch: `top`, `right`, `bottom`, `left`. A layer that touches an edge its group does not list counts as clipped. |
 | `zone` | object, optional | `{ "x", "y", "width", "height" }` in pixels. The group's layers have to stay inside this rectangle. |
-| `over` | array, optional | Ids of earlier groups this group may cover, for example a hat that sits over the eyes. |
-| `options` | array | The choices in the group, at least one. |
+| `over` | array, optional | Ids of earlier groups this group may cover, for example a hat that sits over the eyes. The builder leaves this group's layer out of the thumbnails of each group it lists. |
+| `options` | array | The choices in the group, at least one. A group with one option that isn't `optional` gives the user nothing to pick: the builder shows no thumbnails and no Lock for it, and Randomize keeps it. Its layer is still drawn. |
 
 Two groups that are not base groups may only share pixels when the later one lists the earlier one in `over`.
+
+The builder uses `over` for its thumbnails too. A thumbnail of a group's option draws the picked layers of each other group except the groups whose `over` lists it. With `"over": ["eyes"]` on Headwear, each Eyes thumbnail shows the eyes with no hat. The preview and the downloaded picture draw every picked layer.
 
 ## Options
 

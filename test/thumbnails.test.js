@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 import { compositeLayers, createRaster } from '../src/composite.js';
-import { resolveSelection } from '../src/manifest.js';
+import { hasOneChoice, resolveSelection, validateManifest } from '../src/manifest.js';
 import { readPng } from '../src/png.js';
 import { scaleDown } from '../src/scale.js';
 import {
@@ -17,7 +17,9 @@ import {
   createRedrawTracker,
   drawThumbnail,
   layerBounds,
+  pageChoice,
   thumbnailKey,
+  thumbnailLayers,
   thumbnailPicture,
   thumbnailSelection,
   thumbnailSources,
@@ -37,6 +39,29 @@ async function loadShapes() {
     }
   }
   return { manifest, pixelsOf: (src) => pixels.get(src) };
+}
+
+/** The alien's manifest. The tests read the JSON only, never its art. */
+async function loadAlienManifest() {
+  return JSON.parse(await readFile(new URL('../styles/alien/manifest.json', import.meta.url), 'utf8'));
+}
+
+/**
+ * The shapes fixture with `"over": ["eyes"]` on Headwear, and a cap that
+ * comes down over the eyes. The other layers are the fixture's own.
+ */
+async function loadShapesWithOver() {
+  const { manifest, pixelsOf } = await loadShapes();
+  const withOver = structuredClone(manifest);
+  group(withOver, 'headwear').over = ['eyes'];
+  assert.deepEqual(validateManifest(withOver), { ok: true, errors: [] });
+  const eyes = layerBounds(pixelsOf('layers/eyes/dots.png'));
+  const lowCap = block(64, 64, { x: 12, y: 4, width: 40, height: eyes.y + eyes.height - 4 }, [10, 120, 10, 255]);
+  return {
+    plain: manifest,
+    withOver,
+    pixelsOf: (src) => (src === 'layers/headwear/cap.png' ? lowCap : pixelsOf(src)),
+  };
 }
 
 const group = (manifest, id) => manifest.groups.find((item) => item.id === id);
@@ -88,18 +113,42 @@ test('an optional group starts with a None tile and a required group has none', 
   }
 });
 
-test('the alien has a grid for each of its seven groups, and Eyewear and Headwear start with None', async () => {
-  const manifest = JSON.parse(await readFile(new URL('../styles/alien/manifest.json', import.meta.url), 'utf8'));
+test('the alien has a grid for six of its seven groups, Character has none, and Eyewear and Headwear start with None', async () => {
+  const manifest = await loadAlienManifest();
   assert.deepEqual(
     manifest.groups.map((item) => item.label),
     ['Background', 'Character', 'Clothes', 'Mouth', 'Eyes', 'Eyewear', 'Headwear'],
   );
   for (const item of manifest.groups) {
     const tiles = traitTiles(item);
+    if (item.id === 'character') {
+      assert.deepEqual(tiles, [], 'one option and no None: no tiles');
+      continue;
+    }
     const startsWithNone = tiles[0].choice === null;
     assert.equal(startsWithNone, ['eyewear', 'headwear'].includes(item.id), item.id);
     assert.equal(tiles.length, item.options.length + (startsWithNone ? 1 : 0), item.id);
   }
+});
+
+test('a group with one option and no None gets no tiles, and an optional group with one option keeps both of its tiles', async () => {
+  const { manifest } = await loadShapes();
+  const one = { ...group(manifest, 'body'), options: [group(manifest, 'body').options[0]] };
+  assert.equal(hasOneChoice(one), true);
+  assert.deepEqual(traitTiles(one), []);
+  const optional = { ...group(manifest, 'headwear'), options: [group(manifest, 'headwear').options[0]] };
+  assert.equal(hasOneChoice(optional), false);
+  assert.deepEqual(traitTiles(optional).map((tile) => tile.choice), [null, 'cap']);
+  for (const item of manifest.groups) assert.equal(hasOneChoice(item), false, item.id);
+});
+
+test('pageChoice gives a one-choice group its option and every other group its picked tile', async () => {
+  const { manifest } = await loadShapes();
+  const one = { ...group(manifest, 'body'), options: [group(manifest, 'body').options[0]] };
+  assert.equal(pageChoice(one, undefined), 'round', 'no tile, still the one option');
+  assert.equal(pageChoice(group(manifest, 'eyes'), 'bars'), 'bars');
+  assert.equal(pageChoice(group(manifest, 'headwear'), NONE_VALUE), null);
+  assert.equal(pageChoice(group(manifest, 'eyes'), undefined), null);
 });
 
 test('a radio value turns back into the same choice', () => {
@@ -294,6 +343,78 @@ test('thumbnailSources lists the other layers on screen and each option of the g
     'layers/eyes/dots.png',
     'layers/mouth/line.png',
   ]);
+});
+
+test('a tile leaves out the layers of each group whose over list names its group, with the tile option in place of the pick', async () => {
+  const { withOver } = await loadShapesWithOver();
+  const ids = (layers) => layers.map((layer) => `${layer.group.id}:${layer.option.id}`);
+  assert.deepEqual(ids(thumbnailLayers(withOver, selection, 'eyes', 'bars')), [
+    'background:grey',
+    'body:round',
+    'eyes:bars',
+    'mouth:line',
+  ]);
+  // A group that no over list names keeps every picked layer, the hat included.
+  assert.deepEqual(ids(thumbnailLayers(withOver, selection, 'mouth', 'open')), [
+    'background:grey',
+    'body:round',
+    'eyes:dots',
+    'mouth:open',
+    'headwear:cap',
+  ]);
+  // The hat's own tiles still show the hat, and its None tile shows no hat.
+  assert.ok(ids(thumbnailLayers(withOver, selection, 'headwear', 'tall')).includes('headwear:tall'));
+  assert.ok(!ids(thumbnailLayers(withOver, selection, 'headwear', null)).some((id) => id.startsWith('headwear')));
+});
+
+test('an Eyes thumbnail under a hat with over: ["eyes"] shows the eyes and no hat', async () => {
+  const { plain, withOver, pixelsOf } = await loadShapesWithOver();
+  const draw = (manifest, current) =>
+    drawThumbnail({ manifest, selection: current, group: group(manifest, 'eyes'), choice: 'bars', pixelsOf });
+  const noHat = draw(plain, { ...selection, headwear: null });
+  // Without over the low cap covers the eyes on the tile.
+  assert.notDeepEqual(draw(plain, selection), noHat);
+  // With over the tile is the picture with no hat, whichever hat is picked.
+  assert.deepEqual(draw(withOver, selection), noHat);
+  assert.deepEqual(draw(withOver, { ...selection, headwear: 'tall' }), noHat);
+  // The Mouth tile still draws the hat, since no over list names Mouth.
+  const mouth = (manifest) => drawThumbnail({ manifest, selection, group: group(manifest, 'mouth'), choice: 'line', pixelsOf });
+  assert.deepEqual(mouth(withOver), mouth(plain));
+});
+
+test('the main preview and the download still draw every picked layer of a style with over', async () => {
+  const { plain, withOver, pixelsOf } = await loadShapesWithOver();
+  const layers = resolveSelection(withOver, selection);
+  assert.deepEqual(
+    layers.map((layer) => layer.group.id),
+    ['background', 'body', 'eyes', 'mouth', 'headwear'],
+  );
+  const picture = (manifest) => compositeLayers(64, 64, resolveSelection(manifest, selection).map((layer) => pixelsOf(layer.option.src)));
+  // The over entry changes nothing in the picture: the hat is still on top of the eyes.
+  assert.deepEqual(picture(withOver), picture(plain));
+  const eyes = layerBounds(pixelsOf('layers/eyes/dots.png'));
+  const capPixel = (eyes.y * 64 + eyes.x) * 4;
+  assert.deepEqual(Array.from(picture(withOver).data.slice(capPixel, capPixel + 4)), [10, 120, 10, 255]);
+});
+
+test('the alien Eyes tiles leave out Eyewear and Headwear, and its Eyewear tiles leave out Headwear', async () => {
+  const manifest = await loadAlienManifest();
+  const firsts = Object.fromEntries(manifest.groups.map((item) => [item.id, item.options[0].id]));
+  const groupsOf = (groupId) =>
+    thumbnailLayers(manifest, firsts, groupId, group(manifest, groupId).options[1].id).map((layer) => layer.group.id);
+  assert.deepEqual(groupsOf('eyes'), ['background', 'character', 'clothes', 'mouth', 'eyes']);
+  assert.deepEqual(groupsOf('eyewear'), ['background', 'character', 'clothes', 'mouth', 'eyes', 'eyewear']);
+  assert.deepEqual(groupsOf('mouth'), manifest.groups.map((item) => item.id));
+});
+
+test('a change in a group drawn over another leaves that group thumbnails as they are', async () => {
+  const { withOver } = await loadShapesWithOver();
+  const key = (current, id) => thumbnailKey(withOver, current, id);
+  assert.equal(key(selection, 'eyes'), key({ ...selection, headwear: 'tall' }, 'eyes'));
+  assert.equal(key(selection, 'eyes'), key({ ...selection, headwear: null }, 'eyes'));
+  assert.notEqual(key(selection, 'mouth'), key({ ...selection, headwear: 'tall' }, 'mouth'));
+  const sources = thumbnailSources(withOver, selection, group(withOver, 'eyes'));
+  assert.ok(!sources.includes('layers/headwear/cap.png'), 'the eyes tiles load no hat');
 });
 
 test('the thumbnail size in web/builder.css is THUMBNAIL_WIDTH', async () => {

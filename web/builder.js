@@ -1,9 +1,10 @@
 import { validateManifest, resolveSelection } from '../src/manifest.js';
-import { choiceFromValue, choiceValue, createRedrawTracker, thumbnailKey, traitTiles } from '../src/thumbnails.js';
+import { choiceValue, createRedrawTracker, pageChoice, thumbnailKey, traitTiles } from '../src/thumbnails.js';
 import { PAGE_LAYER_BYTES } from '../src/layer-cache.js';
 import { createLayerLoader } from './layers.js';
 import {
   canRandomize,
+  hasLock,
   lockAccessibleName,
   lockControlName,
   lockText,
@@ -142,12 +143,13 @@ function tileInputs(group) {
   return [...controlsEl.querySelectorAll(`input[type="radio"][name="${group.id}"]`)];
 }
 
-/** The picked tile of each group. */
+/** The picked tile of each group, and the one option of a group with no tiles. */
 function readSelection(manifest) {
   const selection = {};
   for (const group of manifest.groups) {
+    // A group with one choice has no tiles. pageChoice gives its one option.
     const picked = tileInputs(group).find((input) => input.checked);
-    selection[group.id] = picked ? choiceFromValue(picked.value) : null;
+    selection[group.id] = pageChoice(group, picked?.value);
   }
   return selection;
 }
@@ -162,13 +164,13 @@ function writeSelection(manifest, selection) {
 
 function readLocks(manifest) {
   const locks = {};
-  for (const group of manifest.groups) {
+  for (const group of manifest.groups.filter(hasLock)) {
     locks[group.id] = controlsEl.elements.namedItem(lockControlName(group.id)).checked;
   }
   return locks;
 }
 
-/** Randomize is off while no style is on screen and while each group is locked. */
+/** Randomize is off while no style is on screen and while each group with a Lock is locked. */
 function updateRandomize() {
   randomizeEl.disabled = !current || !canRandomize(current.manifest, readLocks(current.manifest));
 }
@@ -178,12 +180,15 @@ function updateRandomize() {
  * then a grid of tiles. Each tile is a radio button with the option's
  * label as its name, so the grid is a radio group: Tab reaches the picked
  * tile and the arrow keys move the pick. The first tile starts picked.
+ * A group with one choice gets no section: no tiles and no Lock. Its layer
+ * is still drawn and listed.
  */
 function buildControls(manifest) {
   controlsEl.replaceChildren();
   const locks = startingLocks(manifest);
   const pixelArt = isPixelArt(manifest.canvas.width);
   for (const group of manifest.groups) {
+    if (!hasLock(group)) continue;
     const row = document.createElement('div');
     row.className = 'trait';
 
@@ -290,6 +295,7 @@ function createRenderer(manifest, baseUrl, isOnScreen) {
     const ticket = (thumbnailTicket += 1);
     const worker = startThumbnailWorker();
     for (const group of manifest.groups) {
+      if (traitTiles(group).length === 0) continue;
       const key = thumbnailKey(manifest, selection, group.id);
       if (!redraws.needsRedraw(group.id, key)) continue;
       worker.postMessage({ ticket, manifest, manifestUrl: String(baseUrl), selection, groupId: group.id, key });
