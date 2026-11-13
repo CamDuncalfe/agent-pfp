@@ -70,7 +70,7 @@ The builder page and the render check draw with `compositeLayers` from `src/comp
 The picture a user builds and downloads is drawn from the layer files a manifest names and nothing else. No image-generation API and no model call. From its own origin the app loads a style index (`styles/index.json`, and `/local-styles/index.json` on the local server), the manifests it lists and their layers, and the picture the index lists for each coming-soon character. The Character tab shows that picture on the character's tile, and it is never drawn into a picture a user builds. The page's type loads from the one Adobe Fonts kit that `web/index.html` names: the kit's stylesheet and the files that stylesheet loads from Adobe. The app makes no other network request.
 
 - **Where:** `web/`, `src/`, `bin/`, `styles/` and the dependencies in `package.json`.
-- **Why:** I pick and cut each option before it goes in the builder. A user only gets art I've looked at.
+- **Why:** I pick and cut each option before it goes in the builder. A user only gets art I've looked at. The type and the coming-soon pictures are my picks too, and I allowed both in [pull request #41](https://github.com/CamDuncalfe/agent-pfp/pull/41).
 
 ### 5. Art needs a sign-off
 
