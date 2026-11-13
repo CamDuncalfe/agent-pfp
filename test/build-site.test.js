@@ -24,12 +24,17 @@ async function listFiles(dir) {
     .sort();
 }
 
-/** A copy of the repository's site sources, with extra files the site must leave out. */
+/**
+ * A copy of the repository's site sources, with extra files the site must
+ * leave out. Its styles/index.json lists the two fixture styles, the way
+ * fixtures/index.json does, so the tests can change small styles.
+ */
 async function makeRoot() {
   const root = await mkdtemp(join(tmpdir(), 'agent-pfp-site-'));
   for (const dir of ['web', 'src', 'styles', 'fixtures']) {
     await cp(join(repo, dir), join(root, dir), { recursive: true });
   }
+  await cp(join(repo, 'fixtures', 'index.json'), join(root, 'styles', 'index.json'));
   for (const dir of ['node_modules/pngjs', 'test', 'factory', 'bin', 'docs', '.git']) {
     await mkdir(join(root, dir), { recursive: true });
     await writeFile(join(root, dir, 'file.txt'), 'x');
@@ -128,6 +133,8 @@ test('the site holds web/, src/, the index, its manifests and their layers, and 
     }
     assert.ok(!files.includes('fixtures/shapes/layers/unused.png'), 'a layer no manifest names stays out');
     assert.ok(!files.includes('fixtures/broken/manifest.json'), 'a style the index does not list stays out');
+    assert.ok(!files.includes('styles/alien/manifest.json'), 'a style the index does not list stays out');
+    assert.ok(!files.includes('fixtures/index.json'));
     assert.ok(!files.includes('fixtures/make-fixtures.js'));
     assert.ok(!files.includes('styles/notes.txt'));
     assert.ok(!files.includes('README.md'));
@@ -142,8 +149,9 @@ test('the build of this repository holds each file the builder asks for', async 
     await buildSite({ root: repo, out });
     const files = new Set(await listFiles(out));
     for (const file of await expectedStyleFiles(repo)) assert.ok(files.has(file), file);
-    assert.ok(files.has('fixtures/shapes/manifest.json'));
-    assert.ok(files.has('fixtures/blocks/manifest.json'));
+    assert.ok(files.has('styles/alien/manifest.json'));
+    // The fixtures are test data and stay off the public site.
+    assert.ok(![...files].some((file) => file.startsWith('fixtures/')), 'no fixture file in the site');
   } finally {
     await rm(out, { recursive: true, force: true });
   }

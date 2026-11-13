@@ -1,19 +1,21 @@
 # Style index
 
-[`styles/index.json`](../styles/index.json) lists the styles the builder offers. The builder page reads it and shows one entry per style in the Style picker, in the order of the file. The first style opens by default.
+[`styles/index.json`](../styles/index.json) lists the styles the builder offers. The builder page reads it and shows one entry per style in the Style picker, in the order of the file. The first style opens by default. It lists the alien:
 
 ```json
 {
   "version": 1,
   "styles": [
     {
-      "id": "fixture-shapes",
-      "name": "Fixture shapes (test data, not artwork)",
-      "manifest": "fixtures/shapes/manifest.json"
+      "id": "alien",
+      "name": "Alien",
+      "manifest": "styles/alien/manifest.json"
     }
   ]
 }
 ```
+
+The fixture styles are test data, so the builder doesn't offer them. [`fixtures/index.json`](../fixtures/index.json) lists them in the same format, for the render check.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -21,7 +23,7 @@
 | `styles` | array | The styles, at least one. |
 | `styles[].id` | string | The style's id. It is the `style` value of the style's manifest, and each id appears once. |
 | `styles[].name` | string | Name shown in the Style picker. |
-| `styles[].manifest` | string | Path of the style's `manifest.json`, with forward slashes. It is relative to the folder that holds the `styles/` folder, which is the root of this repository. It follows the same character rules as a layer `src` in [manifest.md](manifest.md), so it cannot use `..` or point at another site. |
+| `styles[].manifest` | string | Path of the style's `manifest.json`, with forward slashes. It is relative to the folder that holds the index's folder. For `styles/index.json` and `fixtures/index.json` that is the root of this repository. It follows the same character rules as a layer `src` in [manifest.md](manifest.md), so it cannot use `..` or point at another site. |
 
 `validateStyleIndex(index)` in [`src/styles.js`](../src/styles.js) checks a parsed index and lists what is wrong with it. `resolveManifestUrl(entry, indexUrl)` turns an entry into the URL of its manifest.
 
@@ -33,13 +35,13 @@
 
 ## Checking the styles
 
-`npm run check` runs the [render check](render-check.md) on each style in the index:
+`npm run check` runs the [render check](render-check.md) on each style in `styles/index.json` and in `fixtures/index.json`:
 
 ```sh
-node bin/check-styles.js styles/index.json
+node bin/check-styles.js styles/index.json fixtures/index.json
 ```
 
-It exits with 0 when each style passes, 1 when a check found issues and 2 when it could not run (an index or manifest that cannot be read or is not valid).
+`bin/check-styles.js` takes one or more index paths, and `styles/index.json` when it gets none. It reads each index first and then checks each style, so a style that fails in one index doesn't stop the check of the others. It exits with 0 when each style passes, 1 when a check found issues and 2 when it could not run (an index or manifest that cannot be read or is not valid).
 
 ## The static site
 

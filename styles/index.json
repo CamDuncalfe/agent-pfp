@@ -2,14 +2,9 @@
   "version": 1,
   "styles": [
     {
-      "id": "fixture-shapes",
-      "name": "Fixture shapes (test data, not artwork)",
-      "manifest": "fixtures/shapes/manifest.json"
-    },
-    {
-      "id": "fixture-blocks",
-      "name": "Fixture blocks (test data, not artwork)",
-      "manifest": "fixtures/blocks/manifest.json"
+      "id": "alien",
+      "name": "Alien",
+      "manifest": "styles/alien/manifest.json"
     }
   ]
 }

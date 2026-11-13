@@ -61,7 +61,11 @@ async function makeStylesFolder(t) {
   await writeFile(join(folder, 'not-json', 'manifest.json'), '{ nope');
   await mkdir(join(folder, 'not-valid'));
   await writeFile(join(folder, 'not-valid', 'manifest.json'), JSON.stringify({ ...manifest, version: 7 }));
+  // A style with the id of the one in styles/index.json.
   await cp(shapes, join(folder, 'same-id-as-repo'), { recursive: true });
+  await writeFile(join(folder, 'same-id-as-repo', 'manifest.json'), JSON.stringify({ ...manifest, style: 'alien', name: 'Alien copy' }));
+  // A fixture id is free: the fixtures are not in styles/index.json.
+  await cp(shapes, join(folder, 'fixture-copy'), { recursive: true });
   await mkdir(join(folder, 'no-manifest'));
   // A symlink that points out of the folder.
   await writeFile(join(outside, 'secret.json'), '{"secret":true}');
@@ -145,6 +149,7 @@ test('with a styles folder the server lists its styles and serves their files', 
   assert.deepEqual(await response.json(), {
     version: 1,
     styles: [
+      { id: 'fixture-shapes', name: 'Fixture shapes (test data, not artwork)', manifest: 'local-styles/fixture-copy/manifest.json' },
       { id: 'linked-in', name: 'Linked in', manifest: 'local-styles/manifest-nearby/manifest.json' },
       { id: 'local-tidy', name: 'Tidy', manifest: 'local-styles/tidy/manifest.json' },
     ],
@@ -156,7 +161,7 @@ test('with a styles folder the server lists its styles and serves their files', 
     'Left out local style folder "manifest-elsewhere": manifest.json points outside the styles folder',
     'Left out local style folder "not-json": manifest.json is not valid JSON',
     'Left out local style folder "not-valid": manifest.json is not valid (version must be 1)',
-    'Left out local style folder "same-id-as-repo": the style id "fixture-shapes" is already used by another style',
+    'Left out local style folder "same-id-as-repo": the style id "alien" is already used by another style',
   ]);
 
   // The same warnings are not printed again on the next request.
@@ -183,7 +188,7 @@ test('with a styles folder the server lists its styles and serves their files', 
   const laterManifest = JSON.parse(await readFile(join(folder, 'later', 'manifest.json'), 'utf8'));
   await writeFile(join(folder, 'later', 'manifest.json'), JSON.stringify({ ...laterManifest, style: 'a-later', name: 'Later' }));
   const again = await (await fetch(`${base}/local-styles/index.json`)).json();
-  assert.deepEqual(again.styles.map((entry) => entry.id), ['a-later', 'linked-in', 'local-tidy']);
+  assert.deepEqual(again.styles.map((entry) => entry.id), ['a-later', 'fixture-shapes', 'linked-in', 'local-tidy']);
 });
 
 test('the server refuses everything else under /local-styles/', async (t) => {

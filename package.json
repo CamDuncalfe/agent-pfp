@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node bin/serve.js",
     "test": "node --test",
-    "check": "node bin/check-styles.js styles/index.json",
+    "check": "node bin/check-styles.js styles/index.json fixtures/index.json",
     "build:site": "node bin/build-site.js",
     "fixtures": "node fixtures/make-fixtures.js"
   },

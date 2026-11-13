@@ -22,7 +22,7 @@ Run these before you open a pull request. CI runs the first two again on the pul
 
 ```sh
 npm test         # unit tests (node --test), all of them have to pass
-npm run check    # render check on each style in styles/index.json, has to end with "Render check passed."
+npm run check    # render check on each style in styles/index.json and fixtures/index.json, has to end with "Render check passed."
 npm start        # builder page at http://127.0.0.1:4173/web/, open it when you change web/
 ```
 
