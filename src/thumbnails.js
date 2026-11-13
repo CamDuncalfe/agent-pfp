@@ -1,7 +1,8 @@
 /**
  * The thumbnails the builder page shows for each trait group. A thumbnail
- * is the current picture with that one option swapped in, cut to a square
- * around the part of the canvas the option's layer draws in. The layers of
+ * is the current picture with that one option swapped in, zoomed in on a
+ * square around the part of the canvas the option's layer draws in
+ * (thumbnailSquare). The layers of
  * each group whose `over` list names the tile's group are left out, so a
  * hat or glasses never hide the eyes on an Eyes tile. A layer that
  * covers the whole canvas, like a flat background colour, would be hidden
@@ -23,7 +24,7 @@ import { scaleDown } from './scale.js';
  * How wide a thumbnail is on screen, in CSS pixels. web/builder.css sets
  * the size, and a test keeps the two the same.
  */
-export const THUMBNAIL_WIDTH = 56;
+export const THUMBNAIL_WIDTH = 120;
 
 /** The most pixels a thumbnail holds along a side: two per CSS pixel. */
 export const THUMBNAIL_MAX_SIDE = THUMBNAIL_WIDTH * 2;
@@ -147,9 +148,44 @@ export function coversCanvas(bounds, canvas) {
 }
 
 /**
- * The square a thumbnail shows: centred on the rectangle, as wide as its
- * longer side plus some room around it, and moved inside the canvas when it
- * reaches past an edge. It is never bigger than the canvas's shorter side.
+ * The most a thumbnail's square takes of the canvas's shorter side when its
+ * layer is bigger than that, so a wide hat or a pair of glasses fills the
+ * tile instead of shrinking into the whole picture.
+ */
+export const MAX_SHARE = 0.6;
+
+/**
+ * A layer that touches an edge of the canvas, like a torso cut off at the
+ * bottom, gets a square this many times as deep as the layer, so its tile
+ * shows the layer and not the face above it.
+ */
+export const EDGE_DEPTHS = 1.5;
+
+/**
+ * How deep a layer reaches in from the edges of the canvas it touches: its
+ * height when it touches the top or bottom edge, its width when it touches
+ * the left or right edge, the smaller of the two when it touches both, and
+ * Infinity when it touches none.
+ * @param {Rect} bounds
+ * @param {{ width: number, height: number }} canvas
+ */
+export function edgeDepth(bounds, canvas) {
+  let depth = Infinity;
+  if (bounds.y === 0 || bounds.y + bounds.height === canvas.height) depth = Math.min(depth, bounds.height);
+  if (bounds.x === 0 || bounds.x + bounds.width === canvas.width) depth = Math.min(depth, bounds.width);
+  return depth;
+}
+
+/**
+ * The square a thumbnail shows, zoomed in on the layer. It is centred on
+ * the rectangle and moved inside the canvas when it reaches past an edge.
+ *
+ * Its side is the rectangle's longer side plus some room around it, and
+ * then at most:
+ * - MAX_SHARE of the canvas's shorter side, and
+ * - EDGE_DEPTHS times the layer's depth when it touches an edge of the canvas,
+ * but never less than the rectangle's shorter side with the same room
+ * around it, and never more than the canvas's shorter side.
  * Without a rectangle it is the middle square of the canvas.
  * @param {Rect | null} bounds
  * @param {{ width: number, height: number }} canvas
@@ -158,8 +194,11 @@ export function coversCanvas(bounds, canvas) {
 export function thumbnailSquare(bounds, canvas) {
   const limit = Math.min(canvas.width, canvas.height);
   if (bounds === null) return middleSquare(canvas);
-  const longer = Math.max(bounds.width, bounds.height);
-  const side = Math.min(limit, longer + 2 * Math.round(longer * PADDING));
+  const padded = (length) => length + 2 * Math.round(length * PADDING);
+  const whole = padded(Math.max(bounds.width, bounds.height));
+  const zoom = Math.min(Math.round(limit * MAX_SHARE), Math.round(edgeDepth(bounds, canvas) * EDGE_DEPTHS));
+  const floor = padded(Math.min(bounds.width, bounds.height));
+  const side = Math.max(1, Math.min(limit, whole, Math.max(floor, zoom)));
   const centreX = bounds.x + bounds.width / 2;
   const centreY = bounds.y + bounds.height / 2;
   const clamp = (start, size) => Math.max(0, Math.min(size - side, Math.round(start)));

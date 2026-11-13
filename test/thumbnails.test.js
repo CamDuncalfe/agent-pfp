@@ -9,6 +9,8 @@ import { scaleDown } from '../src/scale.js';
 import {
   NONE_LABEL,
   NONE_VALUE,
+  EDGE_DEPTHS,
+  MAX_SHARE,
   THUMBNAIL_MAX_SIDE,
   THUMBNAIL_WIDTH,
   choiceFromValue,
@@ -16,6 +18,7 @@ import {
   coversCanvas,
   createRedrawTracker,
   drawThumbnail,
+  edgeDepth,
   layerBounds,
   pageChoice,
   thumbnailKey,
@@ -178,22 +181,67 @@ test('thumbnailSquare is centred on the layer, a bit bigger than it and inside t
   const canvas = { width: 100, height: 100 };
   // A 20 x 10 rectangle: the square is 20 wide plus 2 px a side.
   assert.deepEqual(thumbnailSquare({ x: 40, y: 45, width: 20, height: 10 }, canvas), { x: 38, y: 38, side: 24 });
-  // Near the top left corner it moves in rather than leaving the canvas.
+  // In the top left corner it stays inside the canvas.
   assert.deepEqual(thumbnailSquare({ x: 0, y: 0, width: 10, height: 10 }, canvas), { x: 0, y: 0, side: 12 });
-  // Near the bottom right corner too.
-  assert.deepEqual(thumbnailSquare({ x: 90, y: 95, width: 10, height: 5 }, canvas), { x: 88, y: 88, side: 12 });
-  // A layer as big as the canvas gives the canvas, never more.
-  assert.deepEqual(thumbnailSquare({ x: 0, y: 0, width: 100, height: 100 }, canvas), { x: 0, y: 0, side: 100 });
+  // Near the bottom right corner it moves in rather than leaving the canvas.
+  assert.deepEqual(thumbnailSquare({ x: 85, y: 90, width: 14, height: 9 }, canvas), { x: 84, y: 84, side: 16 });
   // No drawn pixels: the middle square.
   assert.deepEqual(thumbnailSquare(null, { width: 100, height: 60 }), { x: 20, y: 0, side: 60 });
 });
 
-test('thumbnailSquare stays inside a canvas that is not square', () => {
-  const canvas = { width: 120, height: 40 };
-  const square = thumbnailSquare({ x: 0, y: 0, width: 120, height: 10 }, canvas);
-  assert.equal(square.side, 40, 'never wider than the shorter side');
-  assert.ok(square.x >= 0 && square.x + square.side <= canvas.width);
-  assert.ok(square.y >= 0 && square.y + square.side <= canvas.height);
+test('a layer bigger than MAX_SHARE of the canvas is zoomed in to that share, centred on it', () => {
+  assert.equal(MAX_SHARE, 0.6);
+  const canvas = { width: 1000, height: 1000 };
+  // A wide hat, 700 x 300, away from the edges: 840 with room, cut to 600.
+  assert.deepEqual(thumbnailSquare({ x: 150, y: 100, width: 700, height: 300 }, canvas), { x: 200, y: 0, side: 600 });
+  // A tall party hat, 200 x 800: 960 with room, cut to 600 and centred on the hat.
+  assert.deepEqual(thumbnailSquare({ x: 400, y: 100, width: 200, height: 800 }, canvas), { x: 200, y: 200, side: 600 });
+});
+
+test('the square is never smaller than the layer shorter side with room around it', () => {
+  const canvas = { width: 1000, height: 1000 };
+  // 900 x 700 away from the edges: 840 with room on the shorter side beats MAX_SHARE.
+  assert.equal(thumbnailSquare({ x: 50, y: 150, width: 900, height: 700 }, canvas).side, 840);
+  // A layer as big as the canvas gives the canvas, never more.
+  assert.deepEqual(thumbnailSquare({ x: 0, y: 0, width: 1000, height: 1000 }, canvas), { x: 0, y: 0, side: 1000 });
+  // Never more than the canvas shorter side.
+  assert.equal(thumbnailSquare({ x: 0, y: 0, width: 120, height: 40 }, { width: 120, height: 40 }).side, 40);
+});
+
+test('a layer on an edge of the canvas, like a torso, gets a square EDGE_DEPTHS times as deep, on that edge', () => {
+  assert.equal(EDGE_DEPTHS, 1.5);
+  const canvas = { width: 1024, height: 1024 };
+  // The alien's white tee: 606 x 265 at the bottom edge. 1.5 x 265 is 398, so the tile is the torso and the chin.
+  const tee = { x: 165, y: 759, width: 606, height: 265 };
+  assert.equal(edgeDepth(tee, canvas), 265);
+  assert.deepEqual(thumbnailSquare(tee, canvas), { x: 269, y: 626, side: 398 });
+  // The square sits on the bottom edge and keeps the torso inside it.
+  const square = thumbnailSquare(tee, canvas);
+  assert.equal(square.y + square.side, canvas.height);
+  assert.ok(square.y <= tee.y);
+  // A layer that touches no edge has no depth, and one on a side edge counts its width.
+  assert.equal(edgeDepth({ x: 10, y: 10, width: 50, height: 50 }, canvas), Infinity);
+  assert.equal(edgeDepth({ x: 0, y: 100, width: 80, height: 400 }, canvas), 80);
+  assert.equal(edgeDepth({ x: 0, y: 0, width: 80, height: 40 }, canvas), 40);
+});
+
+test('the alien tiles zoom in on their layer: mouth, eyes, glasses and hats each fill most of the tile', () => {
+  const canvas = { width: 1024, height: 1024 };
+  // Bounds of the alien's layers, measured with layerBounds.
+  const layers = {
+    mouth: { x: 545, y: 617, width: 167, height: 97 },
+    eyes: { x: 416, y: 427, width: 383, height: 119 },
+    wayfarers: { x: 246, y: 393, width: 553, height: 197 },
+    cap: { x: 204, y: 70, width: 676, height: 365 },
+    crown: { x: 277, y: 105, width: 460, height: 226 },
+  };
+  for (const [name, bounds] of Object.entries(layers)) {
+    const { side } = thumbnailSquare(bounds, canvas);
+    assert.ok(side <= Math.round(1024 * MAX_SHARE), `${name} is zoomed in`);
+    assert.ok(side >= bounds.height, `${name} keeps its height`);
+  }
+  // A pair of glasses keeps both lenses.
+  assert.ok(thumbnailSquare(layers.wayfarers, canvas).side >= layers.wayfarers.width);
 });
 
 test('thumbnailPicture copies a small square and scales a big one down to the most a thumbnail holds', () => {

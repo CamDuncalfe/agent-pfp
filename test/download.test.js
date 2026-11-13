@@ -59,12 +59,13 @@ test('both fixture styles offer Full size only', async () => {
     assert.deepEqual(sizePicker(manifest.canvas, 'github'), {
       options: [{ id: 'full', label: 'Full size' }],
       value: 'full',
+      shown: false,
     });
   }
 });
 
 test('the picker lists Full size first and starts on it', () => {
-  // The value of the picker before the first style opens is the one option in web/index.html.
+  // Before the first style opens no size is picked.
   for (const before of ['full', '', undefined, null]) {
     assert.deepEqual(sizePicker(big.canvas, before), {
       options: [
@@ -72,6 +73,7 @@ test('the picker lists Full size first and starts on it', () => {
         { id: 'github', label: 'GitHub (500 x 500)' },
       ],
       value: 'full',
+      shown: true,
     });
   }
 });

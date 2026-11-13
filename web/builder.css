@@ -1,17 +1,48 @@
+/*
+ * The builder page. Light and cartoon-like: warm paper behind, white cards
+ * with a dark outline and a hard shadow like the line in the art, and one
+ * yellow accent. The type is the system's rounded face, so the page loads
+ * no font file (AGENTS.md rule 4).
+ */
 :root {
-  --ink: #16181d;
-  --muted: #5b616e;
-  --line: #d8dbe2;
-  --paper: #ffffff;
-  --accent: #2f55d4;
-  --radius: 8px;
-  /*
-   * Room for a checkbox and the word "Lock". The same in each trait row.
-   * In em, so the column grows with the text when the user enlarges it.
-   */
-  --lock-column: 4.5em;
-  /* How wide a thumbnail is. src/thumbnails.js has the same 56. */
-  --thumbnail: 56px;
+  --paper: #f7f3ea;
+  --card: #ffffff;
+  /* Text and outlines. 12.9:1 on paper. */
+  --ink: #232e41;
+  /* Secondary text. 5.6:1 on paper, 6.3:1 on white. */
+  --muted: #5d6676;
+  /* Hairlines between parts of a card. */
+  --line: #e4ded1;
+  /* The one accent: Randomize, a picked tile's check and a Lock that is on. */
+  --accent: #f6d34b;
+  --accent-hover: #f9dd6e;
+  --error: #a4262c;
+
+  /* One type scale. */
+  --t-h1: clamp(1.75rem, 1.35rem + 1.6vw, 2.5rem);
+  --t-title: 1.125rem;
+  --t-body: 1rem;
+  --t-small: 0.875rem;
+
+  /* One radius for cards, one for tiles and inputs, and pills. */
+  --r-card: 24px;
+  --r-tile: 14px;
+  --r-pill: 999px;
+
+  /* The outline and the hard shadow under a card or a button. */
+  --stroke: 2px solid var(--ink);
+  --lift: 0 4px 0 var(--ink);
+
+  /* How wide a thumbnail is. src/thumbnails.js has the same 120. */
+  --thumbnail: 120px;
+  /* How wide a swatch is in the column next to the preview. */
+  --swatch: 34px;
+  /* The room between swatches, and the ring around the picked one. */
+  --swatch-gap: 8px;
+  --ring: 3px;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
   color-scheme: light;
 }
 
@@ -21,139 +52,831 @@
 
 body {
   margin: 0;
-  font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: var(--t-body);
+  line-height: 1.5;
   color: var(--ink);
   background: var(--paper);
+  -webkit-font-smoothing: antialiased;
 }
 
-/*
- * Wide enough for both columns at their widest: 24 px of padding, 432 px,
- * the 32 px gap, 320 px and 24 px of padding.
- */
-main {
-  max-width: 832px;
-  margin: 0 auto;
-  padding: 40px 24px 64px;
-}
-
-h1 {
-  font-size: 28px;
-  line-height: 1.2;
+h1,
+h2,
+p {
   margin: 0;
 }
 
-h2 {
-  font-size: 16px;
-  margin: 0 0 8px;
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
 }
 
-.muted {
-  color: var(--muted);
-  margin: 4px 0 0;
+.visually-hidden,
+.tile-name {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ---- Top bar --------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 20px 32px;
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-title);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* A small yellow face in the art's line, as the mark. */
+.mark {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border: var(--stroke);
+  border-radius: 10px;
+  background: var(--accent);
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.mark::before,
+.mark::after {
+  content: '';
+  position: absolute;
+  top: 9px;
+  width: 4px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--ink);
+}
+
+.mark::before {
+  left: 7px;
+}
+
+.mark::after {
+  right: 7px;
 }
 
 .style-picker {
-  margin-top: 16px;
-  max-width: 344px;
-}
-
-#notice:empty {
-  display: none;
-}
-
-#status {
-  min-height: 24px;
-  margin: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-small);
+  font-weight: 700;
   color: var(--muted);
 }
 
-#status.error {
-  color: #a4262c;
+.style-picker select {
+  appearance: none;
+  min-height: 40px;
+  padding: 0 40px 0 16px;
+  border: var(--stroke);
+  border-radius: var(--r-pill);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23232e41' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")
+      right 14px center / 16px no-repeat,
+    var(--card);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.style-picker select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ---- Page ------------------------------------------------------------ */
+
+main {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 8px 32px 64px;
+}
+
+.intro {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 28px;
+}
+
+h1 {
+  font-size: var(--t-h1);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.lede {
+  max-width: 36em;
+  color: var(--muted);
+  font-size: var(--t-title);
+  text-wrap: pretty;
+}
+
+.notice {
+  color: var(--muted);
+  font-size: var(--t-small);
+}
+
+.notice:empty {
+  display: none;
 }
 
 /*
- * The left column holds the big preview, the 16 px gap and the round preview
- * side by side when it is 432 px wide (320 + 16 + 96). The right column holds
- * the thumbnail grids and is 320 px wide at most.
+ * Two columns on a wide page: the preview with its swatches and buttons,
+ * then the trait panel. One column under 900 px.
  */
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 432px) minmax(0, 320px);
-  gap: 32px;
+  grid-template-columns: minmax(0, 600px) minmax(0, 1fr);
+  gap: 40px;
   align-items: start;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 899px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
   }
 }
 
 /*
- * On a wide screen the preview column, with Randomize, Size and Download,
- * stays on screen while the trait groups scroll. In a window too short for
- * the whole column, the column scrolls on its own, so Download stays in
- * reach. The 4 px of padding, taken back by the margin, keeps a focus
- * outline (2 px, 2 px out) inside the scrolling box. Below 900 px the page
- * scrolls as one.
+ * On a wide page the preview column stays on screen while the trait panel
+ * scrolls. Below 900 px the page scrolls as one.
  */
 @media (min-width: 900px) {
-  .preview-column {
+  .stage-column {
     position: sticky;
-    top: 16px;
-    max-height: calc(100vh - 32px);
-    overflow-y: auto;
-    padding: 4px;
-    margin: -4px;
+    top: 24px;
   }
 }
 
-#controls {
+.stage-column {
   display: grid;
-  gap: 16px;
+  gap: 20px;
+  min-width: 0;
 }
 
-label {
+/* ---- Preview and swatches -------------------------------------------- */
+
+/*
+ * The swatch column on the left of the preview. The column takes no height
+ * of its own (contain: size), so the preview sets the row's height and a
+ * style with more colours than fit scrolls inside the column.
+ */
+.stage-row {
   display: grid;
+  grid-template-columns: calc(var(--swatch) + 12px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: stretch;
+}
+
+.stage-row:has(.swatches[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.swatches {
+  contain: size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--swatch-gap);
+  padding: calc(var(--ring) + 2px) 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.swatches[hidden] {
+  display: none;
+}
+
+.swatch-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--swatch-gap);
+}
+
+label.swatch {
+  position: relative;
+  display: block;
+  flex: none;
+  width: var(--swatch);
+  height: var(--swatch);
+  border: var(--stroke);
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.18s var(--ease-out);
+}
+
+label.swatch:hover {
+  transform: scale(1.08);
+}
+
+label.swatch .thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The picked swatch gets a ring in the page's colour and one in ink, so it doesn't show by colour alone. */
+label.swatch:has(input:checked) {
+  box-shadow:
+    0 0 0 var(--ring) var(--paper),
+    0 0 0 calc(var(--ring) + 2px) var(--ink);
+}
+
+label.swatch:has(input:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 6px;
+}
+
+.stage-card {
+  position: relative;
+  padding: 10px;
+  border: var(--stroke);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: 0 6px 0 var(--ink);
+}
+
+.stage {
+  position: relative;
+  border-radius: var(--r-tile);
+  overflow: hidden;
+  line-height: 0;
+  transition: border-radius 0.38s var(--ease-out);
+}
+
+#preview {
+  display: block;
+  width: 100%;
+  /* No fixed aspect ratio: the canvas takes its shape from the manifest's canvas size. */
+  height: auto;
+  transition: clip-path 0.38s var(--ease-out);
+  clip-path: inset(0 round var(--r-tile));
+}
+
+/* Small fixture images are scaled up, so keep their pixels sharp. */
+#preview.pixel-art,
+.thumb.pixel-art {
+  image-rendering: pixelated;
+}
+
+/*
+ * The Circle switch shows the picture the way GitHub shows it: the circle
+ * in the middle square. closest-side is half the shorter side, the circle
+ * src/round-preview.js describes.
+ */
+.stage-card.round #preview {
+  clip-path: circle(closest-side at 50% 50%);
+}
+
+.circle-switch {
+  position: absolute;
+  z-index: 1;
+  top: 22px;
+  right: 22px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px 0 8px;
+  border: var(--stroke);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  font-size: var(--t-small);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* A small switch drawn on the checkbox itself, so it keeps focus and its name. */
+.circle-switch input {
+  appearance: none;
+  position: relative;
+  width: 30px;
+  height: 18px;
+  margin: 0;
+  border: var(--stroke);
+  border-radius: var(--r-pill);
+  background: var(--paper);
+  cursor: pointer;
+  transition: background-color 0.18s var(--ease-out);
+}
+
+.circle-switch input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink);
+  transition: transform 0.18s var(--ease-out);
+}
+
+.circle-switch input:checked {
+  background: var(--accent);
+}
+
+.circle-switch input:checked::after {
+  transform: translateX(12px);
+}
+
+/* The picture settles into place after it changes: a short soft scale. */
+.stage-card.settle .stage {
+  animation: settle 0.42s var(--ease-out);
+}
+
+@keyframes settle {
+  0% {
+    transform: scale(0.965);
+  }
+  60% {
+    transform: scale(1.008);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+/* Randomize sends a few four-point stars out from the edges of the preview card. */
+.sparkles {
+  position: absolute;
+  z-index: 2;
+  inset: -16px;
+  pointer-events: none;
+}
+
+.sparkles span {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  opacity: 0;
+  background: var(--ink);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+}
+
+/* A yellow star inside an ink one, so each star has the art's outline. */
+.sparkles span::after {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  background: var(--accent);
+  clip-path: inherit;
+}
+
+.sparkles span:nth-child(1) {
+  top: 0;
+  left: 6%;
+}
+
+.sparkles span:nth-child(2) {
+  top: 10%;
+  right: 0;
+  width: 30px;
+  height: 30px;
+}
+
+.sparkles span:nth-child(3) {
+  top: 52%;
+  right: -4px;
+  width: 24px;
+  height: 24px;
+}
+
+.sparkles span:nth-child(4) {
+  bottom: 0;
+  right: 18%;
+  width: 34px;
+  height: 34px;
+}
+
+.sparkles span:nth-child(5) {
+  bottom: 14%;
+  left: -4px;
+  width: 30px;
+  height: 30px;
+}
+
+.sparkles span:nth-child(6) {
+  top: 34%;
+  left: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.sparkles.go span {
+  animation: sparkle 0.7s var(--ease-out) both;
+}
+
+.sparkles.go span:nth-child(2n) {
+  animation-delay: 0.06s;
+}
+
+.sparkles.go span:nth-child(3n) {
+  animation-delay: 0.12s;
+}
+
+@keyframes sparkle {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(-30deg);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1.15) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.4) rotate(25deg);
+  }
+}
+
+/* ---- Buttons --------------------------------------------------------- */
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.stage-row:has(.swatches:not([hidden])) ~ .actions,
+.stage-row:has(.swatches:not([hidden])) ~ .size-picker,
+.stage-row:has(.swatches:not([hidden])) ~ .status {
+  margin-left: calc(var(--swatch) + 28px);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 20px;
+  border: var(--stroke);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  box-shadow: var(--lift);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 0.18s var(--ease-out),
+    box-shadow 0.18s var(--ease-out),
+    background-color 0.18s var(--ease-out);
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 0 var(--ink);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+.button.primary {
+  background: var(--accent);
+}
+
+.button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.button.quiet {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+}
+
+.button.quiet:hover:not(:disabled) {
+  border-color: var(--ink);
+  box-shadow: none;
+  transform: none;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+/* The size picker: a small row of pills under the buttons. */
+.size-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.size-picker[hidden] {
+  display: none;
+}
+
+.size-picker legend {
+  float: left;
+  margin-right: 4px;
+  padding: 0;
+  color: var(--muted);
+  font-size: var(--t-small);
+  font-weight: 700;
+}
+
+.size-picker label {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 2px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  font-size: var(--t-small);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.size-picker input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.size-picker label:has(input:checked) {
+  border-color: var(--ink);
+}
+
+.size-picker label:has(input:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.size-picker:disabled {
+  opacity: 0.45;
+}
+
+.status {
+  min-height: 1.5em;
+  color: var(--muted);
+  font-size: var(--t-small);
+}
+
+.status:empty {
+  display: none;
+}
+
+.status.error {
+  color: var(--error);
+}
+
+/* ---- Trait panel ----------------------------------------------------- */
+
+.panel {
+  min-width: 0;
+  border: var(--stroke);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: 0 6px 0 var(--ink);
+  overflow: hidden;
+}
+
+/* The tabs scroll sideways when they don't fit, so they never wrap into two rows. */
+.tabs {
+  display: flex;
   gap: 4px;
-  font-weight: 600;
+  /* 10 px in from a 24 px card, so the tabs' 14 px corners are concentric with it. */
+  padding: 10px 10px 0;
+  border-bottom: 2px solid var(--line);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs[hidden] {
+  display: none;
+}
+
+.tab {
+  flex: none;
+  position: relative;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--r-tile) var(--r-tile) 0 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.18s var(--ease-out);
+}
+
+.tab:hover {
+  color: var(--ink);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--ink);
+}
+
+/* The open tab sits on a yellow bar with the art's outline. */
+.tab[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -2px;
+  height: 6px;
+  border: var(--stroke);
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+
+.tab:focus-visible {
+  outline-offset: -3px;
 }
 
 .trait {
   display: grid;
-  gap: 8px;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px;
+}
+
+.trait[hidden] {
+  display: none;
+}
+
+/* The group's name and its pick on the left, its Lock on the right. */
+.trait-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
-/* The group's name and its Lock on one line, above the group's thumbnails. */
-.trait-heading {
-  display: grid;
-  /* The name takes what is left. The lock column never sizes to its text. */
-  grid-template-columns: minmax(0, 1fr) var(--lock-column);
+.trait-heading h2 {
+  font-size: var(--t-title);
+  font-weight: 800;
+}
+
+.pick {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+label.lock {
+  position: relative;
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px 0 10px;
+  border: 2px solid var(--line);
+  border-radius: var(--r-pill);
+  background: var(--card);
+  font-size: var(--t-small);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.18s var(--ease-out),
+    background-color 0.18s var(--ease-out);
+}
+
+/*
+ * The checkbox is hidden on screen and covers the label, so a click
+ * anywhere on it toggles the lock and the checkbox keeps focus and its name.
+ */
+label.lock input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+label.lock:hover {
+  border-color: var(--ink);
+}
+
+label.lock:has(input:checked) {
+  border-color: var(--ink);
+  background: var(--accent);
+}
+
+/* The shackle opens while the lock is off. */
+.padlock .shackle {
+  transition: transform 0.18s var(--ease-out);
+  transform-origin: 15.5px 10.5px;
+  transform: translateY(-1.5px) rotate(28deg);
+}
+
+label.lock:has(input:checked) .padlock .shackle {
+  transform: none;
+}
+
+label.lock:has(input:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* In the swatch column the Lock is a round button with the padlock only. */
+label.lock.compact {
+  justify-content: center;
+  width: var(--swatch);
+  min-height: var(--swatch);
+  padding: 0;
+  flex: none;
+}
+
+label.lock.compact .lock-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The tiles fill the panel's width, as many to a row as fit at about 96 px. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--thumbnail), 100%), 1fr));
   gap: 12px;
 }
 
-.trait-heading h2 {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-/* The tiles wrap to the next line when the column is full. */
-.tiles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-label.tile {
-  display: block;
+label.tile:not(.swatch) {
   position: relative;
-  padding: 2px;
+  display: block;
+  min-width: 0;
   border: 2px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--r-tile);
+  overflow: hidden;
   line-height: 0;
   cursor: pointer;
+  transition:
+    border-color 0.18s var(--ease-out),
+    transform 0.18s var(--ease-out);
+}
+
+label.tile:not(.swatch):hover {
+  border-color: var(--ink);
+  transform: translateY(-2px);
+}
+
+label.tile:not(.swatch) .thumb {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
 }
 
 /*
@@ -171,188 +894,138 @@ label.tile input {
   pointer-events: none;
 }
 
-.thumb {
-  display: block;
-  width: var(--thumbnail);
-  height: var(--thumbnail);
-  border-radius: 4px;
-}
-
-.thumb.pixel-art {
-  image-rendering: pixelated;
-}
-
 /*
- * The picked tile has a thick dark frame and a check mark, so it doesn't
- * show by colour alone.
+ * The picked tile has an ink frame, a hard shadow and a yellow check, so
+ * it doesn't show by colour alone. It pops once when it is picked.
  */
-label.tile:has(input:checked) {
+label.tile:not(.swatch):has(input:checked) {
   border-color: var(--ink);
-  box-shadow: 0 0 0 2px var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+  animation: pop 0.32s var(--ease-out);
 }
 
-label.tile:has(input:checked)::after {
+label.tile:not(.swatch):has(input:checked)::after {
   content: '✓';
   position: absolute;
-  /* Inside the tile, so a tile at the end of a line never reaches past the column. */
-  top: 2px;
-  right: 2px;
-  width: 20px;
-  height: 20px;
-  border: 2px solid var(--paper);
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border: var(--stroke);
   border-radius: 50%;
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--accent);
+  color: var(--ink);
   font-size: 12px;
-  font-weight: 700;
-  line-height: 16px;
+  font-weight: 800;
+  line-height: 18px;
   text-align: center;
 }
 
-label.tile:has(input:focus-visible) {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
+label.tile:not(.swatch):has(input:focus-visible) {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
 }
 
-/* The option's label, for screen readers. The tile's title shows it on hover. */
-.tile-name {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+@keyframes pop {
+  0% {
+    transform: scale(0.92);
+  }
+  60% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: none;
+  }
 }
 
-label.lock {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  font-weight: 400;
-  white-space: nowrap;
+/* ---- Phone ----------------------------------------------------------- */
+
+@media (max-width: 560px) {
+  /* Ten swatches and the Lock fit beside a preview 314 px tall. */
+  :root {
+    --swatch: 24px;
+    --swatch-gap: 4px;
+    --ring: 2px;
+  }
+
+  .topbar {
+    padding: 14px 16px;
+  }
+
+  main {
+    padding: 4px 16px 48px;
+  }
+
+  .intro {
+    margin-bottom: 20px;
+  }
+
+  .lede {
+    font-size: var(--t-body);
+  }
+
+  .stage-row {
+    gap: 8px;
+  }
+
+  .circle-switch {
+    top: 18px;
+    right: 18px;
+  }
+
+  /* The stars stay inside the page's 16 px margin, so the page never scrolls sideways. */
+  .sparkles {
+    inset: -10px;
+  }
+
+  .stage-row:has(.swatches:not([hidden])) ~ .actions,
+  .stage-row:has(.swatches:not([hidden])) ~ .size-picker,
+  .stage-row:has(.swatches:not([hidden])) ~ .status {
+    margin-left: 0;
+  }
+
+  /* Randomize takes the first line. Download and Reset share the second. */
+  .actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  #randomize {
+    grid-column: 1 / -1;
+  }
+
+  .trait {
+    padding: 16px;
+  }
+
+  /* The five tabs fit the panel at 390 px. More of them scroll sideways. */
+  .tabs {
+    gap: 0;
+    padding: 10px 10px 0;
+  }
+
+  .tab {
+    padding: 0 7px;
+    font-size: var(--t-small);
+  }
+
+  .tab[aria-selected='true']::after {
+    left: 6px;
+    right: 6px;
+  }
+
+  .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
 }
 
-select,
-button {
-  font: inherit;
-  color: inherit;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--paper);
-  padding: 8px 12px;
-  min-height: 40px;
-}
-
-select {
-  font-weight: 400;
-}
-
-button {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
-}
-
-button:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
-select:focus-visible,
-input:focus-visible,
-button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/*
- * The two previews side by side when the column has room for both. When it
- * doesn't, the round one wraps to the line under the big one, on the left.
- */
-.previews {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-#preview {
-  display: block;
-  flex: none;
-  /* 320 px wide, or the width of the column when the column is narrower. */
-  width: 320px;
-  max-width: 100%;
-  /* No fixed aspect ratio: the canvas takes its shape from the manifest's canvas size. */
-  height: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-/* Small fixture images are scaled up, so keep their pixels sharp. */
-#preview.pixel-art {
-  image-rendering: pixelated;
-}
-
-/*
- * The picture the way GitHub shows it: small and in a circle. Its canvas
- * holds the middle square of the picture, 192 px a side at most, so one
- * width and one height fit each style. src/round-preview.js has the same
- * 96. The ring is a shadow, so it takes nothing from the 96 px.
- */
-#round-preview {
-  display: block;
-  flex: none;
-  width: 96px;
-  height: 96px;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px var(--line);
-}
-
-/*
- * One column, so each control under the preview has a line of its own at
- * each window width: Randomize, then the Size picker, then Download. They
- * are as wide as the big preview at most, so they line up with it.
- */
-.actions {
-  display: grid;
-  max-width: 320px;
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: start;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-/* The Size picker takes the whole line between Randomize and Download. */
-label.size-picker {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-self: stretch;
-}
-
-/* In a narrow column the picker shrinks and stays on its line. */
-label.size-picker select {
-  min-width: 0;
-}
-
-select:disabled {
-  opacity: 0.5;
-}
-
-section[aria-labelledby='selection-heading'] {
-  margin-top: 24px;
-}
-
-#selection {
-  margin: 0;
-  padding-left: 20px;
-  color: var(--muted);
-  font-size: 14px;
-  overflow-wrap: anywhere;
+/* With reduced motion on, nothing moves: no settle, no sparkle, no pop. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
