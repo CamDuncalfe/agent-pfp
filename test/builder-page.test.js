@@ -160,15 +160,20 @@ test('the logo is the wordmark, with no image, and the name is written in src/br
   assert.match(html, /<header class="topbar">\s*<p id="wordmark" class="wordmark"><\/p>\s*<\/header>/);
   assert.doesNotMatch(html, /<img/);
   const { NAME, pageTitle } = await import('../src/brand.js');
-  assert.equal(NAME, 'Agent PFP');
-  assert.equal(pageTitle(NAME), 'Agent PFP builder');
+  assert.equal(typeof NAME, 'string');
+  assert.ok(NAME.trim().length > 0, 'a name');
+  assert.ok(pageTitle(NAME).includes(NAME), 'the title holds the name');
   // The page writes the name into the wordmark and the title from src/brand.js, and no page file holds it.
   const js = await read('builder.js');
   assert.match(js, /document\.querySelector\('#wordmark'\)\.textContent = NAME;\n\s*document\.title = pageTitle\(NAME\);/);
   assert.match(js, /async function start\(\) \{\n\s*showName\(\);/);
   for (const file of ['index.html', 'builder.js', 'builder.css', 'thumbnail-worker.js', 'layers.js']) {
-    assert.doesNotMatch(await read(file), new RegExp(NAME), file);
+    assert.ok(!(await read(file)).includes(NAME), file);
   }
+  // The site build takes it from src/brand.js too, so a new name needs no other edit.
+  const build = await readFile(new URL('../bin/build-site.js', import.meta.url), 'utf8');
+  assert.ok(!build.includes(NAME), 'bin/build-site.js holds no name of its own');
+  assert.match(build, /import \{ NAME, pageTitle \} from '\.\.\/src\/brand\.js';/);
 });
 
 test('the Character tab is the first tab, with one tile per style in the index, as a radio group', async () => {

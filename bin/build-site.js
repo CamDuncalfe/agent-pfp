@@ -16,6 +16,7 @@ import { copyFile, cp, lstat, mkdir, readFile, realpath, rm, stat, writeFile } f
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { NAME, pageTitle } from '../src/brand.js';
 import { resolveLayerUrl, validateManifest } from '../src/manifest.js';
 import { resolveManifestUrl, styleMismatch, validateStyleIndex } from '../src/styles.js';
 
@@ -26,17 +27,23 @@ export const CODE_DIRS = Object.freeze(['web', 'src']);
 /** Files the build writes itself. No style file may take their place. */
 export const GENERATED_FILES = Object.freeze(['index.html']);
 
-/** The page at the site's address. Relative links, so it works from a sub-path. */
+/** Text safe to put in HTML. */
+const escapeHtml = (text) => text.replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[char]);
+
+/**
+ * The page at the site's address. Relative links, so it works from a
+ * sub-path. Its title and link take the name from src/brand.js.
+ */
 export const REDIRECT_PAGE = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="refresh" content="0; url=web/" />
-    <title>Agent PFP builder</title>
+    <title>${escapeHtml(pageTitle(NAME))}</title>
   </head>
   <body>
-    <p><a href="web/">Open the Agent PFP builder</a></p>
+    <p><a href="web/">Open the ${escapeHtml(pageTitle(NAME))}</a></p>
   </body>
 </html>
 `;

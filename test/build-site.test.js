@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { REDIRECT_PAGE, buildSite } from '../bin/build-site.js';
+import { NAME, pageTitle } from '../src/brand.js';
 import { resolveLayerUrl } from '../src/manifest.js';
 import { resolveManifestUrl } from '../src/styles.js';
 
@@ -418,4 +419,9 @@ test('the build says what is wrong and exits 1 when the index, a manifest or a f
       }
     });
   }
+});
+
+test('the entry page takes its title and link text from the name in src/brand.js', () => {
+  assert.ok(REDIRECT_PAGE.includes(`<title>${pageTitle(NAME)}</title>`));
+  assert.ok(REDIRECT_PAGE.includes(`<a href="web/">Open the ${pageTitle(NAME)}</a>`));
 });
