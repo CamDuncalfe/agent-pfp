@@ -17,6 +17,11 @@
  * never dropped. The style on screen reuses the layers its thumbnails
  * loaded; another style gets a loader of its own that goes when its picture
  * is done.
+ *
+ * Trait thumbnails come first. Character pictures wait in a queue of their
+ * own and run in a loop of their own, so a trait request never waits behind
+ * one. A character picture loads its layers alongside the thumbnails, and
+ * waits to composite until no thumbnail request is running or waiting.
  */
 import { drawThumbnail, layerBounds, thumbnailSources, traitTiles } from '../src/thumbnails.js';
 import { baseLayers, basePicture } from '../src/builder-layout.js';
@@ -24,9 +29,12 @@ import { THUMBNAIL_LAYER_BYTES } from '../src/layer-cache.js';
 import { createLayerLoader } from './layers.js';
 
 let latest = 0;
-/** @type {object[]} */
+/** The trait thumbnail requests. @type {object[]} */
 const queue = [];
 let running = false;
+/** The character picture requests, behind every trait request. @type {object[]} */
+const baseQueue = [];
+let basesRunning = false;
 
 /** The layers and their bounds of the style the last request was for. */
 let style = null;
@@ -74,23 +82,30 @@ async function drawBase(request) {
       : createLayerLoader(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES);
   const sources = baseLayers(manifest).map(({ option }) => option.src);
   const loaded = new Map(await Promise.all(sources.map(async (src) => [src, await layers.get(src)])));
+  // Trait thumbnails go first: composite only while none is running or waiting.
+  while (running || queue.length > 0) await nextTask();
   return basePicture(manifest, (src) => loaded.get(src));
+}
+
+async function runBases() {
+  basesRunning = true;
+  while (baseQueue.length > 0) {
+    const request = baseQueue.shift();
+    try {
+      const { width, height, data } = await drawBase(request);
+      self.postMessage({ type: 'base', id: request.id, width, height, data }, [data.buffer]);
+    } catch (error) {
+      self.postMessage({ type: 'base-error', id: request.id, message: error instanceof Error ? error.message : String(error) });
+    }
+    await nextTask();
+  }
+  basesRunning = false;
 }
 
 async function run() {
   running = true;
   while (queue.length > 0) {
     const request = queue.shift();
-    if (request.kind === 'base') {
-      try {
-        const { width, height, data } = await drawBase(request);
-        self.postMessage({ type: 'base', id: request.id, width, height, data }, [data.buffer]);
-      } catch (error) {
-        self.postMessage({ type: 'base-error', id: request.id, message: error instanceof Error ? error.message : String(error) });
-      }
-      await nextTask();
-      continue;
-    }
     if (request.ticket < latest) continue;
     try {
       const tiles = await drawGroup(request);
@@ -107,7 +122,12 @@ async function run() {
 
 self.addEventListener('message', (event) => {
   const request = event.data;
-  if (request.kind !== 'base') latest = Math.max(latest, request.ticket);
+  if (request.kind === 'base') {
+    baseQueue.push(request);
+    if (!basesRunning) runBases();
+    return;
+  }
+  latest = Math.max(latest, request.ticket);
   queue.push(request);
   if (!running) run();
 });

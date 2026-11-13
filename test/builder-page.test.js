@@ -132,7 +132,7 @@ test('compositeLayers draws the picture once and nothing else stacks layers', as
   }
 });
 
-test('the typeface is Hoss Round from one Adobe Fonts kit, and the page loads nothing else from another origin', async () => {
+test('the type comes from one Adobe Fonts kit, and the page loads nothing else from another origin', async () => {
   const html = await read('index.html');
   // The one link to another origin is the kit's stylesheet, before the page's own.
   const external = [...html.matchAll(/(?:href|src)="(https?:[^"]+)"/g)].map((match) => match[1]);
@@ -142,19 +142,22 @@ test('the typeface is Hoss Round from one Adobe Fonts kit, and the page loads no
   const css = plain(await read('builder.css'));
   assert.doesNotMatch(css, /@font-face|@import/);
   for (const [, url] of css.matchAll(/url\(\s*["']?([^"')]+)/g)) assert.match(url, /^data:/);
-  // Hoss Round first, then the system face while the kit loads or when it can't. No free font in the stack.
-  assert.match(css, /font-family: 'hoss-round', system-ui, -apple-system, 'Segoe UI', sans-serif;/);
-  // The kit holds 400 and 700, so the page uses those two weights only.
-  const weights = new Set([...css.matchAll(/font-weight:\s*(\d+)/g)].map((match) => match[1]));
+  // Sofia Pro Soft for the page, then the system face while the kit loads or when it can't. No free font in the stack.
+  assert.match(css, /body \{[^}]*font-family: 'sofia-pro-soft', system-ui, -apple-system, 'Segoe UI', sans-serif;/);
+  // Ohno Softie is the wordmark's face and nothing else's.
+  assert.equal(css.match(/ohno-softie/g).length, 1);
+  const wordmark = Object.fromEntries(declarations(css, '.wordmark'));
+  assert.equal(wordmark['font-family'], "'ohno-softie-variable', system-ui, -apple-system, 'Segoe UI', sans-serif");
+  assert.equal(wordmark['font-weight'], '900');
+  // The kit holds Sofia Pro Soft in 400 and 700, so the rest of the page uses those two weights only.
+  const weights = new Set([...css.replace(/\.wordmark \{[^}]*\}/, '').matchAll(/font-weight:\s*(\d+)/g)].map((match) => match[1]));
   assert.deepEqual([...weights].sort(), ['400', '700']);
 });
 
-test('the logo is the alien head cut from its layers, next to the wordmark', async () => {
+test('the logo is the wordmark, with no image', async () => {
   const html = await read('index.html');
-  assert.match(html, /<p class="wordmark"><img class="mark" src="mark.png" width="36" height="36" alt="" \/>Agent PFP<\/p>/);
-  // The image is a file of the page, next to it, so the site build copies it.
-  const png = await readFile(new URL('../web/mark.png', import.meta.url));
-  assert.deepEqual([...png.subarray(1, 4)], [0x50, 0x4e, 0x47], 'web/mark.png is a PNG');
+  assert.match(html, /<header class="topbar">\s*<p class="wordmark">Agent PFP<\/p>\s*<\/header>/);
+  assert.doesNotMatch(html, /<img/);
 });
 
 test('the character row has one tile per style in the index, as a radio group, and replaces the Style dropdown', async () => {
@@ -182,8 +185,13 @@ test('the character row has one tile per style in the index, as a radio group, a
   assert.match(worker, /return basePicture\(manifest, \(src\) => loaded\.get\(src\)\);/);
   // The style on screen reuses the layers its thumbnails loaded.
   assert.match(worker, /style && style\.manifestUrl === manifestUrl\s*\? style\.layers\s*: createLayerLoader\(manifest, manifestUrl, THUMBNAIL_LAYER_BYTES\)/);
-  // A tile request has no ticket, so it neither drops nor is dropped by a thumbnail request.
-  assert.match(worker, /if \(request\.kind !== 'base'\) latest = Math\.max\(latest, request\.ticket\);/);
+  // A tile request has no ticket and a queue of its own, so it neither drops nor is dropped by a thumbnail request.
+  assert.match(worker, /if \(request\.kind === 'base'\) \{\n\s*baseQueue\.push\(request\);\n\s*if \(!basesRunning\) runBases\(\);\n\s*return;\n\s*\}\n\s*latest = Math\.max\(latest, request\.ticket\);/);
+  // Trait thumbnails go first: the thumbnail loop never draws a character picture, and a character picture
+  // composites only while no thumbnail request is running or waiting.
+  const run = /async function run\(\) \{([\s\S]*?)\n\}/.exec(worker)[1];
+  assert.doesNotMatch(run, /drawBase|base/);
+  assert.match(worker, /while \(running \|\| queue\.length > 0\) await nextTask\(\);\n\s*return basePicture\(/);
   // The tile picture is hidden from screen readers, and the style's name is the radio button's name.
   assert.match(js, /thumb\.className = 'base-thumb';[\s\S]{0,120}thumb\.setAttribute\('aria-hidden', 'true'\);/);
   const css = await read('builder.css');

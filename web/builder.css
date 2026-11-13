@@ -1,9 +1,10 @@
 /*
  * The builder page. Light and cartoon-like: warm paper behind, white cards
  * with a dark outline and a hard shadow like the line in the art, and one
- * yellow accent. The type is Hoss Round from Adobe Fonts, loaded by the kit
- * in web/index.html, in two weights: 400 and 700. The system face stands in
- * until the kit loads, or when it can't.
+ * yellow accent. The type comes from the Adobe Fonts kit in web/index.html:
+ * Sofia Pro Soft for the page, in 400 and 700, and Ohno Softie Black for the
+ * wordmark and nothing else. The system face stands in until the kit loads,
+ * or when it can't.
  */
 :root {
   --paper: #f7f3ea;
@@ -57,7 +58,7 @@
 
 body {
   margin: 0;
-  font-family: 'hoss-round', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'sofia-pro-soft', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: var(--t-body);
   line-height: 1.5;
   color: var(--ink);
@@ -118,26 +119,11 @@ input {
 }
 
 .wordmark {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 1.375rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-/*
- * The mark: the alien's head, cut from its own layers (web/mark.png), in a
- * yellow circle with the art's line around it.
- */
-.mark {
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border: var(--stroke);
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 2px 0 var(--ink);
+  /* The logo's own face, used for the wordmark only. Its kit file is variable, 300 to 900. */
+  font-family: 'ohno-softie-variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 1.875rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
 /* ---- Page ------------------------------------------------------------ */
@@ -1111,6 +1097,10 @@ label.tile:not(.swatch):has(input:focus-visible) {
 
   .topbar {
     padding: 14px 16px;
+  }
+
+  .wordmark {
+    font-size: 1.625rem;
   }
 
   main {
