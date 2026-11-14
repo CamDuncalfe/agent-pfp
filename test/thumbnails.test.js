@@ -231,7 +231,7 @@ test('the alien tiles zoom in on their layer: mouth, eyes, glasses and hats each
   const layers = {
     mouth: { x: 545, y: 617, width: 167, height: 97 },
     eyes: { x: 416, y: 427, width: 383, height: 119 },
-    wayfarers: { x: 246, y: 393, width: 553, height: 197 },
+    wayfarers: { x: 262, y: 384, width: 581, height: 206 },
     cap: { x: 204, y: 70, width: 676, height: 365 },
     crown: { x: 277, y: 105, width: 460, height: 226 },
   };
