@@ -38,6 +38,7 @@ npm ci
 npm test         # unit tests
 npm run check    # render check on each style in styles/index.json and fixtures/index.json
 npm start        # builder page at http://127.0.0.1:4173/web/
+npm run check:broken  # breaks the fixture styles on purpose and shows the render check catches each copy
 ```
 
 To build the builder as a static site for GitHub Pages, run `npm run build:site`. It empties `_site/` and writes the builder page, its code, `styles/index.json`, the manifests and layers that index lists and its coming-soon pictures there. `_site/index.html` takes you to the builder, and each link in the site is relative, so it works from a sub-path like `https://camduncalfe.github.io/agent-pfp/`. The build exits with 1 and says what is wrong when the index or a manifest isn't valid or a file it names is missing. [docs/styles.md](docs/styles.md#the-static-site) has the details. After each merge to `main`, the Pages workflow in [.github/workflows/pages.yml](.github/workflows/pages.yml) runs `npm test` and `npm run check`, and only when both pass does it build the site and deploy it to that address.

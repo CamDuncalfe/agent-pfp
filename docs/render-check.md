@@ -56,6 +56,33 @@ The summary line counts a combination as failed when it has a hole or uses a lay
 
 `checkManifest` in [`src/render-check.js`](../src/render-check.js) also takes `alphaThreshold` (a pixel counts as drawn from this alpha value up, default 16) and `overlapTolerance` (shared pixels allowed per pair, default 0).
 
+## Broken on purpose
+
+`npm run check:broken` shows that the check catches each way a layer can go wrong. [`fixtures/break-fixtures.js`](../fixtures/break-fixtures.js) makes broken copies of `fixtures/shapes` and `fixtures/blocks` in memory and writes no files. Each copy breaks one layer in one way, and each option layer gets each way that applies to its group:
+
+- **Clipped**: moved past each canvas edge its group doesn't list in `bleed`. Expected issue: `clip`.
+- **Off its anchor**: moved up, down, left and right until part of it sits 2 px outside its group's `zone`. Expected issue: `zone`.
+- **Into another trait's area**: grown until it shares pixels with a layer of a group the check compares it with. Expected issue: `overlap`.
+- **Hole**: a 3x3 px see-through patch cut in a layer of the bottom group, where no other group draws, when `canvas.opaque` is `true`. Expected issue: `hole`.
+- **Wrong canvas size**: saved 4 px bigger and 4 px smaller than the canvas. Expected issue: `size`.
+
+A copy counts as caught when the check fails it and reports the issue it was made to cause. Other issues on the same copy are fine. The command also checks both clean styles.
+
+```sh
+npm run check:broken
+```
+
+```
+Clipped (clip): 52 copies made, 52 caught
+Off its anchor (zone): 40 copies made, 40 caught
+Into another trait's area (overlap): 10 copies made, 10 caught
+Hole (hole): 4 copies made, 4 caught
+Wrong canvas size (size): 36 copies made, 36 caught
+Broken styles caught: 142 of 142. Clean styles passed: 2 of 2.
+```
+
+It exits with 0 when each copy is caught and both clean styles pass, 1 when a copy is missed or a clean style fails, and 2 when it could not run. A missed copy or a failed clean style gets its own line above the summary.
+
 ## Limits
 
 - The check compares pixel coverage. It does not judge how a combination looks.
