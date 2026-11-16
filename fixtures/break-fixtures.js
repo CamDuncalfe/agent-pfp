@@ -22,7 +22,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 import { createRaster } from '../src/composite.js';
-import { EDGES } from '../src/manifest.js';
+import { EDGES, validateManifest } from '../src/manifest.js';
 import { checkManifest, DEFAULT_OPTIONS } from '../src/render-check.js';
 import { readPng } from '../src/png.js';
 
@@ -48,7 +48,10 @@ const SIZE_OFF = 4;
 
 /**
  * @typedef {import('../src/composite.js').Raster} Raster
- * @typedef {{ manifest: any, layers: Map<string, Raster> }} Style
+ * @typedef {{ manifest: any, layers: Map<string, Raster>, id?: string, errors?: Map<string, unknown> }} Style
+ *
+ * `errors` holds the layers that could not be read, by `src`. `id` names the
+ * style when its manifest could not be read.
  * @typedef {{
  *   style: string,
  *   way: string,
@@ -336,19 +339,33 @@ export function applyBreak(style, plan, pixels = plan.pixels) {
  * @param {string} manifestPath
  * @returns {Promise<Style>}
  */
-export async function loadStyle(manifestPath) {
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+export async function loadStyle(manifestPath, id = manifestPath) {
   const layers = new Map();
+  const errors = new Map();
+  let manifest;
+  try {
+    manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  } catch (error) {
+    // The render check reports a manifest it cannot read as a `manifest` issue.
+    return { id, manifest: null, layers, errors };
+  }
+  if (!validateManifest(manifest).ok) return { id, manifest, layers, errors };
   for (const group of manifest.groups) {
     for (const option of group.options) {
-      layers.set(option.src, await readPng(join(dirname(manifestPath), option.src)));
+      try {
+        layers.set(option.src, await readPng(join(dirname(manifestPath), option.src)));
+      } catch (error) {
+        // Kept for the render check, which reports it as a `missing` issue.
+        errors.set(option.src, error);
+      }
     }
   }
-  return { manifest, layers };
+  return { id, manifest, layers, errors };
 }
 
-function loader(layers) {
+function loader(layers, errors = new Map()) {
   return (src) => {
+    if (errors.has(src)) throw errors.get(src);
     const raster = layers.get(src);
     if (!raster) throw new Error(`no layer ${src}`);
     return raster;
@@ -368,10 +385,12 @@ export function isCaught(plan, report) {
 
 /**
  * Run the render check on each clean style and on every broken copy of it.
+ * A clean style that fails gets no broken copies: its layers are not a clean
+ * start, and a missing or blank layer has nothing to break.
  *
  * @param {Style[]} styles
  * @returns {Promise<{
- *   clean: { style: string, ok: boolean }[],
+ *   clean: { style: string, ok: boolean, reason?: string }[],
  *   copies: (Break & { caught: boolean, kinds: string[] })[],
  *   ok: boolean,
  * }>}
@@ -380,8 +399,13 @@ export async function checkBrokenCopies(styles) {
   const clean = [];
   const copies = [];
   for (const style of styles) {
-    const report = await checkManifest(style.manifest, loader(style.layers));
-    clean.push({ style: style.manifest.style, ok: report.ok });
+    const report = await checkManifest(style.manifest, loader(style.layers, style.errors));
+    const name = report.style ?? style.id ?? '(unnamed style)';
+    if (!report.ok) {
+      clean.push({ style: name, ok: false, reason: report.issues[0]?.message });
+      continue;
+    }
+    clean.push({ style: name, ok: true });
     for (const plan of planBreaks(style)) {
       const copy = await checkManifest(style.manifest, loader(applyBreak(style, plan)));
       const kinds = [...new Set(copy.issues.map((issue) => issue.kind))];
@@ -409,7 +433,7 @@ export function formatBrokenResult(result) {
     lines.push(`  missed: ${copy.style} ${copy.group}/${copy.option} ${copy.way} (${copy.detail}), the check reported ${found}`);
   }
   for (const entry of result.clean.filter((style) => !style.ok)) {
-    lines.push(`  clean style failed: ${entry.style}`);
+    lines.push(`  clean style failed: ${entry.style}${entry.reason ? ` (${entry.reason})` : ''}`);
   }
   const caught = result.copies.filter((copy) => copy.caught).length;
   const passed = result.clean.filter((entry) => entry.ok).length;

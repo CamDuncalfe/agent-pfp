@@ -81,7 +81,7 @@ Wrong canvas size (size): 36 copies made, 36 caught
 Broken styles caught: 142 of 142. Clean styles passed: 2 of 2.
 ```
 
-It exits with 0 when each copy is caught and both clean styles pass, 1 when a copy is missed or a clean style fails, and 2 when it could not run. A missed copy or a failed clean style gets its own line above the summary.
+It exits with 0 when each copy is caught and both clean styles pass, and with 1 when a copy is missed or a clean style fails. A clean style also fails when its manifest or a layer can't be read, and it gets no broken copies then. It exits with 2 when it could not run: it got an argument, or `fixtures/index.json` is missing or not valid. A missed copy or a failed clean style gets its own line above the summary.
 
 ## Limits
 

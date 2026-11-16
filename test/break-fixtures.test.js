@@ -1,9 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+
+import { createRaster } from '../src/composite.js';
+import { writePng } from '../src/png.js';
 
 import {
   WAYS,
@@ -148,9 +153,62 @@ test('a failing clean style fails the run', async () => {
   broken.set(grey, cutHole(layers.get(grey), 63, 0, 1));
   const result = await checkBrokenCopies([{ manifest, layers: broken }]);
   assert.equal(result.ok, false);
-  assert.deepEqual(result.clean, [{ style: 'fixture-shapes', ok: false }]);
+  assert.deepEqual(result.clean.map(({ style, ok }) => ({ style, ok })), [{ style: 'fixture-shapes', ok: false }]);
+  assert.match(result.clean[0].reason, /1 see-through px/);
   assert.match(formatBrokenResult(result), /clean style failed: fixture-shapes/);
   assert.match(formatBrokenResult(result), /Clean styles passed: 0 of 1\.$/);
+});
+
+test('a blank layer in a clean style fails the run with a summary instead of stopping it', async () => {
+  const layers = new Map(shapes.layers);
+  layers.set('layers/eyes/dots.png', createRaster(64, 64));
+  const result = await checkBrokenCopies([{ manifest: shapes.manifest, layers }, blocks]);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.clean.map(({ style, ok }) => ({ style, ok })), [
+    { style: 'fixture-shapes', ok: false },
+    { style: 'fixture-blocks', ok: true },
+  ]);
+  assert.match(result.clean[0].reason, /eyes\/dots has no drawn pixels/);
+  // The failed style gets no copies, and the other style is still broken and checked.
+  assert.ok(result.copies.length > 0);
+  assert.ok(result.copies.every((copy) => copy.style === 'fixture-blocks' && copy.caught));
+  assert.match(formatBrokenResult(result), /Clean styles passed: 1 of 2\.$/);
+});
+
+test('a missing or corrupt layer and an unreadable manifest fail their clean style', async (t) => {
+  const folder = await mkdtemp(join(tmpdir(), 'check-broken-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const copyStyle = async (name) => {
+    await mkdir(join(folder, name), { recursive: true });
+    await writeFile(join(folder, name, 'manifest.json'), JSON.stringify(shapes.manifest));
+    for (const [src, raster] of shapes.layers) {
+      await mkdir(dirname(join(folder, name, src)), { recursive: true });
+      await writePng(join(folder, name, src), raster);
+    }
+    return join(folder, name, 'manifest.json');
+  };
+  const missingPath = await copyStyle('missing');
+  await rm(join(folder, 'missing', 'layers/mouth/line.png'));
+  const corruptPath = await copyStyle('corrupt');
+  await writeFile(join(folder, 'corrupt', 'layers/headwear/cap.png'), 'not a png');
+
+  const missing = await loadStyle(missingPath, 'missing-style');
+  const corrupt = await loadStyle(corruptPath, 'corrupt-style');
+  const unreadable = await loadStyle(join(folder, 'nowhere', 'manifest.json'), 'unreadable-style');
+  const result = await checkBrokenCopies([missing, corrupt, unreadable, blocks]);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.clean.map(({ style, ok }) => ({ style, ok })), [
+    { style: 'fixture-shapes', ok: false },
+    { style: 'fixture-shapes', ok: false },
+    { style: 'unreadable-style', ok: false },
+    { style: 'fixture-blocks', ok: true },
+  ]);
+  assert.match(result.clean[0].reason, /mouth\/line could not be loaded/);
+  assert.match(result.clean[1].reason, /headwear\/cap could not be loaded/);
+  assert.equal(result.copies.filter((copy) => copy.style === 'fixture-shapes').length, 0);
+  const text = formatBrokenResult(result);
+  assert.match(text, /clean style failed: unreadable-style/);
+  assert.match(text, /Clean styles passed: 1 of 4\.$/);
 });
 
 test('npm run check:broken exits 0 and prints what docs/render-check.md shows', async () => {
