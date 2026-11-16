@@ -1,0 +1,43 @@
+#!/usr/bin/env node
+/**
+ * Break the clean fixture styles on purpose and show the render check catches
+ * every broken copy.
+ *
+ * Usage: node bin/check-broken.js   (npm run check:broken)
+ *
+ * It reads the styles fixtures/index.json lists, makes the broken copies in
+ * memory with fixtures/break-fixtures.js, runs the check on each copy and on
+ * each clean style, and prints one line per way of breaking and a summary.
+ *
+ * Exit code 0: every copy was caught with the issue it was made to cause and
+ * every clean style passed. 1 in every other case: a copy was missed, a clean
+ * style failed (including a style whose manifest or layer can't be read or is
+ * blank), or the command could not run (an argument, or fixtures/index.json
+ * missing or not valid). Unlike bin/render-check.js and bin/check-styles.js,
+ * it has no exit code 2: ticket #58 asks for 1 whenever the run does not pass.
+ */
+import { readFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { checkBrokenCopies, formatBrokenResult, loadStyle } from '../fixtures/break-fixtures.js';
+import { validateStyleIndex } from '../src/styles.js';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+
+try {
+  if (process.argv.length > 2) throw new Error('Usage: node bin/check-broken.js (it takes no arguments)');
+  const indexPath = join(root, 'fixtures', 'index.json');
+  const index = JSON.parse(await readFile(indexPath, 'utf8'));
+  const valid = validateStyleIndex(index);
+  if (!valid.ok) throw new Error(`${indexPath} is not a valid style index: ${valid.errors.join('; ')}`);
+  const styles = [];
+  for (const entry of index.styles) styles.push(await loadStyle(join(root, ...entry.manifest.split('/')), entry.id));
+  const result = await checkBrokenCopies(styles);
+  console.log(formatBrokenResult(result));
+  process.exit(result.ok ? 0 : 1);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  console.error('Broken styles check could not run.');
+  process.exit(1);
+}

@@ -18,11 +18,12 @@ npm ci
 
 ## Check your work
 
-Run these before you open a pull request. CI runs the first two again on the pull request.
+Run these before you open a pull request. CI runs `npm test`, `npm run check` and `npm run check:broken` again on the pull request.
 
 ```sh
 npm test         # unit tests (node --test), all of them have to pass
 npm run check    # render check on each style in styles/index.json and fixtures/index.json, has to end with "Render check passed."
+npm run check:broken  # broken copies of the fixture styles, has to end with "Broken styles caught: N of N. Clean styles passed: 2 of 2."
 npm start        # builder page at http://127.0.0.1:4173/web/, open it when you change web/
 ```
 
