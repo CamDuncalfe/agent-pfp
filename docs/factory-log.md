@@ -1,6 +1,6 @@
 # Factory log
 
-One row for each pull request merged into `main`, oldest first. "Fixed from Qodo's review" lists the findings in Qodo's review comment that a commit in the pull request fixed, with their severity, and "Fixed in" names those commits. "Nothing" means Qodo's review had no findings. A blank cell means its findings were Low ones, which come to me, or came after the merge and went into later tickets. "My call" names a decision the pull request brought to me. "Render check" is what `npm run check` printed in CI on the pull request's last commit. A pull request that only changes this log has no row.
+One row for each pull request merged into `main`, oldest first. "Fixed from Qodo's review" lists the findings in Qodo's review comment that a commit in the pull request fixed, with their severity, and "Fixed in" names those commits. "Nothing" means Qodo's review had no findings. A blank cell means the review had findings and none of them names a commit in that pull request as its fix. "My call" names a decision the pull request brought to me. "Render check" is what `npm run check` printed in CI on the pull request's last commit. A pull request that only changes this log has no row.
 
 The rows are kept in [factory-log.json](factory-log.json), and this page is written from it. After each merge, `node factory/log.js add <pull request>` adds that pull request's row. [factory.md](factory.md#the-factory-log) says how.
 
