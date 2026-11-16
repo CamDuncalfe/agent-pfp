@@ -288,4 +288,5 @@ test('addResult: adding a row again keeps a finding a later pull request fixed',
     ci: { renderCheck: 'Render check passed', ci: 'success' },
   });
   assert.deepEqual(result.entries[0].caught, [{ severity: 'High', title: 'Layer path read two ways', fixedIn: SHA_FIX }, later]);
+  assert.equal(result.message, '#7: 1 findings fixed, 1 fixed in a later pull request, render check "Render check passed".');
 });

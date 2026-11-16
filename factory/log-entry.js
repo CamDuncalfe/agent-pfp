@@ -188,10 +188,12 @@ export function addResult({ entries, pr, options, comments = [], qodo = null, ci
   const entry = buildEntry({ pr, comments, qodo, renderCheck: ci.renderCheck, ci: ci.ci, ...detailsFor(entries, options) });
   // A finding a later pull request fixed is written into the row by hand with fixedInPr. Reading the pull request again keeps it.
   const later = (entries.find((old) => old.pr === pr.number)?.caught ?? []).filter((finding) => finding.fixedInPr);
-  entry.caught = [...entry.caught, ...later.filter((finding) => !entry.caught.some((own) => own.title === finding.title))];
+  const own = entry.caught.length;
+  entry.caught = [...entry.caught, ...later.filter((finding) => !entry.caught.some((mine) => mine.title === finding.title))];
+  const kept = entry.caught.length - own;
   return {
     code: 0,
-    message: `#${pr.number}: ${entry.caught.length} findings fixed, render check "${entry.renderCheck}".`,
+    message: `#${pr.number}: ${own} findings fixed${kept ? `, ${kept} fixed in a later pull request` : ''}, render check "${entry.renderCheck}".`,
     entries: addEntry(entries, entry),
   };
 }
