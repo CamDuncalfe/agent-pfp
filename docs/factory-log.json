@@ -736,5 +736,41 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": null,
     "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/13#discussioncomment-19656944"
+  },
+  {
+    "pr": 59,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/59",
+    "mergedAt": "2026-11-16T16:49:48Z",
+    "merge": "36b82f652c333bf8c95890b84b3299be5cab0478",
+    "tickets": [
+      58
+    ],
+    "day": null,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "High",
+        "title": "Unreadable fixtures skip the check summary",
+        "fixedIn": "b3ef6e68efd3135fdc02b41676afa5fe9d2f1b48"
+      },
+      {
+        "severity": "High",
+        "title": "Blank fixtures abort the broken-style run",
+        "fixedIn": "b3ef6e68efd3135fdc02b41676afa5fe9d2f1b48"
+      },
+      {
+        "severity": "High",
+        "title": "CI never runs the broken-fixture check",
+        "fixedIn": "2c57312b20b20c6938c3870cfa6fc7c5983d00a4"
+      },
+      {
+        "severity": "Medium",
+        "title": "Broken-fixture run exits 2, not 1",
+        "fixedIn": "c1aed763acd4e7fed8500f51a98effcf26e30feb"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
   }
 ]
