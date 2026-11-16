@@ -8,15 +8,15 @@ A user builds a profile picture for their coding agent by picking one layer in e
 
 ## Decisions to respect
 
-- I set alignment in the art. When a trait sits wrong I fix the layer. Don't recommend an offset, a scale, a crop, a wider zone or a higher tolerance as the fix (rules 1 and 2).
-- The render check has to look at the same picture the user gets. The check and the builder page both draw with `compositeLayers` (rule 3).
-- A user only gets art I've picked. Nothing in a downloaded picture comes from a model call or from a file the style's manifest doesn't name (rule 4).
+- I set alignment in the art. When a trait sits wrong I fix the layer. Don't recommend a fix that goes against rule 1 or rule 2.
+- A picture a user downloads is one the render check has drawn (rule 3).
+- The art in a downloaded picture is art I picked and cut into layers (rule 4).
 
 ## What to tell me
 
-- A change gives the user pixels the render check never draws. That covers a picture that is scaled, cropped, converted or encoded again after `compositeLayers`, and a second place that stacks layers. Name the file the user ends up with and say what checks it.
-- A change resizes, moves or crops pixels. Say whether it does that to a layer before the layers are stacked, or to the finished picture after. Before is a rule 1 violation.
-- A manifest changes a `zone`, an `over` entry, a `bleed` edge, `overlapTolerance` or `alphaThreshold`, and the pull request doesn't name the layers the change is for.
+- A change gives the user pixels the render check never draws. That covers a picture that is changed after `compositeLayers` drew it, and a second place that stacks layers. Name the file the user ends up with and say what checks it.
+- A change resizes, moves or crops pixels. Say whether it does that to a layer before the layers are stacked, or to the finished picture after. Rule 1 covers the first case.
+- A manifest changes one of the fields rule 2 names, and the pull request doesn't name the layers the change is for.
 - A pull request adds or changes layer images. Check the manifest entries for them and that the pull request says I approved the art (rule 5).
 
 ## How to write a finding
