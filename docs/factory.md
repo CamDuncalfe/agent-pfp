@@ -18,7 +18,7 @@ The code is in [`factory/`](../factory): `tick.sh` is what the job runs, `tick.j
 ## The factory log
 
 [factory-log.md](factory-log.md) has a row for each merged pull request. After a merge, `node factory/log.js add <pull request> [--day N] [--taste "text"] [--post <url>]` reads the pull request, Qodo's review comment and CI from GitHub, adds the row to `docs/factory-log.json` and writes `docs/factory-log.md` from it.
-A flag left out keeps what the row already has. `node factory/log.js render` only writes the markdown again. It uses `gh` and `FACTORY_QODO` like the runner, and a pull request that only changes the log gets no row.
+A flag left out keeps what the row already has. When a later pull request fixes a finding from an earlier one, the finding goes into the earlier row in the JSON by hand with `fixedInPr`, and `add` keeps it. `node factory/log.js render` only writes the markdown again. It uses `gh` and `FACTORY_QODO` like the runner, and a pull request that only changes the log gets no row.
 
 ## Labels
 
