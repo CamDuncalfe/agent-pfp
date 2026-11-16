@@ -10,10 +10,11 @@
  * each clean style, and prints one line per way of breaking and a summary.
  *
  * Exit code 0: every copy was caught with the issue it was made to cause and
- * every clean style passed. 1: a copy was missed or a clean style failed,
- * including a style whose manifest or layer can't be read or is blank.
- * 2: the command could not run (an argument, or fixtures/index.json missing
- * or not valid), as with bin/render-check.js and bin/check-styles.js.
+ * every clean style passed. 1 in every other case: a copy was missed, a clean
+ * style failed (including a style whose manifest or layer can't be read or is
+ * blank), or the command could not run (an argument, or fixtures/index.json
+ * missing or not valid). Unlike bin/render-check.js and bin/check-styles.js,
+ * it has no exit code 2: ticket #58 asks for 1 whenever the run does not pass.
  */
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
@@ -37,5 +38,6 @@ try {
   process.exit(result.ok ? 0 : 1);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
-  process.exit(2);
+  console.error('Broken styles check could not run.');
+  process.exit(1);
 }

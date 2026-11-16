@@ -226,7 +226,9 @@ test('npm run check:broken exits 0 and prints what docs/render-check.md shows', 
   assert.equal(pkg.scripts['check:broken'], 'node bin/check-broken.js');
 });
 
-test('check-broken exits 2 when it gets an argument', async () => {
+test('check-broken exits 1 and says it could not run when it gets an argument', async () => {
   const result = await runCli(['--nope']);
-  assert.equal(result.code, 2);
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /it takes no arguments/);
+  assert.match(result.stderr, /Broken styles check could not run\./);
 });
