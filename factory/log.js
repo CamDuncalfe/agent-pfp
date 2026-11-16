@@ -8,6 +8,7 @@
  *   node factory/log.js add <pull request> [--day N] [--taste "text"] [--post <url>]
  *     reads the merged pull request from GitHub, CI and Qodo, puts its entry
  *     in the JSON file in place of an older one and writes the markdown again.
+ *     A flag left out keeps the value the older entry has.
  *   node factory/log.js render
  *     only writes the markdown again from the JSON file.
  *
@@ -20,7 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { qodoCall } from './decisions.js';
-import { addEntry, buildEntry, ciRunOf, isLogOnly, parseArgs, renderCheckLine, renderLog } from './log-entry.js';
+import { addEntry, buildEntry, ciRunOf, detailsFor, isLogOnly, parseArgs, renderCheckLine, renderLog } from './log-entry.js';
 
 const REPO_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const JSON_FILE = join(REPO_DIR, 'docs', 'factory-log.json');
@@ -96,10 +97,11 @@ async function add(options) {
   const comments = (await ghJson(['api', '--paginate', '--slurp', `repos/${repo}/issues/${pr.number}/comments?per_page=100`])).flat();
   const qodo = await qodoFindings(pr.url);
   const { renderCheck, ci } = await ciResult(repo, pr);
-  const entry = buildEntry({ pr, comments, qodo, renderCheck, ci, day: options.day, taste: options.taste, post: options.post });
-  const entries = addEntry(await readEntries(), entry);
-  await writeFile(JSON_FILE, `${JSON.stringify(entries, null, 2)}\n`);
-  await render(entries);
+  const entries = await readEntries();
+  const entry = buildEntry({ pr, comments, qodo, renderCheck, ci, ...detailsFor(entries, options) });
+  const updated = addEntry(entries, entry);
+  await writeFile(JSON_FILE, `${JSON.stringify(updated, null, 2)}\n`);
+  await render(updated);
   console.log(`#${pr.number}: ${entry.caught.length} findings fixed, render check "${entry.renderCheck}".`);
   return 0;
 }

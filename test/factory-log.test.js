@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import { QODO_BOT } from '../factory/decisions.js';
-import { addEntry, buildEntry, ciRunOf, isLogOnly, parseArgs, renderCheckLine, renderLog, renderRow, severities } from '../factory/log-entry.js';
+import { addEntry, buildEntry, ciRunOf, detailsFor, isLogOnly, parseArgs, renderCheckLine, renderLog, renderRow, severities } from '../factory/log-entry.js';
 
 const SHA_HEAD = 'a'.repeat(40);
 const SHA_FIX = 'b'.repeat(40);
@@ -214,4 +214,13 @@ test('ciRunOf: the newest finished CI run the pull request shows, never another 
   assert.equal(ciRunOf([check(4, null, { status: 'IN_PROGRESS', conclusion: '' })]), null);
   assert.equal(ciRunOf([check(5, '2026-11-16T16:33:20Z', { detailsUrl: 'https://example.com' })]), null);
   assert.equal(ciRunOf(undefined), null);
+});
+
+test('detailsFor: adding a row again keeps the day, taste call and post that its flags leave out', () => {
+  const entries = [{ pr: 21, day: 7, taste: 'Scaling the picture', post: 'https://x/post' }];
+  const none = { pr: 21, day: null, taste: null, post: null };
+  assert.deepEqual(detailsFor(entries, none), { day: 7, taste: 'Scaling the picture', post: 'https://x/post' });
+  assert.deepEqual(detailsFor(entries, { ...none, day: 8 }), { day: 8, taste: 'Scaling the picture', post: 'https://x/post' });
+  assert.deepEqual(detailsFor(entries, { ...none, pr: 22 }), { day: null, taste: null, post: null });
+  assert.deepEqual(detailsFor([], parseArgs(['add', '9', '--taste', 'A call'])), { day: null, taste: 'A call', post: null });
 });

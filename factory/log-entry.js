@@ -155,6 +155,22 @@ export function parseArgs(argv) {
   return options;
 }
 
+/**
+ * The day, taste call and post for a pull request's entry: each flag that
+ * was given, and else what its entry already holds, so adding a row again
+ * without the flags keeps them.
+ * @param {Array<{ pr: number, day: number | null, taste: string | null, post: string | null }>} entries
+ * @param {{ pr: number, day: number | null, taste: string | null, post: string | null }} options from parseArgs
+ */
+export function detailsFor(entries, options) {
+  const old = entries.find((entry) => entry.pr === options.pr) ?? {};
+  return {
+    day: options.day ?? old.day ?? null,
+    taste: options.taste ?? old.taste ?? null,
+    post: options.post ?? old.post ?? null,
+  };
+}
+
 /** Put an entry in the list, in place of an older one for the same pull request, oldest merge first. */
 export function addEntry(entries, entry) {
   return [...entries.filter((old) => old.pr !== entry.pr), entry].sort((a, b) => a.mergedAt.localeCompare(b.mergedAt) || a.pr - b.pr);
