@@ -1,0 +1,7 @@
+# Qodo settings for this repository. They override the Qodo portal's.
+# REVIEW.md holds the review instructions.
+
+[review_agent_ux]
+# Show the "Context sources" section in Qodo's review comment, so a review
+# shows what it read. The portal has it off.
+show_context_used = true
