@@ -1,0 +1,740 @@
+[
+  {
+    "pr": 1,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/1",
+    "mergedAt": "2026-11-11T15:13:13Z",
+    "merge": "e966e235582edf7d93c9b92b4a335c198b08edfc",
+    "tickets": [],
+    "day": 1,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Browser and checker load different layers",
+        "fixedIn": "562b6a5559150e4524456efc105b83ce8146a52c"
+      },
+      {
+        "severity": "Medium",
+        "title": "Large styles get fewer distinct checks",
+        "fixedIn": "562b6a5559150e4524456efc105b83ce8146a52c"
+      },
+      {
+        "severity": "Medium",
+        "title": "Wide pictures look square in the builder",
+        "fixedIn": "562b6a5559150e4524456efc105b83ce8146a52c"
+      },
+      {
+        "severity": "Low",
+        "title": "Builder preview can use different pixels than the check",
+        "fixedIn": "562b6a5559150e4524456efc105b83ce8146a52c"
+      },
+      {
+        "severity": "Low",
+        "title": "JSON report shows a null total for huge styles",
+        "fixedIn": "562b6a5559150e4524456efc105b83ce8146a52c"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/2#discussioncomment-19546904"
+  },
+  {
+    "pr": 2,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/2",
+    "mergedAt": "2026-11-11T18:24:02Z",
+    "merge": "2a94df4787da7448193ad606eea114c6716be551",
+    "tickets": [],
+    "day": 2,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/4#discussioncomment-19549232"
+  },
+  {
+    "pr": 5,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/5",
+    "mergedAt": "2026-11-11T18:46:10Z",
+    "merge": "4a4c926db06237d2d11eccaed52b31e56f3bb6cd",
+    "tickets": [
+      3
+    ],
+    "day": 3,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Builder style logic ships without automated tests",
+        "fixedIn": "0b8ef911b76bfd9096b4c2163adfa17abb5cfdbb"
+      },
+      {
+        "severity": "Low",
+        "title": "Agent rules still forbid the new index request",
+        "fixedIn": "0b8ef911b76bfd9096b4c2163adfa17abb5cfdbb"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/5#discussioncomment-19551028"
+  },
+  {
+    "pr": 6,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/6",
+    "mergedAt": "2026-11-11T18:55:35Z",
+    "merge": "fefb3580b4f12881d91300ca6ff77c585bc64100",
+    "tickets": [
+      4
+    ],
+    "day": 3,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Shared style folders can leak private files",
+        "fixedIn": "cb30af0d4b2390ba5db00fc0636859f6b3b5140b"
+      },
+      {
+        "severity": "Medium",
+        "title": "Pixel-art scaling change ships without a test",
+        "fixedIn": "cb30af0d4b2390ba5db00fc0636859f6b3b5140b"
+      },
+      {
+        "severity": "Low",
+        "title": "Style listed in picker but always fails to open",
+        "fixedIn": "cb30af0d4b2390ba5db00fc0636859f6b3b5140b"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/5#discussioncomment-19551028"
+  },
+  {
+    "pr": 9,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/9",
+    "mergedAt": "2026-11-11T19:47:33Z",
+    "merge": "6f6a9f922c836a7714ec77ec94fe7c4faa94a27b",
+    "tickets": [
+      7
+    ],
+    "day": 4,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "High",
+        "title": "The agent can use forbidden tools",
+        "fixedIn": "ab43b76587a396be91c5d05c093cb3f322176674"
+      },
+      {
+        "severity": "Medium",
+        "title": "Dry runs update the checkout and logs",
+        "fixedIn": "ab43b76587a396be91c5d05c093cb3f322176674"
+      },
+      {
+        "severity": "Medium",
+        "title": "Two stale-lock ticks can run together",
+        "fixedIn": "ab43b76587a396be91c5d05c093cb3f322176674"
+      },
+      {
+        "severity": "Medium",
+        "title": "Older eligible tickets can be skipped",
+        "fixedIn": "ab43b76587a396be91c5d05c093cb3f322176674"
+      },
+      {
+        "severity": "Medium",
+        "title": "Two runs can overlap after three hours",
+        "fixedIn": "ab43b76587a396be91c5d05c093cb3f322176674"
+      },
+      {
+        "severity": "Medium",
+        "title": "PRs can open without acceptance criteria",
+        "fixedIn": "ab43b76587a396be91c5d05c093cb3f322176674"
+      },
+      {
+        "severity": "Medium",
+        "title": "Agent can edit the runner and CI files",
+        "fixedIn": "ab43b76587a396be91c5d05c093cb3f322176674"
+      },
+      {
+        "severity": "Medium",
+        "title": "Some failing checks can be missed",
+        "fixedIn": "ab43b76587a396be91c5d05c093cb3f322176674"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/6#discussioncomment-19574559"
+  },
+  {
+    "pr": 11,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/11",
+    "mergedAt": "2026-11-11T20:03:18Z",
+    "merge": "6a4531910299eba111114fcb3a9c17a69bd963d3",
+    "tickets": [
+      10
+    ],
+    "day": 4,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/6#discussioncomment-19574559"
+  },
+  {
+    "pr": 13,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/13",
+    "mergedAt": "2026-11-11T20:12:18Z",
+    "merge": "129a67edbeceef357417288dbdfc1c3f5bfb1c00",
+    "tickets": [
+      12
+    ],
+    "day": 4,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Low",
+        "title": "A lock-text helper ignores its group argument",
+        "fixedIn": "98b1d1024d5935d0cc7a37da8b78c5f209e4c404"
+      },
+      {
+        "severity": "Low",
+        "title": "Lock text can overflow a fixed-width column when text is enlarged",
+        "fixedIn": "98b1d1024d5935d0cc7a37da8b78c5f209e4c404"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/6#discussioncomment-19574559"
+  },
+  {
+    "pr": 17,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/17",
+    "mergedAt": "2026-11-11T21:54:01Z",
+    "merge": "65006285e1be3677a6f7ef976a23bc9611c13bbc",
+    "tickets": [
+      15
+    ],
+    "day": 5,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Rule 6 repeats the factory guard on line 38",
+        "fixedIn": "5590f43f3aeda0d5e77f70b33d79db4dd1ad572e"
+      },
+      {
+        "severity": "Medium",
+        "title": "A factory run gets conflicting orders",
+        "fixedIn": "5590f43f3aeda0d5e77f70b33d79db4dd1ad572e"
+      },
+      {
+        "severity": "Low",
+        "title": "Factory run sentence's 'does the same' is ambiguous",
+        "fixedIn": "5590f43f3aeda0d5e77f70b33d79db4dd1ad572e"
+      },
+      {
+        "severity": "Low",
+        "title": "Factory build prompt forbids the corrections rule 6 asks for",
+        "fixedIn": "5590f43f3aeda0d5e77f70b33d79db4dd1ad572e"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/7#discussioncomment-19592889"
+  },
+  {
+    "pr": 14,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/14",
+    "mergedAt": "2026-11-11T21:58:47Z",
+    "merge": "7c2d35389ae170ab27d6dde2740a1280c2aa3879",
+    "tickets": [],
+    "day": 5,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Pull request description still repeats the criteria",
+        "fixedIn": "1308bb9fcf580c7bda0f9c2272c30eec833390ba"
+      },
+      {
+        "severity": "Low",
+        "title": "Prompt test checks hand-copied values, not the runner's",
+        "fixedIn": "1308bb9fcf580c7bda0f9c2272c30eec833390ba"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/7#discussioncomment-19592889"
+  },
+  {
+    "pr": 21,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/21",
+    "mergedAt": "2026-11-11T23:50:46Z",
+    "merge": "6548441b83985e18d5a0226a9521f0868894fd6f",
+    "tickets": [
+      18
+    ],
+    "day": 7,
+    "review": "findings",
+    "caught": [],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "Scaling the finished picture for the 500 px download",
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/9#discussioncomment-19614314"
+  },
+  {
+    "pr": 23,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/23",
+    "mergedAt": "2026-11-11T23:58:37Z",
+    "merge": "5b741d80ee964ee5e363d51ec6e23b65462140db",
+    "tickets": [
+      22
+    ],
+    "day": 7,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "HTML comments can hide live criteria",
+        "fixedIn": "91ffd13c1a5780d0e32b5965c90b6774a94ff802"
+      },
+      {
+        "severity": "Medium",
+        "title": "Agents can follow superseded criteria",
+        "fixedIn": "0d3403747fe52124cea9dbebc0a29e74ec875615"
+      },
+      {
+        "severity": "Medium",
+        "title": "Tickets mentioning markup cannot start",
+        "fixedIn": "0d3403747fe52124cea9dbebc0a29e74ec875615"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/9#discussioncomment-19614314"
+  },
+  {
+    "pr": 24,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/24",
+    "mergedAt": "2026-11-12T01:14:45Z",
+    "merge": "e139f7eb590700f2cf15aff04a3a99aa205071d9",
+    "tickets": [
+      20
+    ],
+    "day": 8,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Large rectangular styles can run out of memory",
+        "fixedIn": "3ae94354dff669c44c94547dc7808834bc576c8d"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "The wider page, 832 px, so the circle fits beside the preview",
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/10#discussioncomment-19619744"
+  },
+  {
+    "pr": 26,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/26",
+    "mergedAt": "2026-11-12T15:51:20Z",
+    "merge": "aadd502b1e04580aa86afba2735e673220e4afc4",
+    "tickets": [
+      25
+    ],
+    "day": 9,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Runner docs leave out how disputed findings are handled",
+        "fixedIn": "050286d9b5feb6e1532f35d0417351c8c72b427a"
+      },
+      {
+        "severity": "Medium",
+        "title": "Low finding reports omit the file",
+        "fixedIn": "050286d9b5feb6e1532f35d0417351c8c72b427a"
+      },
+      {
+        "severity": "Medium",
+        "title": "Runner's new ready comment and fix-round wiring have no test",
+        "fixedIn": "050286d9b5feb6e1532f35d0417351c8c72b427a"
+      },
+      {
+        "severity": "Medium",
+        "title": "Open High findings can be read as closed",
+        "fixedIn": "050286d9b5feb6e1532f35d0417351c8c72b427a"
+      },
+      {
+        "severity": "Low",
+        "title": "A quoted badge URL can mislabel later findings",
+        "fixedIn": "050286d9b5feb6e1532f35d0417351c8c72b427a"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "The quality gate's wording and threshold",
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/11#discussioncomment-19633730"
+  },
+  {
+    "pr": 30,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/30",
+    "mergedAt": "2026-11-12T21:09:41Z",
+    "merge": "49e5bcf0d297d3bd956fe611ccd423b85053cec5",
+    "tickets": [],
+    "day": null,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 31,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/31",
+    "mergedAt": "2026-11-12T23:46:14Z",
+    "merge": "0db638318460a98c964bc35580701e485f156c51",
+    "tickets": [],
+    "day": null,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 34,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/34",
+    "mergedAt": "2026-11-12T23:54:47Z",
+    "merge": "e731c222cd1f2101b892183cca00e191d86a4e36",
+    "tickets": [
+      32
+    ],
+    "day": null,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "High",
+        "title": "The site can publish files outside the repo",
+        "fixedIn": "7defefe014987173f43d2a38d9ae9d5c6b14ff91"
+      },
+      {
+        "severity": "Medium",
+        "title": "A listed layer can be overwritten",
+        "fixedIn": "7defefe014987173f43d2a38d9ae9d5c6b14ff91"
+      },
+      {
+        "severity": "Medium",
+        "title": "Copy failures leave a partial site behind",
+        "fixedIn": "7defefe014987173f43d2a38d9ae9d5c6b14ff91"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 36,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/36",
+    "mergedAt": "2026-11-13T00:17:17Z",
+    "merge": "953c934314664e7c0aa2e820ab152951ed09c52d",
+    "tickets": [
+      29
+    ],
+    "day": null,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Interrupted redraws can leave tiles showing mixed pictures",
+        "fixedIn": "b8bb771d6a954f340617cbdaa83922026d0dd283"
+      },
+      {
+        "severity": "Medium",
+        "title": "Thumbnail drawing can stall the builder",
+        "fixedIn": "b8bb771d6a954f340617cbdaa83922026d0dd283"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 35,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/35",
+    "mergedAt": "2026-11-13T00:17:28Z",
+    "merge": "52f8efd43e9f04a0e50df948c86971bd7b1b9f84",
+    "tickets": [],
+    "day": null,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Manual runs can publish unmerged changes",
+        "fixedIn": "bbcfd2ea4abc5b1498dd04174fc95eebd00f2300"
+      }
+    ],
+    "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 37,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/37",
+    "mergedAt": "2026-11-13T00:23:00Z",
+    "merge": "250eae38fdf2d77ab482d0101619c416651ab92f",
+    "tickets": [
+      33
+    ],
+    "day": null,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 39,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/39",
+    "mergedAt": "2026-11-13T00:44:34Z",
+    "merge": "b709f25d814959784427181048e026b1f68a54eb",
+    "tickets": [
+      38
+    ],
+    "day": null,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 42,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/42",
+    "mergedAt": "2026-11-13T01:09:38Z",
+    "merge": "cb57d93c50c71efa2624c472b452b499624da124",
+    "tickets": [],
+    "day": null,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 43,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/43",
+    "mergedAt": "2026-11-13T13:16:20Z",
+    "merge": "852b5f2ca845cc99092959a56ba7ea85840d30a3",
+    "tickets": [
+      27
+    ],
+    "day": 10,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "CI stalls hide the last Qodo error",
+        "fixedIn": "d4dfedab8bf0680d2b837462e8fa0092e1b34320"
+      },
+      {
+        "severity": "Medium",
+        "title": "Failed reviews keep the runner waiting",
+        "fixedIn": "d4dfedab8bf0680d2b837462e8fa0092e1b34320"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "The wording of the quality gate's condition 2",
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/12#discussioncomment-19637689"
+  },
+  {
+    "pr": 41,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/41",
+    "mergedAt": "2026-11-13T22:36:50Z",
+    "merge": "027fde4a2e19673f78e8e8c280d2b65ac9c4238b",
+    "tickets": [
+      40
+    ],
+    "day": null,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "High",
+        "title": "Coming-soon tiles load unlisted images",
+        "fixedIn": "dfe9f43534a6b65db1469fa82b1c675848370a4a"
+      },
+      {
+        "severity": "High",
+        "title": "Keyboard users lose swatch focus cues",
+        "fixedIn": "64a99fd3e968bdead340eced0c4a0928d9b9a071"
+      },
+      {
+        "severity": "Medium",
+        "title": "Failed characters cannot be retried directly",
+        "fixedIn": "a70216ac46a469812e0f9a904465e554c42e18b3"
+      },
+      {
+        "severity": "Medium",
+        "title": "Failed styles leave stale size choices",
+        "fixedIn": "dfe9f43534a6b65db1469fa82b1c675848370a4a"
+      },
+      {
+        "severity": "Medium",
+        "title": "Tab focus blocks the browser back key",
+        "fixedIn": "44a26d1bbc58ebda0a28216a04189116033dc45e"
+      },
+      {
+        "severity": "Medium",
+        "title": "Character pictures can stay blank",
+        "fixedIn": "44a26d1bbc58ebda0a28216a04189116033dc45e"
+      },
+      {
+        "severity": "Medium",
+        "title": "Keyboard focus drops after pressing Reset",
+        "fixedIn": "61b21644a9427f1f74bfee6fc0ce21b6bd048ea0"
+      },
+      {
+        "severity": "Medium",
+        "title": "Tab-opening fallback is decided in the page script",
+        "fixedIn": "61b21644a9427f1f74bfee6fc0ce21b6bd048ea0"
+      },
+      {
+        "severity": "Medium",
+        "title": "Keyboard users can't switch style when the first one fails",
+        "fixedIn": "61b21644a9427f1f74bfee6fc0ce21b6bd048ea0"
+      },
+      {
+        "severity": "Medium",
+        "title": "Brand changes leave the entry page stale",
+        "fixedIn": "c50699342de911347dcc8fc69191f363381f570c"
+      },
+      {
+        "severity": "Medium",
+        "title": "Picture timing rule has no direct test",
+        "fixedIn": "b62037a88c5b78227c3178986a6bb6ab6d31fa0d"
+      },
+      {
+        "severity": "Medium",
+        "title": "Trait tiles lag behind character tiles",
+        "fixedIn": "6389c08ddf5af77e6f7d8d0523aecbd99fe5844e"
+      },
+      {
+        "severity": "Medium",
+        "title": "Path test lets an absolute link through",
+        "fixedIn": "096e29c67c9511ce800a20f7dc8556a68b991719"
+      },
+      {
+        "severity": "Medium",
+        "title": "Character tiles redo heavy picture work on page load",
+        "fixedIn": "096e29c67c9511ce800a20f7dc8556a68b991719"
+      },
+      {
+        "severity": "Medium",
+        "title": "Background Lock needs hidden scrolling",
+        "fixedIn": "2855a06eb1960106e369c8100f859c77be1f356e"
+      },
+      {
+        "severity": "Medium",
+        "title": "Zoomed users see overlapping buttons",
+        "fixedIn": "d0c0d9c84287b2c9364a5349af0aa6368756c311"
+      },
+      {
+        "severity": "Medium",
+        "title": "Download can fall below a short window",
+        "fixedIn": "d0c0d9c84287b2c9364a5349af0aa6368756c311"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "The redesign, with its type and coming-soon pictures. Cam approved it.",
+    "post": null
+  },
+  {
+    "pr": 45,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/45",
+    "mergedAt": "2026-11-13T22:44:07Z",
+    "merge": "3bc78a476afa001acb038ef0622ec9da6b61ed13",
+    "tickets": [
+      44
+    ],
+    "day": null,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 576000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 47,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/47",
+    "mergedAt": "2026-11-13T23:46:06Z",
+    "merge": "25fb0ecf02558e30cadff694fecefa76d9c2ff50",
+    "tickets": [
+      46
+    ],
+    "day": null,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 49,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/49",
+    "mergedAt": "2026-11-14T02:55:54Z",
+    "merge": "6dc95721ca05f39e7cd027b89045f321ba44fa39",
+    "tickets": [
+      48
+    ],
+    "day": null,
+    "review": "findings",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 51,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/51",
+    "mergedAt": "2026-11-16T12:44:03Z",
+    "merge": "24cff56e746b8efb7f41cf5df8e74daed440182a",
+    "tickets": [
+      50
+    ],
+    "day": 11,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Review guidance repeats AGENTS.md rule text",
+        "fixedIn": "9d3bd0d8f07b971737612134d3b4e12fa1b32d5e"
+      },
+      {
+        "severity": "Low",
+        "title": "Rule numbers in review guidance will go stale",
+        "fixedIn": "9d3bd0d8f07b971737612134d3b4e12fa1b32d5e"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/13#discussioncomment-19656944"
+  },
+  {
+    "pr": 55,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/55",
+    "mergedAt": "2026-11-16T12:58:00Z",
+    "merge": "e8218e899c9a9b01885f2e73d0dafdab8d9e6ebf",
+    "tickets": [
+      54
+    ],
+    "day": 11,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "REVIEW.md no longer states the render-check rule",
+        "fixedIn": "60d4bc05168fb70d516f72f5606409dabe43229e"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/13#discussioncomment-19656944"
+  }
+]

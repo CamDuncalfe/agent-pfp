@@ -423,6 +423,17 @@ test('parseQodoReview: reads the commit and each finding', () => {
   assert.match(open.prompt, /^## Issue description\nFix Wide pictures look square\.\n\n## Fix Focus Areas\n- src\/styles\.js\[10-20\]$/);
 });
 
+test('parseQodoReview: a resolved finding names the commit Qodo gives as its resolving commit', () => {
+  const sha = 'd'.repeat(40);
+  const body = reviewBody({ resolved: ['Old path check'], open: ['Still open'] }).replace(
+    '<summary>  1.  <s>Old path check</s> <code>✓ Resolved</code></summary>\n',
+    `<summary>  1.  <s>Old path check</s> <code>✓ Resolved</code></summary>\n<p><b>Resolving commit:</b> <a href="https://github.com/o/r/commit/${sha}"><code>ddddddd</code></a></p>\n`,
+  );
+  const [done, open] = parseQodoReview(body).findings;
+  assert.equal(done.fixedIn, sha);
+  assert.equal(open.fixedIn, null);
+});
+
 test('parseQodoReview: other comments are not reviews', () => {
   assert.equal(parseQodoReview('<h3>PR Summary by Qodo</h3>\n<summary>  1.  Not a finding</summary>'), null);
   assert.equal(parseQodoReview('Thanks, fixed in abc1234.\n\n<h3>Code Review by Qodo</h3>'), null);
