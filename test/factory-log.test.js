@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import { QODO_BOT } from '../factory/decisions.js';
-import { addEntry, buildEntry, isLogOnly, parseArgs, renderCheckLine, renderLog, renderRow, severities } from '../factory/log-entry.js';
+import { addEntry, buildEntry, ciRunOf, isLogOnly, parseArgs, renderCheckLine, renderLog, renderRow, severities } from '../factory/log-entry.js';
 
 const SHA_HEAD = 'a'.repeat(40);
 const SHA_FIX = 'b'.repeat(40);
@@ -194,4 +194,24 @@ test('docs/factory-log.md is written from docs/factory-log.json', async () => {
     'the entries are in merge order',
   );
   assert.equal(new Set(entries.map((e) => e.pr)).size, entries.length, 'one entry for each pull request');
+});
+
+test('ciRunOf: the newest finished CI run the pull request shows, never another workflow', () => {
+  const check = (id, completedAt, extra = {}) => ({
+    __typename: 'CheckRun',
+    workflowName: 'CI',
+    status: 'COMPLETED',
+    conclusion: 'SUCCESS',
+    completedAt,
+    detailsUrl: `https://github.com/o/r/actions/runs/${id}/job/1`,
+    ...extra,
+  });
+  assert.deepEqual(ciRunOf([check(1, '2026-11-16T16:33:20Z'), check(2, '2026-11-16T16:40:00Z', { conclusion: 'FAILURE' })]), {
+    id: '2',
+    conclusion: 'failure',
+  });
+  assert.equal(ciRunOf([check(3, '2026-11-16T16:33:20Z', { workflowName: 'Pages' })]), null);
+  assert.equal(ciRunOf([check(4, null, { status: 'IN_PROGRESS', conclusion: '' })]), null);
+  assert.equal(ciRunOf([check(5, '2026-11-16T16:33:20Z', { detailsUrl: 'https://example.com' })]), null);
+  assert.equal(ciRunOf(undefined), null);
 });

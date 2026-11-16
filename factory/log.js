@@ -20,7 +20,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { qodoCall } from './decisions.js';
-import { addEntry, buildEntry, isLogOnly, parseArgs, renderCheckLine, renderLog } from './log-entry.js';
+import { addEntry, buildEntry, ciRunOf, isLogOnly, parseArgs, renderCheckLine, renderLog } from './log-entry.js';
 
 const REPO_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const JSON_FILE = join(REPO_DIR, 'docs', 'factory-log.json');
@@ -73,18 +73,17 @@ async function qodoFindings(url) {
   }
 }
 
-/** The render check line and CI's conclusion on the pull request's last commit. */
-async function ciResult(repo, head) {
-  const { workflow_runs: runs } = await ghJson(['api', `repos/${repo}/actions/runs?head_sha=${head}&per_page=100`]);
-  const ci = runs.filter((r) => r.name === 'CI' && r.status === 'completed').sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+/** The render check line and CI's conclusion from the CI run the pull request shows on its last commit. */
+async function ciResult(repo, pr) {
+  const ci = ciRunOf(pr.statusCheckRollup);
   if (!ci) return { renderCheck: null, ci: null };
-  const log = await run('gh', ['run', 'view', String(ci.id), '--repo', repo, '--log']);
+  const log = await run('gh', ['run', 'view', ci.id, '--repo', repo, '--log']);
   return { renderCheck: log.code === 0 ? renderCheckLine(log.stdout) : null, ci: ci.conclusion };
 }
 
 async function add(options) {
   const { nameWithOwner: repo } = await ghJson(['repo', 'view', '--json', 'nameWithOwner']);
-  const fields = 'number,url,mergedAt,mergeCommit,closingIssuesReferences,headRefOid,files';
+  const fields = 'number,url,mergedAt,mergeCommit,closingIssuesReferences,files,statusCheckRollup';
   const pr = await ghJson(['pr', 'view', String(options.pr), '--repo', repo, '--json', fields]);
   if (!pr.mergedAt) {
     console.error(`#${pr.number} is not merged.`);
@@ -96,9 +95,7 @@ async function add(options) {
   }
   const comments = (await ghJson(['api', '--paginate', '--slurp', `repos/${repo}/issues/${pr.number}/comments?per_page=100`])).flat();
   const qodo = await qodoFindings(pr.url);
-  // CI on the pull request's last commit, or else on the merge.
-  let { renderCheck, ci } = await ciResult(repo, pr.headRefOid);
-  if (!ci) ({ renderCheck, ci } = await ciResult(repo, pr.mergeCommit.oid));
+  const { renderCheck, ci } = await ciResult(repo, pr);
   const entry = buildEntry({ pr, comments, qodo, renderCheck, ci, day: options.day, taste: options.taste, post: options.post });
   const entries = addEntry(await readEntries(), entry);
   await writeFile(JSON_FILE, `${JSON.stringify(entries, null, 2)}\n`);

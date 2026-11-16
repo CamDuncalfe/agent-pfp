@@ -79,6 +79,25 @@ export function renderCheckLine(log) {
 }
 
 /**
+ * The CI run a pull request shows on its last commit, from \`gh pr view
+ * --json statusCheckRollup\`: the newest finished check of the "CI"
+ * workflow. Its id comes from the check's link to the run. Null when the
+ * pull request shows no finished CI check. A run on the merge commit is not
+ * on the pull request, so it never counts.
+ * @param {Array<{ __typename?: string, workflowName?: string, status?: string, conclusion?: string, completedAt?: string, detailsUrl?: string }> | undefined} rollup
+ * @returns {{ id: string, conclusion: string } | null}
+ */
+export function ciRunOf(rollup) {
+  const runs = (rollup ?? [])
+    .filter((check) => check.workflowName === 'CI' && check.status === 'COMPLETED')
+    .map((check) => ({ check, id: /\/actions\/runs\/(\d+)/.exec(check.detailsUrl ?? '')?.[1] }))
+    .filter(({ id }) => id)
+    .sort((a, b) => String(b.check.completedAt).localeCompare(String(a.check.completedAt)));
+  if (runs.length === 0) return null;
+  return { id: runs[0].id, conclusion: String(runs[0].check.conclusion ?? '').toLowerCase() || 'unknown' };
+}
+
+/**
  * One log entry for a merged pull request.
  * @param {object} input
  * @param {{ number: number, url: string, mergedAt: string, mergeCommit: { oid: string }, closingIssuesReferences?: Array<{ number: number }> }} input.pr
@@ -86,7 +105,7 @@ export function renderCheckLine(log) {
  * @param {Array<{ user: { login: string }, body: string }>} input.comments the pull request's comments
  * @param {object | null} input.qodo the `qodo read pr-review-session findings --json` result, for the severity of resolved findings
  * @param {string | null} input.renderCheck renderCheckLine of the CI log, or null
- * @param {string | null} input.ci CI's conclusion on the commit, used when the log has no render check
+ * @param {string | null} input.ci CI's conclusion on the pull request's last commit, used when the log has no render check
  * @param {number | null} [input.day] the hackathon challenge day
  * @param {string | null} [input.taste] the decision that went to Cam, or null for none
  * @param {string | null} [input.post] the link to the day's post
