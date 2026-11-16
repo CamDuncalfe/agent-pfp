@@ -2,7 +2,7 @@
 
 The runner starts the coding agent on a ticket without anyone opening a session. I put the `ready-for-agent` label on an issue, and a scheduled job on my Mac picks it up within 5 minutes.
 
-The code is in [`factory/`](../factory): `tick.sh` is what the job runs, `tick.js` runs the commands, `decisions.js` holds each decision the runner makes and `prompts/` holds what the agent is told. The tests for the decisions are in `test/factory.test.js`.
+The code is in [`factory/`](../factory): `tick.sh` is what the job runs, `tick.js` runs the commands, `decisions.js` holds each decision the runner makes and `prompts/` holds what the agent is told. `log.js` and `log-entry.js` keep the factory log. The tests for the decisions are in `test/factory.test.js`, and for the log in `test/factory-log.test.js`.
 
 ## What one run does
 
@@ -14,6 +14,11 @@ The code is in [`factory/`](../factory): `tick.sh` is what the job runs, `tick.j
 6. The runner pushes the branch and opens the pull request. It writes `Closes #<ticket>` and the ticket's acceptance criteria at the top itself, the same list the agent got in its prompt, and the agent's description goes below.
 7. It waits for CI and for Qodo's review of the newest commit. A review counts only once Qodo reports the review run on that commit as completed: each check asks `qodo read pr-review-session findings --json` first, and the run's `review_session` has to name the commit, read `completed` and have `review_complete` true. Until then the runner keeps waiting, even when the review comment already names the commit, because Qodo edits that comment while the run is going. When the run on the commit reads `failed`, `aborted`, `skipped` or `superseded`, the statuses Qodo's Review Resolver skill lists as ended without completing, the wait stops at once with `agent-needs-help` and the comment names the status. `started` and any other status keep the runner waiting. A failed qodo read is logged and counts as not complete. The findings come from the review comment. It reads each finding's severity from the group Qodo lists it under, and follows the quality gate in [AGENTS.md](../AGENTS.md#quality-gate). With an open High or Medium finding, the agent gets those findings as text, fixes the ones it confirms and writes an answer. A finding it doesn't confirm keeps its code as it is, with the agent's evidence in the answer: the file and line, and the test or command that shows it. That finding stays open, so it comes back in the next round, and when it is still open after the last round the run ends with `agent-needs-help` and the task comes back to me as not done. A finding with a severity the runner can't read counts as High. The runner checks again, pushes and posts the answer on the pull request. Then it waits for the next review.
 8. With CI green and no High or Medium finding open, the ticket gets `agent-review` and a comment. Low findings don't start a fix round, and the comment lists the ones still open for me, each with its title, type and file. The pull request waits for me. The runner never merges.
+
+## The factory log
+
+[factory-log.md](factory-log.md) has a row for each merged pull request. After a merge, `node factory/log.js add <pull request> [--day N] [--taste "text"] [--post <url>]` reads the pull request, Qodo's review comment and CI from GitHub, adds the row to `docs/factory-log.json` and writes `docs/factory-log.md` from it.
+`node factory/log.js render` only writes the markdown again. It uses `gh` and `FACTORY_QODO` like the runner, and a pull request that only changes the log gets no row.
 
 ## Labels
 

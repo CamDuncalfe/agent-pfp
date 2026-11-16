@@ -366,8 +366,10 @@ function filesOf(prompt, section) {
  * "Resolved findings". A badge or heading quoted inside a finding's own text
  * doesn't start a group. Its kind is its type label, for example "🐞 Bug" or
  * "📘 Rule violation". Its files are the paths its agent prompt names.
+ * fixedIn is the SHA of the commit Qodo names as the "Resolving commit" of a
+ * resolved finding, or null.
  * @param {string} body
- * @returns {{ commit: string | null, findings: Array<{ number: number, title: string, kind: string, severity: string | null, resolved: boolean, description: string, prompt: string, files: string[] }> } | null}
+ * @returns {{ commit: string | null, findings: Array<{ number: number, title: string, kind: string, severity: string | null, resolved: boolean, description: string, prompt: string, files: string[], fixedIn: string | null }> } | null}
  */
 export function parseQodoReview(body) {
   const text = String(body ?? '');
@@ -386,6 +388,7 @@ export function parseQodoReview(body) {
     const description = /<summary>Description<\/summary>[\s\S]*?<pre>([\s\S]*?)<\/pre>/.exec(section);
     const prompt = /<summary>Agent prompt<\/summary>[\s\S]*?```\n([\s\S]*?)\n```/.exec(section);
     const promptText = prompt ? prompt[1].trim() : '';
+    const fix = /<b>Resolving commit:<\/b>\s*<a href="https:\/\/github\.com\/[^/\s"]+\/[^/\s"]+\/commit\/([0-9a-f]{7,40})"/.exec(section);
     return {
       number: Number(head[1]),
       title: plainText(title),
@@ -395,6 +398,7 @@ export function parseQodoReview(body) {
       description: description ? plainText(description[1]) : '',
       prompt: promptText,
       files: filesOf(promptText, section),
+      fixedIn: fix ? fix[1] : null,
     };
   });
   return { commit, findings };
