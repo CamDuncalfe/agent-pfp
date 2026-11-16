@@ -7,7 +7,8 @@
 show_context_used = true
 
 [review_agent]
-# For Qodo's issue finding agent. REVIEW.md points here.
+# For Qodo's issue finding agent. REVIEW.md has the same ask under "What to
+# tell me" for the other review agents. Change both together.
 issues_user_guidelines = """
 Report a finding when a change gives the user pixels the render check never draws, for example a picture that is scaled, cropped or encoded again after compositeLayers drew it, or a second place that stacks layers. Name the file the user ends up with and say what checks it.
 """
