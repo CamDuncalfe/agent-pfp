@@ -205,7 +205,7 @@ const commitLink = (repo, sha) => `[\`${sha.slice(0, 7)}\`](${repo}/commit/${sha
 /** One row of the table. */
 export function renderRow(entry) {
   const repo = repoOf(entry.url);
-  const caught = { nothing: 'Nothing', none: 'unknown', findings: '' }[entry.review];
+  const caught = { nothing: 'Nothing', none: 'unknown', findings: 'Nothing' }[entry.review];
   const fixes = [...new Set(entry.caught.map((finding) => finding.fixedIn))];
   const cells = [
     entry.mergedAt.slice(0, 10),
@@ -225,11 +225,11 @@ export function renderRow(entry) {
 export function renderLog(entries) {
   return `# Factory log
 
-One row for each pull request merged into \`main\`, oldest first. "Qodo caught" lists the findings from Qodo's review comment that a commit in the pull request fixed, with their severity, and "Fixed in" names those commits. "Render check" is what \`npm run check\` printed in CI on the pull request's last commit. A pull request that only changes this log has no row.
+One row for each pull request merged into \`main\`, oldest first. "Fixed from Qodo's review" lists the findings in Qodo's review comment that a commit in the pull request fixed, with their severity, and "Fixed in" names those commits. "My call" names a decision the pull request brought to me. "Render check" is what \`npm run check\` printed in CI on the pull request's last commit. A pull request that only changes this log has no row.
 
 The rows are kept in [factory-log.json](factory-log.json), and this page is written from it. After each merge, \`node factory/log.js add <pull request>\` adds that pull request's row. [factory.md](factory.md#the-factory-log) says how.
 
-| Date | Day | Ticket | Pull request | Qodo caught | Fixed in | Render check | Taste call to Cam | Post |
+| Date | Day | Ticket | Pull request | Fixed from Qodo's review | Fixed in | Render check | My call | Post |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 ${entries.map(renderRow).join('\n')}
 `;
