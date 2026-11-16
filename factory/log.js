@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { qodoCall } from './decisions.js';
-import { addEntry, buildEntry, ciRunOf, detailsFor, isLogOnly, parseArgs, renderCheckLine, renderLog } from './log-entry.js';
+import { addResult, ciRunOf, parseArgs, renderCheckLine, renderLog } from './log-entry.js';
 
 const REPO_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const JSON_FILE = join(REPO_DIR, 'docs', 'factory-log.json');
@@ -82,28 +82,24 @@ async function ciResult(repo, pr) {
   return { renderCheck: log.code === 0 ? renderCheckLine(log.stdout) : null, ci: ci.conclusion };
 }
 
+/**
+ * Read the pull request, and when addResult says it gets an entry, read its
+ * comments, Qodo's findings and CI, and write both log files.
+ */
 async function add(options) {
   const { nameWithOwner: repo } = await ghJson(['repo', 'view', '--json', 'nameWithOwner']);
   const fields = 'number,url,mergedAt,mergeCommit,closingIssuesReferences,files,statusCheckRollup';
   const pr = await ghJson(['pr', 'view', String(options.pr), '--repo', repo, '--json', fields]);
-  if (!pr.mergedAt) {
-    console.error(`#${pr.number} is not merged.`);
-    return 2;
-  }
-  if (isLogOnly(pr.files.map((file) => file.path))) {
-    console.log(`#${pr.number} only changes the log, so it gets no entry.`);
-    return 0;
-  }
-  const comments = (await ghJson(['api', '--paginate', '--slurp', `repos/${repo}/issues/${pr.number}/comments?per_page=100`])).flat();
-  const qodo = await qodoFindings(pr.url);
-  const { renderCheck, ci } = await ciResult(repo, pr);
   const entries = await readEntries();
-  const entry = buildEntry({ pr, comments, qodo, renderCheck, ci, ...detailsFor(entries, options) });
-  const updated = addEntry(entries, entry);
-  await writeFile(JSON_FILE, `${JSON.stringify(updated, null, 2)}\n`);
-  await render(updated);
-  console.log(`#${pr.number}: ${entry.caught.length} findings fixed, render check "${entry.renderCheck}".`);
-  return 0;
+  let result = addResult({ entries, pr, options });
+  if (result.entries) {
+    const comments = (await ghJson(['api', '--paginate', '--slurp', `repos/${repo}/issues/${pr.number}/comments?per_page=100`])).flat();
+    result = addResult({ entries, pr, options, comments, qodo: await qodoFindings(pr.url), ci: await ciResult(repo, pr) });
+    await writeFile(JSON_FILE, `${JSON.stringify(result.entries, null, 2)}\n`);
+    await render(result.entries);
+  }
+  (result.code === 0 ? console.log : console.error)(result.message);
+  return result.code;
 }
 
 async function main() {

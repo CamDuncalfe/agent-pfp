@@ -171,6 +171,28 @@ export function detailsFor(entries, options) {
   };
 }
 
+/**
+ * What \`node factory/log.js add\` does with a pull request it read: the
+ * exit code, the line it prints, and the entries to write, or null when it
+ * writes nothing. A pull request that isn't merged ends with 2, one that
+ * only changes the log gets no entry, and any other gets its entry in place
+ * of an older one.
+ * @param {{ entries: object[], pr: { number: number, mergedAt: string | null, files: Array<{ path: string }> }, options: object, comments?: object[], qodo?: object | null, ci?: { renderCheck: string | null, ci: string | null } }} input
+ * @returns {{ code: number, message: string, entries: object[] | null }}
+ */
+export function addResult({ entries, pr, options, comments = [], qodo = null, ci = { renderCheck: null, ci: null } }) {
+  if (!pr.mergedAt) return { code: 2, message: `#${pr.number} is not merged.`, entries: null };
+  if (isLogOnly(pr.files.map((file) => file.path))) {
+    return { code: 0, message: `#${pr.number} only changes the log, so it gets no entry.`, entries: null };
+  }
+  const entry = buildEntry({ pr, comments, qodo, renderCheck: ci.renderCheck, ci: ci.ci, ...detailsFor(entries, options) });
+  return {
+    code: 0,
+    message: `#${pr.number}: ${entry.caught.length} findings fixed, render check "${entry.renderCheck}".`,
+    entries: addEntry(entries, entry),
+  };
+}
+
 /** Put an entry in the list, in place of an older one for the same pull request, oldest merge first. */
 export function addEntry(entries, entry) {
   return [...entries.filter((old) => old.pr !== entry.pr), entry].sort((a, b) => a.mergedAt.localeCompare(b.mergedAt) || a.pr - b.pr);

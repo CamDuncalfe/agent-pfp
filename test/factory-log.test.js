@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
 import { QODO_BOT } from '../factory/decisions.js';
-import { addEntry, buildEntry, ciRunOf, detailsFor, isLogOnly, parseArgs, renderCheckLine, renderLog, renderRow, severities } from '../factory/log-entry.js';
+import { addEntry, addResult, buildEntry, ciRunOf, detailsFor, isLogOnly, parseArgs, renderCheckLine, renderLog, renderRow, severities } from '../factory/log-entry.js';
 
 const SHA_HEAD = 'a'.repeat(40);
 const SHA_FIX = 'b'.repeat(40);
@@ -223,4 +223,37 @@ test('detailsFor: adding a row again keeps the day, taste call and post that its
   assert.deepEqual(detailsFor(entries, { ...none, day: 8 }), { day: 8, taste: 'Scaling the picture', post: 'https://x/post' });
   assert.deepEqual(detailsFor(entries, { ...none, pr: 22 }), { day: null, taste: null, post: null });
   assert.deepEqual(detailsFor([], parseArgs(['add', '9', '--taste', 'A call'])), { day: null, taste: 'A call', post: null });
+});
+
+test('addResult: a pull request that is not merged ends with 2 and writes nothing', () => {
+  const result = addResult({ entries: [], pr: { ...PR, mergedAt: null, files: [{ path: 'src/a.js' }] }, options: parseArgs(['add', '7']) });
+  assert.deepEqual(result, { code: 2, message: '#7 is not merged.', entries: null });
+});
+
+test('addResult: a pull request that only changes the log gets no entry', () => {
+  const pr = { ...PR, files: [{ path: 'docs/factory-log.json' }, { path: 'docs/factory-log.md' }] };
+  assert.deepEqual(addResult({ entries: [], pr, options: parseArgs(['add', '7']) }), {
+    code: 0,
+    message: '#7 only changes the log, so it gets no entry.',
+    entries: null,
+  });
+});
+
+test('addResult: a merged pull request replaces its older entry and keeps the details its flags leave out', () => {
+  const old = { pr: 7, mergedAt: PR.mergedAt, day: 8, taste: 'The wider page', post: 'https://x/post' };
+  const other = { pr: 5, mergedAt: '2026-11-11T18:46:10Z' };
+  const result = addResult({
+    entries: [old, other],
+    pr: { ...PR, files: [{ path: 'src/a.js' }] },
+    options: parseArgs(['add', '7']),
+    comments: [comment(review({ resolved: ['Layer path read two ways'] }))],
+    qodo: { findings: [{ title: 'Layer path read two ways', action_level: 'action_required' }] },
+    ci: { renderCheck: 'Render check passed', ci: 'success' },
+  });
+  assert.equal(result.code, 0);
+  assert.equal(result.message, '#7: 1 findings fixed, render check "Render check passed".');
+  assert.deepEqual(result.entries.map((e) => e.pr), [5, 7]);
+  const entry = result.entries[1];
+  assert.deepEqual([entry.day, entry.taste, entry.post], [8, 'The wider page', 'https://x/post']);
+  assert.deepEqual(entry.caught, [{ severity: 'High', title: 'Layer path read two ways', fixedIn: SHA_FIX }]);
 });
