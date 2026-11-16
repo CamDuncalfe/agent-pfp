@@ -14,7 +14,7 @@ A user builds a profile picture for their coding agent by picking one layer in e
 
 ## What to tell me
 
-- A change gives the user pixels the render check never draws. That covers a picture that is changed after `compositeLayers` drew it, and a second place that stacks layers. Name the file the user ends up with and say what checks it.
+- A change gives the user pixels the render check never draws. The instruction for this one is in `.pr_agent.toml`, under `issues_user_guidelines`.
 - A change resizes, moves or crops pixels. Say whether it does that to a layer before the layers are stacked, or to the finished picture after. Rule 1 covers the first case.
 - A manifest changes one of the fields rule 2 names, and the pull request doesn't name the layers the change is for.
 - A pull request adds or changes layer images. Check the manifest entries for them and that the pull request says I approved the art (rule 5).

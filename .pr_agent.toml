@@ -1,7 +1,13 @@
 # Qodo settings for this repository. They override the Qodo portal's.
-# REVIEW.md holds the review instructions.
+# REVIEW.md holds the rest of the review instructions.
 
 [review_agent_ux]
 # Show the "Context sources" section in Qodo's review comment, so a review
 # shows what it read. The portal has it off.
 show_context_used = true
+
+[review_agent]
+# For Qodo's issue finding agent. REVIEW.md points here.
+issues_user_guidelines = """
+Report a finding when a change gives the user pixels the render check never draws, for example a picture that is scaled, cropped or encoded again after compositeLayers drew it, or a second place that stacks layers. Name the file the user ends up with and say what checks it.
+"""
