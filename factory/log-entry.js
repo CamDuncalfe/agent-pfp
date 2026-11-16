@@ -186,9 +186,14 @@ export function addResult({ entries, pr, options, comments = [], qodo = null, ci
     return { code: 0, message: `#${pr.number} only changes the log, so it gets no entry.`, entries: null };
   }
   const entry = buildEntry({ pr, comments, qodo, renderCheck: ci.renderCheck, ci: ci.ci, ...detailsFor(entries, options) });
+  // A finding a later pull request fixed is written into the row by hand with fixedInPr. Reading the pull request again keeps it.
+  const later = (entries.find((old) => old.pr === pr.number)?.caught ?? []).filter((finding) => finding.fixedInPr);
+  const own = entry.caught.length;
+  entry.caught = [...entry.caught, ...later.filter((finding) => !entry.caught.some((mine) => mine.title === finding.title))];
+  const kept = entry.caught.length - own;
   return {
     code: 0,
-    message: `#${pr.number}: ${entry.caught.length} findings fixed, render check "${entry.renderCheck}".`,
+    message: `#${pr.number}: ${own} findings fixed${kept ? `, ${kept} fixed in a later pull request` : ''}, render check "${entry.renderCheck}".`,
     entries: addEntry(entries, entry),
   };
 }
@@ -206,14 +211,14 @@ const commitLink = (repo, sha) => `[\`${sha.slice(0, 7)}\`](${repo}/commit/${sha
 export function renderRow(entry) {
   const repo = repoOf(entry.url);
   const caught = { nothing: 'Nothing', none: 'unknown', findings: '' }[entry.review];
-  const fixes = [...new Set(entry.caught.map((finding) => finding.fixedIn))];
+  const fixes = [...new Map(entry.caught.map((finding) => [`${finding.fixedIn} ${finding.fixedInPr ?? ''}`, finding])).values()];
   const cells = [
     entry.mergedAt.slice(0, 10),
     entry.day ?? '',
     entry.tickets.map((n) => `[#${n}](${repo}/issues/${n})`).join(', '),
     `[#${entry.pr}](${entry.url}) ${commitLink(repo, entry.merge)}`,
     entry.caught.length ? entry.caught.map((finding) => cell(`${finding.severity}: ${finding.title}`)).join('<br>') : caught,
-    fixes.map((sha) => commitLink(repo, sha)).join(', '),
+    fixes.map(({ fixedIn, fixedInPr }) => commitLink(repo, fixedIn) + (fixedInPr ? ` in [#${fixedInPr}](${repo}/pull/${fixedInPr})` : '')).join(', '),
     cell(entry.renderCheck),
     cell(entry.taste ?? 'No'),
     entry.post ? `[post](${entry.post})` : '',
@@ -225,7 +230,7 @@ export function renderRow(entry) {
 export function renderLog(entries) {
   return `# Factory log
 
-One row for each pull request merged into \`main\`, oldest first. "Fixed from Qodo's review" lists the findings in Qodo's review comment that a commit in the pull request fixed, with their severity, and "Fixed in" names those commits. "Nothing" means Qodo's review had no findings. A blank cell means the review had findings and none of them names a commit in that pull request as its fix. "My call" names a decision the pull request brought to me. "Render check" is what \`npm run check\` printed in CI on the pull request's last commit. A pull request that only changes this log has no row.
+One row for each pull request merged into \`main\`, oldest first. "Fixed from Qodo's review" lists the findings in Qodo's review comment that a commit fixed, with their severity, and "Fixed in" names those commits, with the later pull request when the fix came in one. "Nothing" means Qodo's review had no findings. "My call" names a decision the pull request brought to me. "Render check" is what \`npm run check\` printed in CI on the pull request's last commit. A pull request that only changes this log has no row.
 
 The rows are kept in [factory-log.json](factory-log.json), and this page is written from it. After each merge, \`node factory/log.js add <pull request>\` adds that pull request's row. [factory.md](factory.md#the-factory-log) says how.
 

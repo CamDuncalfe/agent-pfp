@@ -275,7 +275,14 @@
     ],
     "day": 7,
     "review": "findings",
-    "caught": [],
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Failed switches show old size choices",
+        "fixedIn": "dfe9f43534a6b65db1469fa82b1c675848370a4a",
+        "fixedInPr": 41
+      }
+    ],
     "renderCheck": "fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": "Scaling the finished picture for the 500 px download",
     "post": "https://github.com/qodo-hackathon/software-factory-hackathon/discussions/9#discussioncomment-19614314"

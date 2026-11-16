@@ -257,3 +257,36 @@ test('addResult: a merged pull request replaces its older entry and keeps the de
   assert.deepEqual([entry.day, entry.taste, entry.post], [8, 'The wider page', 'https://x/post']);
   assert.deepEqual(entry.caught, [{ severity: 'High', title: 'Layer path read two ways', fixedIn: SHA_FIX }]);
 });
+
+test('renderRow: a fix from a later pull request names that pull request', () => {
+  const entry = {
+    pr: 7,
+    url: PR.url,
+    mergedAt: PR.mergedAt,
+    merge: SHA_MERGE,
+    tickets: [],
+    day: null,
+    review: 'findings',
+    caught: [{ severity: 'Medium', title: 'C', fixedIn: SHA_FIX, fixedInPr: 9 }],
+    renderCheck: 'CI success',
+    taste: null,
+    post: null,
+  };
+  assert.match(renderRow(entry), new RegExp(`\\| \\[\`bbbbbbb\`\\]\\(https://github.com/o/r/commit/${SHA_FIX}\\) in \\[#9\\]\\(https://github.com/o/r/pull/9\\) \\|`));
+  assert.doesNotMatch(renderLog([entry]), /blank/i);
+});
+
+test('addResult: adding a row again keeps a finding a later pull request fixed', () => {
+  const later = { severity: 'Medium', title: 'Old size choices', fixedIn: SHA_FIX, fixedInPr: 9 };
+  const old = { pr: 7, mergedAt: PR.mergedAt, day: 8, taste: null, post: null, caught: [later] };
+  const result = addResult({
+    entries: [old],
+    pr: { ...PR, files: [{ path: 'src/a.js' }] },
+    options: parseArgs(['add', '7']),
+    comments: [comment(review({ resolved: ['Layer path read two ways'] }))],
+    qodo: { findings: [{ title: 'Layer path read two ways', action_level: 'action_required' }] },
+    ci: { renderCheck: 'Render check passed', ci: 'success' },
+  });
+  assert.deepEqual(result.entries[0].caught, [{ severity: 'High', title: 'Layer path read two ways', fixedIn: SHA_FIX }, later]);
+  assert.equal(result.message, '#7: 1 findings fixed, 1 fixed in a later pull request, render check "Render check passed".');
+});
