@@ -779,5 +779,26 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": null,
     "post": null
+  },
+  {
+    "pr": 64,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/64",
+    "mergedAt": "2026-11-17T03:03:51Z",
+    "merge": "286228a850049f66d953e26499bdbd4e7c9c3b3f",
+    "tickets": [
+      63
+    ],
+    "day": null,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Style index docs still say the alien is the only style",
+        "fixedIn": "d5b20a26347b706d47cb1e72603071b8d60907b3"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "The art for the cat, bear, fox, raccoon and frog, and the bear's evened lines",
+    "post": null
   }
 ]
