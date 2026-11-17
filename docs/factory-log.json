@@ -800,5 +800,26 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": "The art for the cat, bear, fox, raccoon and frog, and the bear's evened lines",
     "post": null
+  },
+  {
+    "pr": 67,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/67",
+    "mergedAt": "2026-11-17T13:14:34Z",
+    "merge": "6303705fa301d7e3a79577acf5dc16234bc50a7f",
+    "tickets": [
+      66
+    ],
+    "day": 12,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Large styles stall the render check",
+        "fixedIn": "93350203bff940105985c5c9880fb1d9acbb6d54"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
   }
 ]
