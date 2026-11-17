@@ -218,10 +218,10 @@ test('the build of this repository holds each file the builder asks for', async 
     await buildSite({ root: repo, out });
     const files = new Set(await listFiles(out));
     for (const file of await expectedStyleFiles(repo)) assert.ok(files.has(file), file);
-    assert.ok(files.has('styles/alien/manifest.json'));
-    // The eleven coming-soon pictures the Character tab shows are in the site. Their notice is not a file the page asks for.
     const index = JSON.parse(await readFile(join(repo, 'styles', 'index.json'), 'utf8'));
-    assert.equal(index.comingSoon.length, 11);
+    for (const entry of index.styles) assert.ok(files.has(entry.manifest), entry.manifest);
+    // The six coming-soon pictures the Character tab shows are in the site. Their notice is not a file the page asks for.
+    assert.equal(index.comingSoon.length, 6);
     for (const entry of index.comingSoon) assert.ok(files.has(entry.picture), entry.picture);
     assert.ok(!files.has('styles/coming-soon/NOTICE.md'));
     // The fixtures are test data and stay off the public site.

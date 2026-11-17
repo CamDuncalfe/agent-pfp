@@ -212,14 +212,14 @@ test('the Character tab opens first only when there is a choice, and stays open 
   assert.equal(characterTabOpens({ styleCount: 12, firstStyle: false }), true);
 });
 
-test('with the alien and eleven coming-soon characters the page still opens on the first trait tab', async () => {
+test('with six characters and six coming-soon characters the page opens on the Character tab', async () => {
   const index = await readJson('styles/index.json');
   const tiles = characterTiles(index.styles, index.comingSoon);
   assert.equal(tiles.length, 12);
   // Only a style counts as a character to pick from.
   const styleCount = tiles.filter((tile) => !tile.comingSoon).length;
-  assert.equal(styleCount, 1);
-  assert.equal(characterTabOpens({ styleCount, firstStyle: true }), false);
+  assert.equal(styleCount, 6);
+  assert.equal(characterTabOpens({ styleCount, firstStyle: true }), true);
 });
 
 test('the Character tab shows each style, then each coming-soon character, in index order', async () => {
@@ -227,16 +227,18 @@ test('the Character tab shows each style, then each coming-soon character, in in
   const tiles = characterTiles(index.styles, index.comingSoon);
   assert.deepEqual(
     tiles.map((tile) => tile.name),
-    ['Alien', 'Bear', 'Fox', 'Cat', 'Duck', 'Penguin', 'Raccoon', 'Owl', 'Rabbit', 'Frog', 'Skeleton', 'Cyclops'],
+    ['Alien', 'Bear', 'Fox', 'Cat', 'Raccoon', 'Frog', 'Duck', 'Penguin', 'Owl', 'Rabbit', 'Skeleton', 'Cyclops'],
   );
   assert.deepEqual(tiles[0], { id: 'alien', name: 'Alien', comingSoon: false, style: index.styles[0] });
-  assert.deepEqual(tiles[1], { id: 'bear', name: 'Bear', comingSoon: true, picture: 'styles/coming-soon/bear.png' });
-  // A coming-soon tile carries a picture and no style: nothing on it names a manifest.
-  for (const tile of tiles.slice(1)) {
+  assert.deepEqual(tiles[1], { id: 'bear', name: 'Bear', comingSoon: false, style: index.styles[1] });
+  assert.deepEqual(tiles[6], { id: 'duck', name: 'Duck', comingSoon: true, picture: 'styles/coming-soon/duck.png' });
+  // The first six tiles are styles. A coming-soon tile carries a picture and no style: nothing on it names a manifest.
+  for (const tile of tiles.slice(0, 6)) assert.equal(tile.comingSoon, false, tile.id);
+  for (const tile of tiles.slice(6)) {
     assert.equal(tile.comingSoon, true, tile.id);
     assert.deepEqual(Object.keys(tile).sort(), ['comingSoon', 'id', 'name', 'picture'], tile.id);
   }
-  assert.deepEqual(characterTiles(index.styles, []), [tiles[0]]);
+  assert.deepEqual(characterTiles(index.styles, []), tiles.slice(0, 6));
 });
 
 test('a style takes the place of the coming-soon tile with its id', () => {

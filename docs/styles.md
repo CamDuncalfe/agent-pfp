@@ -1,6 +1,6 @@
 # Style index
 
-[`styles/index.json`](../styles/index.json) lists the styles the builder offers, and the characters it shows as coming soon. The builder page reads it and shows one tile per style in the Character tab, the first tab of the trait panel, in the order of the file. A tile shows the picture the style opens with and the style's name under it, and the panel names the picked style. The first style opens by default. After the styles the tab shows one tile per coming-soon character. The index lists the alien as its one style, and eleven coming-soon characters, of which this shows the first:
+[`styles/index.json`](../styles/index.json) lists the styles the builder offers, and the characters it shows as coming soon. The builder page reads it and shows one tile per style in the Character tab, the first tab of the trait panel, in the order of the file. A tile shows the picture the style opens with and the style's name under it, and the panel names the picked style. The first style opens by default. After the styles the tab shows one tile per coming-soon character. The index lists six styles (the alien, bear, fox, cat, raccoon and frog) and six coming-soon characters. This shows the first style and the first coming-soon character:
 
 ```json
 {
@@ -14,9 +14,9 @@
   ],
   "comingSoon": [
     {
-      "id": "bear",
-      "name": "Bear",
-      "picture": "styles/coming-soon/bear.png"
+      "id": "duck",
+      "name": "Duck",
+      "picture": "styles/coming-soon/duck.png"
     }
   ]
 }
