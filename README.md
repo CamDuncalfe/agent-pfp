@@ -10,7 +10,7 @@ I'm building it during the [Qodo Software Factory Hackathon](https://hackathon.q
 
 ![The builder page showing the alien in a cowboy hat, heart shades and a purple hoodie](docs/img/builder.png)
 
-The alien in the screenshot is the first style I've made. Its layers are in [styles/alien/](styles/alien/), and the builder opens on it. I own the artwork, and no license on the code covers it. [styles/alien/NOTICE.md](styles/alien/NOTICE.md) says what you can do with it.
+The alien in the screenshot is the first style I've made, and the builder opens on it. The bear, fox, cat, raccoon and frog are styles too. Each one's layers are in its own folder in [styles/](styles/), like [styles/alien/](styles/alien/). I own the artwork, and no license on the code covers it. Each folder's `NOTICE.md`, like [styles/alien/NOTICE.md](styles/alien/NOTICE.md), says what you can do with it.
 
 ## What works today
 
@@ -27,7 +27,7 @@ The alien in the screenshot is the first style I've made. Its layers are in [sty
   - On a page 900 px wide or more, the preview, its swatches and its buttons stay on screen while the panel scrolls. Under that the page is one column, and it works at 390 px wide. The type comes from Adobe Fonts through LayerTwo's subscription, loaded by one kit from `use.typekit.net` in [web/index.html](web/index.html): Owners Narrow Bold for the wordmark and the headings, and Neue Haas Grotesk Text for everything else. The system face stands in until the kit loads. The wordmark is the logo. The name in it and in the page title is written once, in [src/brand.js](src/brand.js).
 - A style index, [styles/index.json](styles/index.json), that lists the styles the builder offers and the characters it shows as coming soon. It is documented in [docs/styles.md](docs/styles.md).
 
-The alien in `styles/alien/` is the one style with real artwork, and the one the builder offers. [styles/coming-soon/](styles/coming-soon/) holds one flat picture of each coming-soon character, and [its notice](styles/coming-soon/NOTICE.md) says the same about that artwork as the alien's. The files under `fixtures/` are plain shapes used as test data. [fixtures/index.json](fixtures/index.json) lists the fixture styles that pass the render check, and the builder doesn't offer them.
+The builder offers the six styles in [styles/index.json](styles/index.json): the alien, bear, fox, cat, raccoon and frog. [styles/coming-soon/](styles/coming-soon/) holds one flat picture of each coming-soon character, and [its notice](styles/coming-soon/NOTICE.md) says the same about that artwork as the alien's. The files under `fixtures/` are plain shapes used as test data. [fixtures/index.json](fixtures/index.json) lists the fixture styles that pass the render check, and the builder doesn't offer them.
 
 ## Run it
 
@@ -54,7 +54,7 @@ To look at a style that isn't in this repository yet, start the server with the 
 | `src/` | Code shared by the builder page and the command line tools |
 | `web/` | The builder page |
 | `bin/` | Command line tools |
-| `styles/` | The style index the builder reads, the alien's manifest and layers, and the pictures of the coming-soon characters |
+| `styles/` | The style index the builder reads, each style's manifest and layers, and the pictures of the coming-soon characters |
 | `fixtures/` | Test data: manifests, plain-shape layers and an index of the fixture styles |
 | `factory/` | The runner that starts the coding agent on a ticket with the `ready-for-agent` label, see [docs/factory.md](docs/factory.md) |
 | `docs/` | Format and runner documentation |

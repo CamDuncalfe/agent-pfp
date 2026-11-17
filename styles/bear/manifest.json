@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "style": "bear",
+  "name": "Bear",
+  "canvas": {
+    "width": 1024,
+    "height": 1024,
+    "opaque": true
+  },
+  "groups": [
+    {
+      "id": "background",
+      "label": "Background",
+      "base": true,
+      "bleed": [
+        "top",
+        "right",
+        "bottom",
+        "left"
+      ],
+      "options": [
+        {
+          "id": "yellow",
+          "label": "Yellow",
+          "src": "layers/background/yellow.png"
+        },
+        {
+          "id": "butter",
+          "label": "Butter",
+          "src": "layers/background/butter.png"
+        },
+        {
+          "id": "peach",
+          "label": "Peach",
+          "src": "layers/background/peach.png"
+        },
+        {
+          "id": "cream",
+          "label": "Cream",
+          "src": "layers/background/cream.png"
+        },
+        {
+          "id": "pink",
+          "label": "Pink",
+          "src": "layers/background/pink.png"
+        },
+        {
+          "id": "tomato",
+          "label": "Tomato",
+          "src": "layers/background/tomato.png"
+        },
+        {
+          "id": "lilac",
+          "label": "Lilac",
+          "src": "layers/background/lilac.png"
+        },
+        {
+          "id": "sky",
+          "label": "Sky",
+          "src": "layers/background/sky.png"
+        },
+        {
+          "id": "mint",
+          "label": "Mint",
+          "src": "layers/background/mint.png"
+        },
+        {
+          "id": "sage",
+          "label": "Sage",
+          "src": "layers/background/sage.png"
+        }
+      ]
+    },
+    {
+      "id": "character",
+      "label": "Character",
+      "base": true,
+      "bleed": [
+        "bottom"
+      ],
+      "options": [
+        {
+          "id": "bear",
+          "label": "Bear",
+          "src": "layers/character/bear.png"
+        }
+      ]
+    },
+    {
+      "id": "clothes",
+      "label": "Clothes",
+      "bleed": [
+        "bottom",
+        "left",
+        "right"
+      ],
+      "zone": {
+        "x": 3,
+        "y": 741,
+        "width": 1018,
+        "height": 283
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "White tee",
+          "src": "layers/clothes/default.png"
+        },
+        {
+          "id": "hoodie",
+          "label": "Hoodie",
+          "src": "layers/clothes/hoodie.png"
+        },
+        {
+          "id": "hawaiian-shirt",
+          "label": "Hawaiian shirt",
+          "src": "layers/clothes/hawaiian-shirt.png"
+        },
+        {
+          "id": "suit",
+          "label": "Suit",
+          "src": "layers/clothes/suit.png"
+        }
+      ]
+    },
+    {
+      "id": "eyes",
+      "label": "Eyes",
+      "zone": {
+        "x": 472,
+        "y": 415,
+        "width": 281,
+        "height": 100
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "Half-lidded",
+          "src": "layers/eyes/default.png"
+        },
+        {
+          "id": "sleepy",
+          "label": "Sleepy",
+          "src": "layers/eyes/sleepy.png"
+        },
+        {
+          "id": "wide",
+          "label": "Wide",
+          "src": "layers/eyes/wide.png"
+        },
+        {
+          "id": "closed",
+          "label": "Closed",
+          "src": "layers/eyes/closed.png"
+        }
+      ]
+    },
+    {
+      "id": "eyewear",
+      "label": "Eyewear",
+      "optional": true,
+      "over": [
+        "eyes"
+      ],
+      "options": [
+        {
+          "id": "wayfarers",
+          "label": "Wayfarers",
+          "src": "layers/eyewear/wayfarers.png"
+        },
+        {
+          "id": "round-shades",
+          "label": "Round shades",
+          "src": "layers/eyewear/round-shades.png"
+        },
+        {
+          "id": "clear-glasses",
+          "label": "Clear glasses",
+          "src": "layers/eyewear/clear-glasses.png"
+        }
+      ]
+    },
+    {
+      "id": "headwear",
+      "label": "Headwear",
+      "optional": true,
+      "over": [
+        "eyes",
+        "eyewear"
+      ],
+      "options": [
+        {
+          "id": "beanie",
+          "label": "Beanie",
+          "src": "layers/headwear/beanie.png"
+        },
+        {
+          "id": "cowboy-hat",
+          "label": "Cowboy hat",
+          "src": "layers/headwear/cowboy-hat.png"
+        },
+        {
+          "id": "cap",
+          "label": "Cap",
+          "src": "layers/headwear/cap.png"
+        }
+      ]
+    }
+  ]
+}

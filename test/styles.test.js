@@ -42,10 +42,13 @@ async function runCli(args) {
   }
 }
 
-test('styles/index.json lists the alien and no fixture style', async () => {
+test('styles/index.json lists the six characters and no fixture style', async () => {
   const index = await loadIndex();
   assert.deepEqual(validateStyleIndex(index), { ok: true, errors: [] });
-  assert.deepEqual(index.styles, [{ id: 'alien', name: 'Alien', manifest: 'styles/alien/manifest.json' }]);
+  assert.deepEqual(
+    index.styles,
+    ['Alien', 'Bear', 'Fox', 'Cat', 'Raccoon', 'Frog'].map((name) => ({ id: name.toLowerCase(), name, manifest: `styles/${name.toLowerCase()}/manifest.json` })),
+  );
   const fixtureIds = (await loadFixtureIndex()).styles.map((entry) => entry.id);
   for (const entry of index.styles) {
     assert.ok(!fixtureIds.includes(entry.id), entry.id);
@@ -369,19 +372,20 @@ test('check-styles exits 1 when a listed style fails and 2 when it cannot run', 
 });
 
 /** The characters styles/index.json names as coming soon, in the order of the Character tab. */
-const COMING_SOON = ['Bear', 'Fox', 'Cat', 'Duck', 'Penguin', 'Raccoon', 'Owl', 'Rabbit', 'Frog', 'Skeleton', 'Cyclops'];
+const COMING_SOON = ['Duck', 'Penguin', 'Owl', 'Rabbit', 'Skeleton', 'Cyclops'];
 
-test('styles/index.json names eleven coming-soon characters after the alien, each with a picture and no manifest', async () => {
+test('styles/index.json names six coming-soon characters after the six styles, each with a picture and no manifest', async () => {
   const index = await loadIndex();
   const coming = comingSoonEntries(index);
   assert.deepEqual(
     coming,
     COMING_SOON.map((name) => ({ id: name.toLowerCase(), name, picture: `styles/coming-soon/${name.toLowerCase()}.png` })),
   );
-  // The alien is still the one style, so the check, the site build and the page open nothing else.
-  assert.deepEqual(index.styles.map((entry) => entry.id), ['alien']);
+  // No character is both a style and coming soon.
+  const styleIds = index.styles.map((entry) => entry.id);
+  for (const entry of coming) assert.ok(!styleIds.includes(entry.id), entry.id);
   for (const entry of coming) assert.equal('manifest' in entry, false, entry.id);
-  // The folder holds those eleven pictures and its notice, and no style: no manifest and no layers.
+  // The folder holds those six pictures and its notice, and no style: no manifest and no layers.
   const folder = await readdir(new URL('styles/coming-soon/', rootUrl));
   assert.deepEqual(folder.sort(), ['NOTICE.md', ...coming.map((entry) => `${entry.id}.png`)].sort());
 });
@@ -452,7 +456,7 @@ test('a coming-soon picture resolves against the folder that holds the index fol
 test('a coming-soon character in the address opens the first style and the notice says it is coming soon', async () => {
   const index = await loadIndex();
   const first = index.styles[0];
-  assert.deepEqual(styleFromSearch(index, '?style=bear'), { entry: first, notice: 'Bear is coming soon. Showing Alien.' });
+  assert.deepEqual(styleFromSearch(index, '?style=duck'), { entry: first, notice: 'Duck is coming soon. Showing Alien.' });
   assert.deepEqual(styleFromSearch(index, '?style=cyclops'), { entry: first, notice: 'Cyclops is coming soon. Showing Alien.' });
   assert.equal(comingSoonNotice({ id: 'b', name: 'B', picture: 'b.png' }, first), 'B is coming soon. Showing Alien.');
   // chooseStyle never gives a coming-soon character back as the style to open.
@@ -465,8 +469,9 @@ test('the render check and the site build read a coming-soon entry as a picture,
   // check-styles walks index.styles only, so it loads no manifest for a coming-soon character.
   const check = await readFile(new URL('bin/check-styles.js', rootUrl), 'utf8');
   assert.doesNotMatch(check, /comingSoon/);
+  const index = await loadIndex();
   const { stdout } = await run(process.execPath, [cli, 'styles/index.json'], { cwd: fileURLToPath(rootUrl) });
-  assert.match(stdout, /Styles checked: 1\n/);
+  assert.match(stdout, new RegExp(`Styles checked: ${index.styles.length}\\n`));
   // The site build copies the picture and reads nothing else of the entry.
   const build = await readFile(new URL('bin/build-site.js', rootUrl), 'utf8');
   assert.match(build, /for \(const entry of comingSoonEntries\(index\)\) \{\n\s*let pictureUrl;\n\s*try \{\n\s*pictureUrl = resolvePictureUrl\(entry, indexUrl\);/);
