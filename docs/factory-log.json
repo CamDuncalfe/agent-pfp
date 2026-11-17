@@ -798,7 +798,7 @@
       }
     ],
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
-    "taste": "The art for the cat, bear, fox, raccoon and frog, and the bear's evened lines",
+    "taste": "The art for the cat, bear, fox, raccoon and frog, with the bear's lines evened",
     "post": null
   },
   {
@@ -820,6 +820,21 @@
     ],
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": null,
+    "post": null
+  },
+  {
+    "pr": 71,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/71",
+    "mergedAt": "2026-11-17T19:07:36Z",
+    "merge": "6645953e349c97e6e6c5f4ce6a6a3f8b5d957f76",
+    "tickets": [
+      70
+    ],
+    "day": null,
+    "review": "findings",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "The light lens on the cat's and the alien's clear glasses",
     "post": null
   }
 ]
