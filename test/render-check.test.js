@@ -219,6 +219,121 @@ test('a hole that another layer covers is not reported', async () => {
   assert.equal((await checkManifest(manifest, load)).ok, true);
 });
 
+/**
+ * makeStyle with an Eyewear group between the eyes and the hat that may
+ * cover the eyes. `lens` is the eyewear layer.
+ */
+function withEyewear(lens, settings = {}) {
+  const { optional = true } = settings;
+  const seeThrough = 'seeThrough' in settings ? settings.seeThrough : true;
+  const style = makeStyle();
+  const option = { id: 'clear', label: 'Clear', src: 'eyewear/clear.png' };
+  if (seeThrough !== undefined) option.seeThrough = seeThrough;
+  style.manifest.groups.splice(3, 0, {
+    id: 'eyewear',
+    label: 'Eyewear',
+    optional,
+    over: ['eyes'],
+    options: [option],
+  });
+  style.layers['eyewear/clear.png'] = lens;
+  return style;
+}
+
+// A frame row above and below the eyes, lenses left empty.
+const EMPTY_LENSES = [[4, 6, 8, 1], [4, 9, 8, 1]];
+// The same frame with opaque lenses over the whole eye zone.
+const PAINTED_LENSES = [[4, 6, 8, 4, [90, 120, 200, 255]]];
+
+test('a see-through option that hides the eyes is reported as covered, naming both options', async () => {
+  const { manifest, load } = withEyewear(layer(PAINTED_LENSES));
+  const report = await checkManifest(manifest, load);
+  assert.deepEqual(kinds(report), ['covered']);
+  const [issue] = report.issues;
+  assert.equal(issue.group, 'eyewear');
+  assert.equal(issue.option, 'clear');
+  assert.equal(issue.otherGroup, 'eyes');
+  assert.equal(issue.otherOption, 'bar');
+  assert.equal(issue.defaultOption, 'dots');
+  assert.equal(issue.message, 'eyewear/clear is see-through, but over it eyes/bar gives the same picture as eyes/dots');
+  assert.match(formatReport(report), /covered \(1\)/);
+});
+
+test('a see-through option with empty lenses passes', async () => {
+  const { manifest, load } = withEyewear(layer(EMPTY_LENSES));
+  const report = await checkManifest(manifest, load);
+  assert.deepEqual(report.issues, []);
+});
+
+test('tinted lenses that let the eyes show pass', async () => {
+  const { manifest, load } = withEyewear(layer([[4, 6, 8, 4, [90, 120, 200, 128]]]));
+  assert.deepEqual((await checkManifest(manifest, load)).issues, []);
+});
+
+test('an option not marked see-through may hide the eyes', async () => {
+  for (const seeThrough of [undefined, false]) {
+    const { manifest, load } = withEyewear(layer(PAINTED_LENSES), { seeThrough });
+    assert.deepEqual((await checkManifest(manifest, load)).issues, [], `seeThrough ${seeThrough}`);
+  }
+});
+
+test('see-through compares each option of the covered group with its default, also when that is None', async () => {
+  const { manifest, layers, load } = withEyewear(layer(PAINTED_LENSES));
+  // Optional eyes default to None, so both eye options are compared with no eyes.
+  manifest.groups[2].optional = true;
+  let report = await checkManifest(manifest, load);
+  assert.deepEqual(
+    report.issues.map((issue) => [issue.otherOption, issue.defaultOption]),
+    [['dots', null], ['bar', null]],
+  );
+  assert.match(report.issues[0].message, /eyes\/dots gives the same picture as eyes\/none/);
+
+  // A group with one choice has nothing to compare.
+  manifest.groups[2].optional = false;
+  manifest.groups[2].options.pop();
+  delete layers['eyes/bar.png'];
+  report = await checkManifest(manifest, load);
+  assert.deepEqual(report.issues, []);
+});
+
+test('see-through checks an option of a required group too', async () => {
+  const { manifest, load } = withEyewear(layer(PAINTED_LENSES), { optional: false });
+  assert.deepEqual(kinds(await checkManifest(manifest, load)), ['covered']);
+});
+
+test('see-through checks each option marked, with the default picks for the other groups', async () => {
+  const { manifest, layers, load } = withEyewear(layer(EMPTY_LENSES));
+  manifest.groups[3].options.push({ id: 'painted', label: 'Painted', src: 'eyewear/painted.png', seeThrough: true });
+  layers['eyewear/painted.png'] = layer(PAINTED_LENSES);
+  // The background has two options; the comparison draws its default, the first.
+  manifest.groups[0].options.push({ id: 'dark', label: 'Dark', src: 'background/dark.png' });
+  layers['background/dark.png'] = layer([[0, 0, SIZE, SIZE, [40, 40, 40, 255]]]);
+  const report = await checkManifest(manifest, load);
+  assert.deepEqual(
+    report.issues.map((issue) => `${issue.kind} ${issue.option} ${issue.otherOption}`),
+    ['covered painted bar'],
+  );
+});
+
+test('see-through needs an "over" list to compare against', async () => {
+  const { manifest, load } = withEyewear(layer([[4, 10, 8, 1]]));
+  delete manifest.groups[3].over;
+  assert.deepEqual((await checkManifest(manifest, load)).issues, []);
+});
+
+test('a layer that cannot be loaded is not compared for see-through', async () => {
+  const { manifest, layers, load } = withEyewear(layer(PAINTED_LENSES));
+  delete layers['eyes/bar.png'];
+  assert.deepEqual(kinds(await checkManifest(manifest, load)), ['missing']);
+});
+
+test('seeThrough has to be true or false', async () => {
+  const { manifest, load } = withEyewear(layer(EMPTY_LENSES), { seeThrough: 'yes' });
+  const report = await checkManifest(manifest, load);
+  assert.deepEqual(kinds(report), ['manifest']);
+  assert.match(report.issues[0].message, /options\[0\]\.seeThrough must be true or false/);
+});
+
 test('above maxCombinations the check samples with the seed', async () => {
   const { manifest, load } = makeStyle();
   const report = await checkManifest(manifest, load, { maxCombinations: 3, seed: 5 });

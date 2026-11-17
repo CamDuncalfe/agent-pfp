@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { buildFixtures } from '../fixtures/make-fixtures.js';
+import { createRaster } from '../src/composite.js';
 import { readPng } from '../src/png.js';
 import { checkManifest } from '../src/render-check.js';
 
@@ -46,6 +47,67 @@ test('fixtures/blocks passes the render check on its 96x64 canvas', async () => 
   const report = await checkStyle('blocks');
   assert.deepEqual(report.issues, []);
   assert.deepEqual(report.combinations, { total: 24, checked: 24, failed: 0, exhaustive: true });
+});
+
+/**
+ * fixtures/shapes with an optional Eyewear group of clear glasses that may
+ * cover the eyes. The glasses are plain rectangles drawn here: a frame
+ * around each eye and, when `lenses` is given, lenses filled with that
+ * colour and a pair of eyes of their own painted on.
+ */
+async function shapesWithGlasses(lenses) {
+  const manifest = JSON.parse(await readFile(new URL('shapes/manifest.json', fixturesUrl), 'utf8'));
+  manifest.groups.push({
+    id: 'eyewear',
+    label: 'Eyewear',
+    optional: true,
+    zone: { x: 18, y: 23, width: 28, height: 10 },
+    over: ['eyes'],
+    options: [{ id: 'clear', label: 'Clear glasses', src: 'layers/eyewear/clear.png', seeThrough: true }],
+  });
+  const glasses = createRaster(64, 64);
+  const paint = (x, y, width, height, colour) => {
+    for (let py = y; py < y + height; py += 1) {
+      for (let px = x; px < x + width; px += 1) glasses.data.set(colour, (py * 64 + px) * 4);
+    }
+  };
+  for (const left of [19, 35]) {
+    if (lenses) {
+      paint(left, 24, 10, 8, lenses);
+      paint(left + 3, 26, 4, 4, [30, 30, 36, 255]);
+    }
+    paint(left, 24, 10, 1, FRAME);
+    paint(left, 31, 10, 1, FRAME);
+    paint(left, 24, 1, 8, FRAME);
+    paint(left + 9, 24, 1, 8, FRAME);
+  }
+  const load = (src) =>
+    src === 'layers/eyewear/clear.png' ? glasses : readPng(new URL(`shapes/${src}`, fixturesUrl));
+  return { manifest, load };
+}
+
+const FRAME = [60, 60, 70, 255];
+
+test('see-through glasses that paint over the eyes fail with "covered", and empty lenses pass', async () => {
+  const painted = await shapesWithGlasses([180, 220, 240, 255]);
+  const failing = await checkManifest(painted.manifest, painted.load);
+  assert.deepEqual(
+    failing.issues.map(({ kind, group, option, otherGroup, otherOption, defaultOption }) => ({
+      kind,
+      group,
+      option,
+      otherGroup,
+      otherOption,
+      defaultOption,
+    })),
+    [{ kind: 'covered', group: 'eyewear', option: 'clear', otherGroup: 'eyes', otherOption: 'bars', defaultOption: 'dots' }],
+  );
+  assert.match(failing.issues[0].message, /eyewear\/clear .*eyes\/bars .*eyes\/dots/);
+
+  const empty = await shapesWithGlasses(null);
+  const passing = await checkManifest(empty.manifest, empty.load);
+  assert.deepEqual(passing.issues, []);
+  assert.equal(passing.ok, true);
 });
 
 test('fixtures/broken fails once for each bad layer', async () => {

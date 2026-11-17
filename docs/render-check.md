@@ -18,7 +18,7 @@ The command exits with 0 when the style passes, 1 when it found issues and 2 whe
 
 ## What it checks
 
-It works in three steps.
+It works in four steps.
 
 **Each layer on its own**
 
@@ -45,6 +45,16 @@ The check composites the combination with the same `compositeLayers` function th
 | `hole` | The finished picture has see-through pixels and the manifest sets `canvas.opaque` to `true`. |
 
 The summary line counts a combination as failed when it has a hole or uses a layer or a pair that failed an earlier step.
+
+**Each see-through option**
+
+An option with `"seeThrough": true` is meant to show what is under it, like clear glasses over the eyes. For each such option, the check draws it over each option of each group that its group lists in `over`, with the default pick for every other group: the first option, or None for an optional group. It compares each picture with the same picture over that group's default option.
+
+| Issue | Meaning |
+| --- | --- |
+| `covered` | Over the see-through option, an option of a covered group gives the same picture as the group's default option. The message names the see-through option and both options. The layer most likely paints its own picture over the group. |
+
+Options that aren't marked see-through are not compared. A picture with a layer that could not be loaded or has the wrong size is skipped, because that layer is reported already. The summary line does not count these pictures as combinations.
 
 ## Options
 
@@ -88,4 +98,5 @@ It exits with 0 when each copy is caught and both clean styles pass, and with 1 
 - The check compares pixel coverage. It does not judge how a combination looks.
 - Layers and pairs are always checked in full. Only the hole check depends on the combination sample, so a style with more combinations than `--max-combinations` can hide a hole in a combination the sample did not visit.
 - Zones are rectangles.
-- The check and the builder page read layer pixels in different ways. The check decodes the PNG file. The page reads pixels back from a canvas, which stores colour multiplied by alpha. Alpha values and opaque pixels are the same in both. The colour of a see-through pixel can differ by a few levels in the page: in Chrome a pixel of red 200 comes back as 199 at alpha 128 and as 204 at alpha 10. Every check here counts drawn pixels by alpha and never reads colour, so its results hold for what the page draws.
+- The check and the builder page read layer pixels in different ways. The check decodes the PNG file. The page reads pixels back from a canvas, which stores colour multiplied by alpha. Alpha values and opaque pixels are the same in both. The colour of a see-through pixel can differ by a few levels in the page: in Chrome a pixel of red 200 comes back as 199 at alpha 128 and as 204 at alpha 10. Every check but `covered` counts drawn pixels by alpha and never reads colour, so its results hold for what the page draws. The `covered` check compares the full colour of two decoded pictures. Two pictures that are the same in the check are the same in the page. Two that differ only by a few colour levels in see-through pixels could come out the same in the page.
+- The `covered` check only draws the default picks for the groups it doesn't compare. A later group whose default covers the same pixels would hide the difference too.

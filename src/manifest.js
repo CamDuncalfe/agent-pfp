@@ -16,7 +16,7 @@ const ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 
 /**
  * @typedef {{ x: number, y: number, width: number, height: number }} Rect
- * @typedef {{ id: string, label: string, src: string }} Option
+ * @typedef {{ id: string, label: string, src: string, seeThrough?: boolean }} Option
  * @typedef {{
  *   id: string,
  *   label: string,
@@ -125,6 +125,9 @@ function validateOptions(group, where, errors) {
     if (!isNonEmptyString(option.label)) errors.push(`${at}.label must be a non-empty string`);
     if (!isSafeRelativePath(option.src)) {
       errors.push(`${at}.src must be a relative path inside the style folder`);
+    }
+    if (option.seeThrough !== undefined && typeof option.seeThrough !== 'boolean') {
+      errors.push(`${at}.seeThrough must be true or false`);
     }
   });
 }

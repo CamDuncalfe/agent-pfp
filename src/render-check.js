@@ -1,7 +1,7 @@
 /**
  * Render check: decides whether a style's layers can be combined safely.
  *
- * It looks at three things, from cheapest to most expensive:
+ * It looks at four things:
  *
  * 1. Each layer on its own: right size, not blank, not cut off by a canvas
  *    edge, inside its group's zone.
@@ -10,12 +10,16 @@
  * 3. Each combination a user can pick: it is composited the way the builder
  *    draws it, and on an opaque canvas the result may not have see-through
  *    pixels.
+ * 4. Each option marked `seeThrough`: drawn over each option of the groups
+ *    its group lists in `over`, it has to let that option show, so the
+ *    picture differs from the one over the group's default option.
  *
  * The format fields it reads are documented in docs/manifest.md.
  */
-import { validateManifest, resolveSelection, EDGES } from './manifest.js';
+import { validateManifest, resolveSelection, groupChoices, EDGES } from './manifest.js';
 import { compositeLayers, isRaster } from './composite.js';
 import { countCombinations, walkCombinations, sampleCombinations } from './combinations.js';
+import { defaultSelection } from './builder-layout.js';
 
 export const DEFAULT_OPTIONS = Object.freeze({
   /** A pixel counts as drawn when its alpha is at least this (1-255). */
@@ -29,14 +33,15 @@ export const DEFAULT_OPTIONS = Object.freeze({
 });
 
 /**
- * @typedef {'manifest' | 'missing' | 'size' | 'empty' | 'clip' | 'zone' | 'overlap' | 'hole'} IssueKind
+ * @typedef {'manifest' | 'missing' | 'size' | 'empty' | 'clip' | 'zone' | 'overlap' | 'hole' | 'covered'} IssueKind
  * @typedef {{
  *   kind: IssueKind,
  *   message: string,
  *   group?: string,
  *   option?: string,
  *   otherGroup?: string,
- *   otherOption?: string,
+ *   otherOption?: string | null,
+ *   defaultOption?: string | null,
  *   edge?: string,
  *   pixels?: number,
  *   selection?: import('./manifest.js').Selection,
@@ -178,6 +183,66 @@ function checkLayer(group, option, analysis) {
         pixels,
         message: `${group.id}/${option.id} is cut off by the ${edge} edge (${pixels} px on the edge)`,
       });
+    }
+  }
+  return issues;
+}
+
+function samePixels(a, b) {
+  if (a.data.length !== b.data.length) return false;
+  for (let i = 0; i < a.data.length; i += 1) {
+    if (a.data[i] !== b.data[i]) return false;
+  }
+  return true;
+}
+
+function choiceName(choice) {
+  return choice ?? 'none';
+}
+
+/**
+ * Draw each option marked `seeThrough` over each choice of each group its
+ * group lists in `over`, with the default picks (the builder's
+ * defaultSelection) for every other group. A choice whose picture is the
+ * same as the picture over that group's default choice is hidden by the
+ * see-through layer. Combinations with a layer that failed to load or has
+ * the wrong size are skipped; that layer is reported already.
+ * @returns {Issue[]}
+ */
+function checkSeeThrough(manifest, usable) {
+  const issues = [];
+  const { width, height } = manifest.canvas;
+  const defaults = defaultSelection(manifest);
+  const draw = (selection) => {
+    const keys = resolveSelection(manifest, selection).map(({ group, option }) => layerKey(group.id, option.id));
+    if (!keys.every((key) => usable.has(key))) return null;
+    return compositeLayers(width, height, keys.map((key) => usable.get(key).raster));
+  };
+  for (const upper of manifest.groups) {
+    for (const option of upper.options) {
+      if (option.seeThrough !== true) continue;
+      for (const lowerId of upper.over ?? []) {
+        const lower = manifest.groups.find((group) => group.id === lowerId);
+        const base = defaults[lower.id];
+        const pick = (choice) => ({ ...defaults, [upper.id]: option.id, [lower.id]: choice });
+        const reference = draw(pick(base));
+        if (!reference) continue;
+        for (const choice of groupChoices(lower)) {
+          if (choice === base) continue;
+          const picture = draw(pick(choice));
+          if (!picture || !samePixels(picture, reference)) continue;
+          const upperKey = layerKey(upper.id, option.id);
+          issues.push({
+            kind: 'covered',
+            group: upper.id,
+            option: option.id,
+            otherGroup: lower.id,
+            otherOption: choice,
+            defaultOption: base,
+            message: `${upperKey} is see-through, but over it ${layerKey(lower.id, choiceName(choice))} gives the same picture as ${layerKey(lower.id, choiceName(base))}`,
+          });
+        }
+      }
     }
   }
   return issues;
@@ -343,6 +408,9 @@ export async function checkManifest(manifest, loadLayer, options = {}) {
     }
     if (failed) report.combinations.failed += 1;
   }
+
+  // 4. Each see-through option has to let each option of the groups it may cover show.
+  issues.push(...checkSeeThrough(manifest, usable));
 
   report.ok = issues.length === 0;
   return report;
