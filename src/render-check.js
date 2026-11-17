@@ -207,16 +207,34 @@ function choiceName(choice) {
  * same as the picture over that group's default choice is hidden by the
  * see-through layer. Combinations with a layer that failed to load or has
  * the wrong size are skipped; that layer is reported already.
+ *
+ * Each picture needs every option of a covered group drawn under each
+ * see-through option, so the number of pictures is not capped by
+ * maxCombinations. To keep each one cheap, the groups drawn before the
+ * covered group are composited once per covered group, since they keep
+ * their default picks in every picture of it. compositeLayers copies its
+ * first layer onto the empty canvas pixel for pixel, so drawing that
+ * composite and then the rest gives the same bytes as drawing every layer.
  * @returns {Issue[]}
  */
 function checkSeeThrough(manifest, usable) {
   const issues = [];
   const { width, height } = manifest.canvas;
   const defaults = defaultSelection(manifest);
-  const draw = (selection) => {
-    const keys = resolveSelection(manifest, selection).map(({ group, option }) => layerKey(group.id, option.id));
-    if (!keys.every((key) => usable.has(key))) return null;
-    return compositeLayers(width, height, keys.map((key) => usable.get(key).raster));
+  /** @type {Map<string, import('./composite.js').Raster | null>} */
+  const bottoms = new Map();
+  const draw = (selection, lower) => {
+    const lowerIndex = manifest.groups.indexOf(lower);
+    const below = [];
+    const rest = [];
+    for (const { group, option } of resolveSelection(manifest, selection)) {
+      const key = layerKey(group.id, option.id);
+      if (!usable.has(key)) return null;
+      (manifest.groups.indexOf(group) < lowerIndex ? below : rest).push(usable.get(key).raster);
+    }
+    if (below.length === 0) return compositeLayers(width, height, rest);
+    if (!bottoms.has(lower.id)) bottoms.set(lower.id, compositeLayers(width, height, below));
+    return compositeLayers(width, height, [bottoms.get(lower.id), ...rest]);
   };
   for (const upper of manifest.groups) {
     for (const option of upper.options) {
@@ -225,11 +243,11 @@ function checkSeeThrough(manifest, usable) {
         const lower = manifest.groups.find((group) => group.id === lowerId);
         const base = defaults[lower.id];
         const pick = (choice) => ({ ...defaults, [upper.id]: option.id, [lower.id]: choice });
-        const reference = draw(pick(base));
+        const reference = draw(pick(base), lower);
         if (!reference) continue;
         for (const choice of groupChoices(lower)) {
           if (choice === base) continue;
-          const picture = draw(pick(choice));
+          const picture = draw(pick(choice), lower);
           if (!picture || !samePixels(picture, reference)) continue;
           const upperKey = layerKey(upper.id, option.id);
           issues.push({

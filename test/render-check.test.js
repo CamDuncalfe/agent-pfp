@@ -315,6 +315,33 @@ test('see-through checks each option marked, with the default picks for the othe
   );
 });
 
+test('several see-through options over several covered groups on half-transparent layers give each result once', async () => {
+  const { manifest, layers, load } = withEyewear(layer(EMPTY_LENSES));
+  manifest.canvas.opaque = false;
+  // Half-transparent layers under the covered groups, so the shared bottom is blended.
+  layers['background/plain.png'] = layer([[0, 0, SIZE, SIZE, [200, 200, 200, 128]]]);
+  layers['face/square.png'] = layer([[3, 3, 10, 10, [240, 210, 160, 200]]]);
+  manifest.groups[1].options.push({ id: 'wide', label: 'Wide', src: 'face/wide.png' });
+  layers['face/wide.png'] = layer([[2, 3, 12, 10, [240, 210, 160, 200]]]);
+  manifest.groups[2].options.push({ id: 'full', label: 'Full', src: 'eyes/full.png' });
+  layers['eyes/full.png'] = layer([[4, 6, 8, 3]]);
+  const eyewear = manifest.groups[3];
+  eyewear.over = ['face', 'eyes'];
+  eyewear.options.push(
+    { id: 'painted', label: 'Painted', src: 'eyewear/painted.png', seeThrough: true },
+    { id: 'tinted', label: 'Tinted', src: 'eyewear/tinted.png', seeThrough: true },
+    { id: 'shades', label: 'Shades', src: 'eyewear/shades.png' },
+  );
+  layers['eyewear/painted.png'] = layer(PAINTED_LENSES);
+  layers['eyewear/tinted.png'] = layer([[4, 6, 8, 4, [90, 120, 200, 128]]]);
+  layers['eyewear/shades.png'] = layer(PAINTED_LENSES);
+  const report = await checkManifest(manifest, load);
+  assert.deepEqual(
+    report.issues.map((issue) => `${issue.kind} ${issue.option} ${issue.otherGroup}/${issue.otherOption} like ${issue.defaultOption}`),
+    ['covered painted eyes/bar like dots', 'covered painted eyes/full like dots'],
+  );
+});
+
 test('see-through needs an "over" list to compare against', async () => {
   const { manifest, load } = withEyewear(layer([[4, 10, 8, 1]]));
   delete manifest.groups[3].over;
