@@ -82,3 +82,27 @@ test('a layer of the wrong size is refused', () => {
   assert.throws(() => compositeLayers(2, 2, [createRaster(2, 2), createRaster(4, 4)]), /layer 1 is 4x4, expected 2x2/);
   assert.throws(() => compositeLayers(2, 2, [{ width: 2, height: 2, data: [] }]), TypeError);
 });
+
+test('drawing the composite of the bottom layers, then the rest, gives the same bytes as drawing every layer', () => {
+  // Pseudo-random pixels with every kind of alpha, including colour under alpha 0.
+  let seed = 7;
+  const next = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed % 256;
+  };
+  const noisy = () => {
+    const raster = createRaster(16, 16);
+    for (let i = 0; i < raster.data.length; i += 4) {
+      const alpha = [0, 255, next(), 1][next() % 4];
+      raster.data.set([next(), next(), next(), alpha], i);
+    }
+    return raster;
+  };
+  const layers = Array.from({ length: 6 }, noisy);
+  const full = compositeLayers(16, 16, layers);
+  for (let split = 1; split < layers.length; split += 1) {
+    const bottom = compositeLayers(16, 16, layers.slice(0, split));
+    const twoStep = compositeLayers(16, 16, [bottom, ...layers.slice(split)]);
+    assert.deepEqual(Buffer.from(twoStep.data), Buffer.from(full.data), `split at ${split}`);
+  }
+});
