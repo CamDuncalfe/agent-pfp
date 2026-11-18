@@ -59,16 +59,21 @@ async function listFiles(folder, base = folder) {
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const IMAGE_CHUNKS = new Set(['IHDR', 'PLTE', 'tRNS', 'IDAT', 'IEND']);
 
+// Returns null when the bytes are not one whole PNG: no signature, a chunk
+// cut short, no IEND, or anything after IEND.
 function otherChunks(bytes) {
   if (bytes.length < 8 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) return null;
   const found = new Set();
   let at = 8;
-  while (at + 8 <= bytes.length) {
+  while (at + 12 <= bytes.length) {
+    const end = at + 12 + bytes.readUInt32BE(at);
+    if (end > bytes.length) return null;
     const type = bytes.toString('latin1', at + 4, at + 8);
     if (!IMAGE_CHUNKS.has(type)) found.add(type);
-    at += 12 + bytes.readUInt32BE(at);
+    if (type === 'IEND') return end === bytes.length ? [...found] : null;
+    at = end;
   }
-  return [...found];
+  return null;
 }
 
 const args = process.argv.slice(2);
@@ -178,7 +183,7 @@ for (const src of named) {
     fail(`Could not read layer ${src}: ${error.message}`);
   }
   const chunks = otherChunks(await readFile(source));
-  if (chunks === null) fail(`Layer ${src} is not a PNG.`);
+  if (chunks === null) fail(`Layer ${src} is not one whole PNG (no signature, a chunk cut short, or bytes after IEND).`);
   if (chunks.length > 0) fail(`Layer ${src} carries ${chunks.join(', ')}. A layer holds image chunks only: export it again without metadata.`);
   const target = join(styleFolder, ...src.split('/'));
   await mkdir(dirname(target), { recursive: true });
@@ -202,8 +207,9 @@ console.log(`Index: ${join(out, 'styles', 'index.json')}`);
 // staged manifest, the index and every staged path are searched for each as a
 // whole word, ignoring case ("cat" is not found in "catfish"). Layers hold no
 // text (see otherChunks). A working word under three letters is a stop: too
-// short to search for safely.
-const words = (text) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+// short to search for safely. A letter or digit in any script is part of a
+// word, so "art" is not found in "artéfact".
+const words = (text) => text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 const publicWords = new Set(words(`${id} ${name}`));
 const workingWords = [...new Set(words(`${workingId} ${workingName}`))].filter((word) => !publicWords.has(word));
 const short = workingWords.filter((word) => word.length < 3);

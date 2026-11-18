@@ -250,5 +250,25 @@ test('refuses a layer that carries a text chunk, and a layer that is not a PNG',
   });
   const refused = await stage([notPng, 'shapes', 'Shapes', await emptyFolder()]);
   assert.equal(refused.code, 2);
-  assert.match(refused.stderr, /Layer layers\/background\/grey\.png is not a PNG/);
+  assert.match(refused.stderr, /Layer layers\/background\/grey\.png is not one whole PNG/);
+
+  const tail = await shapesExport(async (manifest, folder) => {
+    const layer = join(folder, ...manifest.groups[0].options[0].src.split('/'));
+    await writeFile(layer, Buffer.concat([await readFile(layer), Buffer.from('draft fixture', 'latin1')]));
+  });
+  const afterEnd = await stage([tail, 'shapes', 'Shapes', await emptyFolder()]);
+  assert.equal(afterEnd.code, 2);
+  assert.match(afterEnd.stderr, /is not one whole PNG/);
+});
+
+test('a working word next to accented letters in a label is not a hit', async () => {
+  const exportFolder = await shapesExport((manifest) => {
+    manifest.style = 'shapes';
+    manifest.name = 'Art Shapes';
+    manifest.groups[0].options[0].label = 'Artéfact';
+  });
+  const result = await stage([exportFolder, 'shapes', 'Shapes', await emptyFolder()]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Working words to find: art\n/);
+  assert.match(result.stdout, /Working words left in the stage: none/);
 });
