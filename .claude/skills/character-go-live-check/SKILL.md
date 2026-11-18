@@ -27,6 +27,9 @@ Stop, say what is missing, and wait when:
 - The id is already in `styles` in `styles/index.json` (it is live already), or it isn't in `comingSoon` (it isn't one of the characters waiting).
 - An eyewear option can't be placed as see-through or not in step 3.
 - A command exits with 2 (it could not run). Show its output.
+- A step goes wrong because of this skill or its script, not the art: `stage.mjs` leaves out a layer the manifest names, or a command does something other than this file says. Report it as a problem with the skill and give the verdict `Not ready`.
+
+Never copy, delete or edit a file in `$STAGE` by hand. The check only counts on the copy `stage.mjs` made.
 
 ## Steps
 
@@ -62,23 +65,26 @@ Only an option in a group that lists groups in `over` can be see-through.
 
 ```sh
 STAGE=$(mktemp -d /tmp/go-live-<id>.XXXXXX)
-node .claude/skills/character-go-live-check/stage.mjs <export folder> <id> "<Picker name>" "$STAGE" --see-through <option,option>
+node .claude/skills/character-go-live-check/stage.mjs <export folder> <id> "<Picker name>" "$STAGE" --see-through <group>/<option>,<group>/<option>
 ```
 
-Leave out `--see-through` when step 3 found none. Expected: it prints the working and public id and name, one `Marked see-through` line per option, `Copied N layers`, the files it left out, and ends with `Staged <id>`, exit 0.
+Give each see-through option with its group, for example `eyewear/clear-glasses`: option ids repeat across groups (clothes and eyes can each have a `default`). Leave out `--see-through` when step 3 found none. Expected: it prints the working and public id and name, one `Marked see-through` line per option, `Copied N layers`, the files it left out, the working words it searched for and found, `Combinations: N`, and ends with `Staged <id>`, exit 0. Exit 1 means a working word is left (step 5). Exit 2 is a stop.
 
-A file it left out is not a failure, but name each one in the report: someone cut it and it isn't in the manifest.
+Check each file it left out against the `src` paths in the export's `manifest.json`. A file the manifest doesn't name is not a failure, but name it in the report: someone cut it and it isn't in the manifest. A file the manifest does name means the script went wrong: stop (see Stop and ask).
 
 ### 5. No working name left
 
-The working id is the export's `style` from step 4's first line. Its prefix is everything before `-<id>` (for a working id `abc-duck` the prefix is `abc`). If the working id is the public id, there is no prefix. Check the prefix, and the working name if it isn't the picker name, against the staged files and their paths:
+`stage.mjs` takes the words of the working id and name that the public id and name don't have (three letters or more) and searches every staged path and file for each, ignoring case. It prints them as `Working words to find:` and the result as `Working words left in the stage:`.
+
+Expected: `Working words left in the stage: none`. Any file it names is a fail: put each in the report.
+
+When it found words to look for, look at the paths once more yourself, for each word:
 
 ```sh
-grep -rniF -- "<prefix>" "$STAGE"; find "$STAGE" -iname "*<prefix>*"
-grep -rniF -- "<working name>" "$STAGE"
+find "$STAGE" -ipath "*<word>*"
 ```
 
-Expected: no output from any of them. A hit is a fail: name the file.
+Expected: no output. When it printed `Working words to find: none`, there is nothing to search for; say so in the report.
 
 ### 6. Same trait groups as the live characters
 
@@ -90,13 +96,15 @@ Expected: `not in the alien: none` and `same order: true`. A character can leave
 
 ### 7. Render check on every combination
 
+`N` is the number from step 4's `Combinations:` line. Passing it as `--max-combinations` makes the check draw every combination instead of a sample:
+
 ```sh
-node bin/check-styles.js "$STAGE/styles/index.json" > "$STAGE/render-check.txt" 2>&1; echo "exit $?" >> "$STAGE/render-check.txt"; cat "$STAGE/render-check.txt"
+node bin/render-check.js "$STAGE/styles/<id>/manifest.json" --max-combinations <N> > "$STAGE/render-check.txt" 2>&1; code=$?; cat "$STAGE/render-check.txt"; echo "exit $code" | tee -a "$STAGE/render-check.txt"; test $code -eq 0
 ```
 
-Expected: `Style: <id>`, `Combinations checked: N of N, 0 failed` (or a sample line), `Render check passed.`, `Styles checked: 1` and `exit 0`. With a see-through option marked, this is also where the check proves each eye option shows through it: a `covered` issue means the glasses hide the eyes that were picked.
+The command's own exit status is the check's. Expected: `Style: <id>`, `Combinations checked: all <N>, 0 failed`, `Render check passed.` and `exit 0`. A line that says `a sample of` means N was wrong: run it again with step 4's number. With a see-through option marked, this is also where the check proves each eye option shows through it: a `covered` issue means the glasses hide the eyes that were picked.
 
-Exit 1 is a fail. Copy each issue into the report as the check printed it. Don't change the art, the manifest's `over`, `bleed`, `zone` or tolerances to make it pass (AGENTS.md rule 2), and don't drop a `seeThrough` mark you set in step 3.
+Exit 1 is a fail. Exit 2 is a stop. Copy each issue into the report as the check printed it. Don't change the art, the manifest's `over`, `bleed`, `zone` or tolerances to make it pass (AGENTS.md rule 2), and don't drop a `seeThrough` mark you set in step 3.
 
 ### 8. The repository is unchanged
 
