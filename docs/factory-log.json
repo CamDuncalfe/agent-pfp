@@ -836,5 +836,131 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": "The light lens on the cat's and the alien's clear glasses",
     "post": null
+  },
+  {
+    "pr": 74,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/74",
+    "mergedAt": "2026-11-18T14:49:02Z",
+    "merge": "0f00d77dc183ff1d3688b1d12cf9b00f4e93c9a4",
+    "tickets": [
+      73
+    ],
+    "day": 13,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "High",
+        "title": "Draft names can remain in published PNGs",
+        "fixedIn": "8fc21dbb10ae168f87788e0f494c6a65addf510c"
+      },
+      {
+        "severity": "High",
+        "title": "Accented names can fail staging",
+        "fixedIn": "129459154ceaeff38933313a7c7521efc13ad0ae"
+      },
+      {
+        "severity": "High",
+        "title": "Opaque eyewear can fail the check",
+        "fixedIn": "6923e72f794df3e5496ff17776ede5fae258049b"
+      },
+      {
+        "severity": "High",
+        "title": "Repeated option names lose their layers",
+        "fixedIn": "2dbd9fb6366694f91e10e4ad1ac1faee7a531b75"
+      },
+      {
+        "severity": "High",
+        "title": "Unchecked combinations can be approved",
+        "fixedIn": "2dbd9fb6366694f91e10e4ad1ac1faee7a531b75"
+      },
+      {
+        "severity": "Medium",
+        "title": "Truncated PNG refusal has no test",
+        "fixedIn": "8fc21dbb10ae168f87788e0f494c6a65addf510c"
+      },
+      {
+        "severity": "Medium",
+        "title": "Accented labels block a clean character",
+        "fixedIn": "ccd79712e777729c3170d71aeb494c1eeb11ac94"
+      },
+      {
+        "severity": "Medium",
+        "title": "Uppercase PNGs hide draft metadata",
+        "fixedIn": "129459154ceaeff38933313a7c7521efc13ad0ae"
+      },
+      {
+        "severity": "Medium",
+        "title": "An unrun check appears to exit normally",
+        "fixedIn": "2dbd9fb6366694f91e10e4ad1ac1faee7a531b75"
+      },
+      {
+        "severity": "Medium",
+        "title": "A linked output path can write into the repo",
+        "fixedIn": "2dbd9fb6366694f91e10e4ad1ac1faee7a531b75"
+      },
+      {
+        "severity": "Medium",
+        "title": "Linked layers can copy local files",
+        "fixedIn": "2dbd9fb6366694f91e10e4ad1ac1faee7a531b75"
+      },
+      {
+        "severity": "Medium",
+        "title": "An unchanged working ID fails the scan",
+        "fixedIn": "2dbd9fb6366694f91e10e4ad1ac1faee7a531b75"
+      },
+      {
+        "severity": "Medium",
+        "title": "A passing check misses its expected text",
+        "fixedIn": "2dbd9fb6366694f91e10e4ad1ac1faee7a531b75"
+      },
+      {
+        "severity": "Medium",
+        "title": "Draft names survive in published layers",
+        "fixedIn": "ccd79712e777729c3170d71aeb494c1eeb11ac94"
+      },
+      {
+        "severity": "Medium",
+        "title": "A Turkish working name escapes the scan",
+        "fixedIn": "129459154ceaeff38933313a7c7521efc13ad0ae"
+      },
+      {
+        "severity": "Medium",
+        "title": "Accented draft names survive PNG metadata",
+        "fixedIn": "129459154ceaeff38933313a7c7521efc13ad0ae"
+      },
+      {
+        "severity": "Medium",
+        "title": "A compressed note can exhaust staging memory",
+        "fixedIn": "129459154ceaeff38933313a7c7521efc13ad0ae"
+      },
+      {
+        "severity": "Medium",
+        "title": "Short draft names appear in picker labels",
+        "fixedIn": "129459154ceaeff38933313a7c7521efc13ad0ae"
+      },
+      {
+        "severity": "Medium",
+        "title": "Public names can fail the staging check",
+        "fixedIn": "6923e72f794df3e5496ff17776ede5fae258049b"
+      },
+      {
+        "severity": "Medium",
+        "title": "Draft names in Chinese evade the scan",
+        "fixedIn": "6923e72f794df3e5496ff17776ede5fae258049b"
+      },
+      {
+        "severity": "Medium",
+        "title": "Compressed draft names pass the scan",
+        "fixedIn": "6923e72f794df3e5496ff17776ede5fae258049b"
+      },
+      {
+        "severity": "Medium",
+        "title": "Old working names can remain in paths",
+        "fixedIn": "2dbd9fb6366694f91e10e4ad1ac1faee7a531b75"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
   }
 ]
