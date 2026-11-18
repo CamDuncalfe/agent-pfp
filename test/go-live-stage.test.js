@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { crc32, deflateSync } from 'node:zlib';
 
 const run = promisify(execFile);
 const repo = fileURLToPath(new URL('..', import.meta.url));
@@ -163,4 +164,75 @@ test('options with the same id in two groups each keep their layer', async () =>
   const byGroup = await stage([exportFolder, 'shapes', 'Shapes', await emptyFolder(), '--see-through', 'mouth/default']);
   assert.equal(byGroup.code, 0, byGroup.stderr);
   assert.match(byGroup.stdout, /Marked see-through: mouth\/default/);
+});
+
+async function shapesExport(edit) {
+  const exportFolder = await emptyFolder();
+  await cp(shapes, exportFolder, { recursive: true });
+  const manifestPath = join(exportFolder, 'manifest.json');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  await edit(manifest, exportFolder);
+  await writeFile(manifestPath, JSON.stringify(manifest));
+  return exportFolder;
+}
+
+function pngChunk(type, data) {
+  const head = Buffer.alloc(8);
+  head.writeUInt32BE(data.length, 0);
+  head.write(type, 4, 'latin1');
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])), 0);
+  return Buffer.concat([head, data, crc]);
+}
+
+test('takes off a see-through mark the export had on an option that was not given', async () => {
+  const exportFolder = await shapesExport((manifest) => {
+    const headwear = manifest.groups.find((group) => group.id === 'headwear');
+    headwear.over = ['eyes'];
+    headwear.options.find((option) => option.id === 'tall').seeThrough = true;
+  });
+  const out = await emptyFolder();
+  const result = await stage([exportFolder, 'shapes', 'Shapes', out, '--see-through', 'headwear/cap']);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Took off a see-through mark the export had: headwear\/tall/);
+  const staged = JSON.parse(await readFile(join(out, 'styles/shapes/manifest.json'), 'utf8'));
+  const headwear = staged.groups.find((group) => group.id === 'headwear').options;
+  assert.equal(headwear.find((option) => option.id === 'cap').seeThrough, true);
+  assert.equal(headwear.find((option) => option.id === 'tall').seeThrough, undefined);
+});
+
+test('a working word inside a longer public word is not a hit', async () => {
+  const exportFolder = await shapesExport((manifest) => {
+    manifest.style = 'draft-cat';
+    manifest.name = 'Cat';
+  });
+  const result = await stage([exportFolder, 'catfish', 'Catfish', await emptyFolder()]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /Working words to find: draft, cat/);
+  assert.match(result.stdout, /Working words left in the stage: none/);
+});
+
+test('finds a working name written in Chinese', async () => {
+  const exportFolder = await shapesExport((manifest) => {
+    manifest.style = 'shapes';
+    manifest.name = '草稿鸭';
+    manifest.groups[0].options[0].label = '草稿鸭 背景';
+  });
+  const result = await stage([exportFolder, 'shapes', 'Shapes', await emptyFolder()]);
+  assert.equal(result.code, 1, result.stderr);
+  assert.match(result.stdout, /Working words to find: 草稿鸭/);
+  assert.match(result.stdout, /Working words left in the stage: styles\/shapes\/manifest\.json \(草稿鸭\)/);
+});
+
+test('finds a working word in compressed PNG text', async () => {
+  const exportFolder = await shapesExport(async (manifest, folder) => {
+    const layer = join(folder, ...manifest.groups[0].options[0].src.split('/'));
+    const png = await readFile(layer);
+    const iend = png.length - 12;
+    const ztxt = pngChunk('zTXt', Buffer.concat([Buffer.from('Comment\0\0', 'latin1'), deflateSync('cut from the fixture sheet')]));
+    await writeFile(layer, Buffer.concat([png.subarray(0, iend), ztxt, png.subarray(iend)]));
+  });
+  const result = await stage([exportFolder, 'shapes', 'Shapes', await emptyFolder()]);
+  assert.equal(result.code, 1, result.stderr);
+  assert.match(result.stdout, /Working words left in the stage: styles\/shapes\/layers\/background\/grey\.png \(fixture\)/);
 });

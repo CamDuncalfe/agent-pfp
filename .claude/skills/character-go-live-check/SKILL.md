@@ -68,13 +68,13 @@ STAGE=$(mktemp -d /tmp/go-live-<id>.XXXXXX)
 node .claude/skills/character-go-live-check/stage.mjs <export folder> <id> "<Picker name>" "$STAGE" --see-through <group>/<option>,<group>/<option>
 ```
 
-Give each see-through option with its group, for example `eyewear/clear-glasses`: option ids repeat across groups (clothes and eyes can each have a `default`). Leave out `--see-through` when step 3 found none. Expected: it prints the working and public id and name, one `Marked see-through` line per option, `Copied N layers`, the files it left out, the working words it searched for and found, `Combinations: N`, and ends with `Staged <id>`, exit 0. Exit 1 means a working word is left (step 5). Exit 2 is a stop.
+Give each see-through option with its group, for example `eyewear/clear-glasses`: option ids repeat across groups (clothes and eyes can each have a `default`). Leave out `--see-through` when step 3 found none. Expected: it prints the working and public id and name, one `Marked see-through` line per option, a `Took off a see-through mark` line for each option the export had marked that step 3 didn't pick, `Copied N layers`, the files it left out, the working words it searched for and found, `Combinations: N`, and ends with `Staged <id>`, exit 0. Exit 1 means a working word is left (step 5). Exit 2 is a stop.
 
 Check each file it left out against the `src` paths in the export's `manifest.json`. A file the manifest doesn't name is not a failure, but name it in the report: someone cut it and it isn't in the manifest. A file the manifest does name means the script went wrong: stop (see Stop and ask).
 
 ### 5. No working name left
 
-`stage.mjs` takes the words of the working id and name that the public id and name don't have (three letters or more) and searches every staged path and file for each, ignoring case. It prints them as `Working words to find:` and the result as `Working words left in the stage:`.
+`stage.mjs` takes the words of the working id and name that the public id and name don't have and searches every staged path and file for each, ignoring case: the manifest, the index, and the text and metadata of each layer PNG. A Latin word (three letters or more) has to match a whole word; a word in another script, like Chinese, matches anywhere. It prints them as `Working words to find:` and the result as `Working words left in the stage:`.
 
 Expected: `Working words left in the stage: none`. Any file it names is a fail: put each in the report.
 

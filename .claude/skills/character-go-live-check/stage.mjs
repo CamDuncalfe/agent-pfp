@@ -26,6 +26,7 @@
 import { copyFile, lstat, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { inflateSync } from 'node:zlib';
 
 import { countCombinations } from '../../../src/combinations.js';
 import { isSafeRelativePath, validateManifest } from '../../../src/manifest.js';
@@ -52,19 +53,43 @@ async function listFiles(folder, base = folder) {
   return files;
 }
 
-// The bytes of a PNG outside its image data: its chunk names and any text or
-// metadata chunks, where a name could be written. The compressed pixels in
-// IDAT are left out, since any short word turns up in them by chance.
+// The text of a PNG outside its image data: chunk names, the bytes of each
+// chunk that isn't IDAT, and the text of tEXt, zTXt and iTXt chunks, inflated
+// when compressed. The compressed pixels in IDAT are left out, since any short
+// word turns up in them by chance.
+function inflateText(data) {
+  try {
+    return inflateSync(data).toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
 function pngText(bytes) {
   const parts = [];
   let at = 8;
   while (at + 8 <= bytes.length) {
     const length = bytes.readUInt32BE(at);
     const type = bytes.toString('latin1', at + 4, at + 8);
-    if (type !== 'IDAT') parts.push(bytes.subarray(at + 4, Math.min(at + 8 + length, bytes.length)));
+    const data = bytes.subarray(at + 8, Math.min(at + 8 + length, bytes.length));
+    if (type !== 'IDAT') {
+      parts.push(type, data.toString('latin1'));
+      const keywordEnd = data.indexOf(0);
+      if (type === 'zTXt' && keywordEnd !== -1) parts.push(inflateText(data.subarray(keywordEnd + 2)));
+      if (type === 'iTXt' && keywordEnd !== -1) {
+        // keyword \0 compression flag, method, language \0 translated keyword \0 text
+        const compressed = data[keywordEnd + 1] === 1;
+        const languageEnd = data.indexOf(0, keywordEnd + 3);
+        const translatedEnd = languageEnd === -1 ? -1 : data.indexOf(0, languageEnd + 1);
+        if (translatedEnd !== -1) {
+          const text = data.subarray(translatedEnd + 1);
+          parts.push(data.subarray(0, translatedEnd).toString('utf8'), compressed ? inflateText(text) : text.toString('utf8'));
+        }
+      }
+    }
     at += 12 + length;
   }
-  return Buffer.concat(parts);
+  return parts.join('\n');
 }
 
 const args = process.argv.slice(2);
@@ -137,6 +162,16 @@ for (const wanted of seeThrough) {
   option.seeThrough = true;
   console.log(`Marked see-through: ${group.id}/${option.id}`);
 }
+// Only the options given to --see-through stay marked: a mark the export
+// already had on another option (sunglasses, say) is taken off.
+for (const { group, option } of options) {
+  if (option.seeThrough !== true) continue;
+  const marked = seeThrough.some((wanted) => wanted === `${group.id}/${option.id}` || wanted === option.id);
+  if (!marked) {
+    delete option.seeThrough;
+    console.log(`Took off a see-through mark the export had: ${group.id}/${option.id}`);
+  }
+}
 
 const after = validateManifest(manifest);
 if (!after.ok) fail(`The staged manifest is not valid: ${after.errors.join('; ')}`);
@@ -176,18 +211,26 @@ if (mismatch) fail(`The staged index and manifest disagree: ${mismatch}`);
 await writeFile(join(out, 'styles', 'index.json'), `${JSON.stringify(index, null, 2)}\n`);
 console.log(`Index: ${join(out, 'styles', 'index.json')}`);
 
-// Words of the working id and name that the public ones don't have. Every
-// staged file's path and text are searched for each, ignoring case. Words
-// under three letters are left out.
-const publicWords = new Set(`${id} ${name}`.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-const workingWords = [...new Set(`${workingId} ${workingName}`.toLowerCase().split(/[^a-z0-9]+/))]
-  .filter((word) => word.length >= 3 && !publicWords.has(word));
+// Words of the working id and name that the public ones don't have, in any
+// script. Every staged file's path and text are searched for each, ignoring
+// case. A Latin word matches as a whole word ("cat" is not found in "catfish")
+// and needs three letters or more. A word with other letters (Chinese has no
+// spaces between words) is found anywhere in the text.
+const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
+const isLatin = (word) => /^[a-z0-9]+$/.test(word);
+const words = (text) => text.toLowerCase().split(WORD_SPLIT).filter(Boolean);
+const publicWords = new Set(words(`${id} ${name}`));
+const workingWords = [...new Set(words(`${workingId} ${workingName}`))]
+  .filter((word) => (!isLatin(word) || word.length >= 3) && !publicWords.has(word));
 console.log(`Working words to find: ${workingWords.length === 0 ? 'none' : workingWords.join(', ')}`);
 const hits = [];
 for (const file of await listFiles(out)) {
   const bytes = await readFile(join(out, ...file.split('/')));
-  const text = `${file}\n${(file.endsWith('.png') ? pngText(bytes) : bytes).toString('latin1')}`.toLowerCase();
-  for (const word of workingWords) if (text.includes(word)) hits.push(`${file} (${word})`);
+  const text = `${file}\n${file.endsWith('.png') ? pngText(bytes) : bytes.toString('utf8')}`.toLowerCase();
+  const textWords = new Set(words(text));
+  for (const word of workingWords) {
+    if (isLatin(word) ? textWords.has(word) : text.includes(word)) hits.push(`${file} (${word})`);
+  }
 }
 console.log(`Working words left in the stage: ${hits.length === 0 ? 'none' : hits.join(', ')}`);
 
