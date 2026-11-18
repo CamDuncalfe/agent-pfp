@@ -26,7 +26,7 @@ Stop, say what is missing, and wait when:
 - An input above is missing, or the export folder has no `manifest.json`.
 - The id is already in `styles` in `styles/index.json` (it is live already), or it isn't in `comingSoon` (it isn't one of the characters waiting).
 - An eyewear option can't be placed as see-through or not in step 3.
-- A command exits with 2 (it could not run). Show its output.
+- A command exits with 2 (it could not run). Show its output. `stage.mjs` also exits with 2 on purpose for a layer that carries text or metadata chunks, a working or public name with letters outside plain ASCII (an accent included), and a working-name word under three letters. Ask how to go on.
 - A step goes wrong because of this skill or its script, not the art: `stage.mjs` leaves out a layer the manifest names, or a command does something other than this file says. Report it as a problem with the skill and give the verdict `Not ready`.
 
 Never copy, delete or edit a file in `$STAGE` by hand. The check only counts on the copy `stage.mjs` made.
@@ -74,7 +74,7 @@ Check each file it left out against the `src` paths in the export's `manifest.js
 
 ### 5. No working name left
 
-`stage.mjs` takes the words of the working id and name that the public id and name don't have and searches every staged path and file for each, ignoring case: the manifest, the index, and the text and metadata of each layer PNG. A Latin word (three letters or more) has to match a whole word; a word in another script, like Chinese, matches anywhere. It prints them as `Working words to find:` and the result as `Working words left in the stage:`.
+`stage.mjs` takes the words of the working id and name that the public id and name don't have and searches the staged manifest, the index and every staged path for each as a whole word, ignoring case. The layers can't hold a name: it refuses a layer with any text or metadata chunk. It prints them as `Working words to find:` and the result as `Working words left in the stage:`.
 
 Expected: `Working words left in the stage: none`. Any file it names is a fail: put each in the report.
 

@@ -212,27 +212,43 @@ test('a working word inside a longer public word is not a hit', async () => {
   assert.match(result.stdout, /Working words left in the stage: none/);
 });
 
-test('finds a working name written in Chinese', async () => {
-  const exportFolder = await shapesExport((manifest) => {
-    manifest.style = 'shapes';
+test('stops on a name outside plain ASCII and on a working word under three letters', async () => {
+  const chinese = await shapesExport((manifest) => {
     manifest.name = '草稿鸭';
-    manifest.groups[0].options[0].label = '草稿鸭 背景';
   });
-  const result = await stage([exportFolder, 'shapes', 'Shapes', await emptyFolder()]);
-  assert.equal(result.code, 1, result.stderr);
-  assert.match(result.stdout, /Working words to find: 草稿鸭/);
-  assert.match(result.stdout, /Working words left in the stage: styles\/shapes\/manifest\.json \(草稿鸭\)/);
+  const refused = await stage([chinese, 'shapes', 'Shapes', await emptyFolder()]);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /The working name "草稿鸭" has letters outside plain ASCII/);
+
+  const accented = await stage([shapes, 'shapes', 'Café', await emptyFolder()]);
+  assert.equal(accented.code, 2);
+  assert.match(accented.stderr, /The public name "Café" has letters outside plain ASCII/);
+
+  const shortWord = await shapesExport((manifest) => {
+    manifest.style = 'shapes';
+    manifest.name = 'Jo Shapes';
+  });
+  const tooShort = await stage([shortWord, 'shapes', 'Shapes', await emptyFolder()]);
+  assert.equal(tooShort.code, 2);
+  assert.match(tooShort.stderr, /words under three letters \(jo\)/);
 });
 
-test('finds a working word in compressed PNG text', async () => {
-  const exportFolder = await shapesExport(async (manifest, folder) => {
+test('refuses a layer that carries a text chunk, and a layer that is not a PNG', async () => {
+  const withText = await shapesExport(async (manifest, folder) => {
     const layer = join(folder, ...manifest.groups[0].options[0].src.split('/'));
     const png = await readFile(layer);
     const iend = png.length - 12;
     const ztxt = pngChunk('zTXt', Buffer.concat([Buffer.from('Comment\0\0', 'latin1'), deflateSync('cut from the fixture sheet')]));
     await writeFile(layer, Buffer.concat([png.subarray(0, iend), ztxt, png.subarray(iend)]));
   });
-  const result = await stage([exportFolder, 'shapes', 'Shapes', await emptyFolder()]);
-  assert.equal(result.code, 1, result.stderr);
-  assert.match(result.stdout, /Working words left in the stage: styles\/shapes\/layers\/background\/grey\.png \(fixture\)/);
+  const text = await stage([withText, 'shapes', 'Shapes', await emptyFolder()]);
+  assert.equal(text.code, 2);
+  assert.match(text.stderr, /Layer layers\/background\/grey\.png carries zTXt/);
+
+  const notPng = await shapesExport(async (manifest, folder) => {
+    await writeFile(join(folder, ...manifest.groups[0].options[0].src.split('/')), 'not a picture');
+  });
+  const refused = await stage([notPng, 'shapes', 'Shapes', await emptyFolder()]);
+  assert.equal(refused.code, 2);
+  assert.match(refused.stderr, /Layer layers\/background\/grey\.png is not a PNG/);
 });

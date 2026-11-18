@@ -14,19 +14,19 @@
  * alone when only one group has it) gets "seeThrough": true. Layer files
  * the manifest doesn't name are left out and listed.
  *
- * It then searches every staged file and path for the words of the working id
+ * It then searches the staged manifest, index and paths for the words of the working id
  * and name that the public ones don't have, and prints the number of
  * combinations, for `bin/render-check.js --max-combinations`.
  *
  * Exit code 0: staged, no working word left. 1: staged, but a working word is
  * left in a file or path. 2: it could not stage (bad input, unknown option, a
- * missing or linked layer, an out folder that doesn't exist, isn't empty or is
- * inside the repository).
+ * missing or linked layer, a layer with text chunks, a name outside plain ASCII
+ * or a working word under three letters, an out folder that doesn't exist,
+ * isn't empty or is inside the repository).
  */
 import { copyFile, lstat, mkdir, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inflateSync } from 'node:zlib';
 
 import { countCombinations } from '../../../src/combinations.js';
 import { isSafeRelativePath, validateManifest } from '../../../src/manifest.js';
@@ -53,43 +53,22 @@ async function listFiles(folder, base = folder) {
   return files;
 }
 
-// The text of a PNG outside its image data: chunk names, the bytes of each
-// chunk that isn't IDAT, and the text of tEXt, zTXt and iTXt chunks, inflated
-// when compressed. The compressed pixels in IDAT are left out, since any short
-// word turns up in them by chance.
-function inflateText(data) {
-  try {
-    return inflateSync(data).toString('utf8');
-  } catch {
-    return '';
-  }
-}
+// A layer is a PNG that holds image chunks only. Text and metadata chunks
+// (tEXt, zTXt, iTXt, eXIf and the rest) are where a working name could hide
+// and the render check can't see it, so a layer with one is refused.
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const IMAGE_CHUNKS = new Set(['IHDR', 'PLTE', 'tRNS', 'IDAT', 'IEND']);
 
-function pngText(bytes) {
-  const parts = [];
+function otherChunks(bytes) {
+  if (bytes.length < 8 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) return null;
+  const found = new Set();
   let at = 8;
   while (at + 8 <= bytes.length) {
-    const length = bytes.readUInt32BE(at);
     const type = bytes.toString('latin1', at + 4, at + 8);
-    const data = bytes.subarray(at + 8, Math.min(at + 8 + length, bytes.length));
-    if (type !== 'IDAT') {
-      parts.push(type, data.toString('latin1'));
-      const keywordEnd = data.indexOf(0);
-      if (type === 'zTXt' && keywordEnd !== -1) parts.push(inflateText(data.subarray(keywordEnd + 2)));
-      if (type === 'iTXt' && keywordEnd !== -1) {
-        // keyword \0 compression flag, method, language \0 translated keyword \0 text
-        const compressed = data[keywordEnd + 1] === 1;
-        const languageEnd = data.indexOf(0, keywordEnd + 3);
-        const translatedEnd = languageEnd === -1 ? -1 : data.indexOf(0, languageEnd + 1);
-        if (translatedEnd !== -1) {
-          const text = data.subarray(translatedEnd + 1);
-          parts.push(data.subarray(0, translatedEnd).toString('utf8'), compressed ? inflateText(text) : text.toString('utf8'));
-        }
-      }
-    }
-    at += 12 + length;
+    if (!IMAGE_CHUNKS.has(type)) found.add(type);
+    at += 12 + bytes.readUInt32BE(at);
   }
-  return parts.join('\n');
+  return [...found];
 }
 
 const args = process.argv.slice(2);
@@ -140,6 +119,11 @@ if (!before.ok) fail(`The export's manifest is not valid: ${before.errors.join('
 
 const workingId = manifest.style;
 const workingName = manifest.name;
+// The scan below matches plain ASCII words. A name with other letters, an
+// accent included, is a stop: ask how it should be checked.
+for (const [what, value] of [['working name', workingName], ['public name', name]]) {
+  if (!/^[\x20-\x7e]*$/.test(value)) fail(`The ${what} "${value}" has letters outside plain ASCII. Ask how to check it.`);
+}
 console.log(`Working id "${workingId}", working name "${workingName}"`);
 manifest.style = id;
 manifest.name = name;
@@ -193,6 +177,9 @@ for (const src of named) {
   } catch (error) {
     fail(`Could not read layer ${src}: ${error.message}`);
   }
+  const chunks = otherChunks(await readFile(source));
+  if (chunks === null) fail(`Layer ${src} is not a PNG.`);
+  if (chunks.length > 0) fail(`Layer ${src} carries ${chunks.join(', ')}. A layer holds image chunks only: export it again without metadata.`);
   const target = join(styleFolder, ...src.split('/'));
   await mkdir(dirname(target), { recursive: true });
   await copyFile(source, target);
@@ -211,26 +198,22 @@ if (mismatch) fail(`The staged index and manifest disagree: ${mismatch}`);
 await writeFile(join(out, 'styles', 'index.json'), `${JSON.stringify(index, null, 2)}\n`);
 console.log(`Index: ${join(out, 'styles', 'index.json')}`);
 
-// Words of the working id and name that the public ones don't have, in any
-// script. Every staged file's path and text are searched for each, ignoring
-// case. A Latin word matches as a whole word ("cat" is not found in "catfish")
-// and needs three letters or more. A word with other letters (Chinese has no
-// spaces between words) is found anywhere in the text.
-const WORD_SPLIT = /[^\p{L}\p{N}]+/u;
-const isLatin = (word) => /^[a-z0-9]+$/.test(word);
-const words = (text) => text.toLowerCase().split(WORD_SPLIT).filter(Boolean);
+// Words of the working id and name that the public ones don't have. The
+// staged manifest, the index and every staged path are searched for each as a
+// whole word, ignoring case ("cat" is not found in "catfish"). Layers hold no
+// text (see otherChunks). A working word under three letters is a stop: too
+// short to search for safely.
+const words = (text) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 const publicWords = new Set(words(`${id} ${name}`));
-const workingWords = [...new Set(words(`${workingId} ${workingName}`))]
-  .filter((word) => (!isLatin(word) || word.length >= 3) && !publicWords.has(word));
+const workingWords = [...new Set(words(`${workingId} ${workingName}`))].filter((word) => !publicWords.has(word));
+const short = workingWords.filter((word) => word.length < 3);
+if (short.length > 0) fail(`The working name has words under three letters (${short.join(', ')}). Ask how to check it.`);
 console.log(`Working words to find: ${workingWords.length === 0 ? 'none' : workingWords.join(', ')}`);
 const hits = [];
 for (const file of await listFiles(out)) {
-  const bytes = await readFile(join(out, ...file.split('/')));
-  const text = `${file}\n${file.endsWith('.png') ? pngText(bytes) : bytes.toString('utf8')}`.toLowerCase();
-  const textWords = new Set(words(text));
-  for (const word of workingWords) {
-    if (isLatin(word) ? textWords.has(word) : text.includes(word)) hits.push(`${file} (${word})`);
-  }
+  const text = file.endsWith('.json') ? `${file}\n${await readFile(join(out, ...file.split('/')), 'utf8')}` : file;
+  const found = new Set(words(text));
+  for (const word of workingWords) if (found.has(word)) hits.push(`${file} (${word})`);
 }
 console.log(`Working words left in the stage: ${hits.length === 0 ? 'none' : hits.join(', ')}`);
 
