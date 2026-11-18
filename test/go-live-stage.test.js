@@ -259,6 +259,22 @@ test('refuses a layer that carries a text chunk, and a layer that is not a PNG',
   const afterEnd = await stage([tail, 'shapes', 'Shapes', await emptyFolder()]);
   assert.equal(afterEnd.code, 2);
   assert.match(afterEnd.stderr, /is not one whole PNG/);
+
+  // A PNG cut short inside a chunk, one with no IEND, and one whose IEND carries data.
+  const broken = {
+    'cut short': (png) => png.subarray(0, png.length - 20),
+    'no IEND': (png) => png.subarray(0, png.length - 12),
+    'IEND with data': (png) => Buffer.concat([png.subarray(0, png.length - 12), pngChunk('IEND', Buffer.from('draft', 'latin1'))]),
+  };
+  for (const [what, cut] of Object.entries(broken)) {
+    const folder = await shapesExport(async (manifest, exportFolder) => {
+      const layer = join(exportFolder, ...manifest.groups[0].options[0].src.split('/'));
+      await writeFile(layer, cut(await readFile(layer)));
+    });
+    const result = await stage([folder, 'shapes', 'Shapes', await emptyFolder()]);
+    assert.equal(result.code, 2, what);
+    assert.match(result.stderr, /is not one whole PNG/, what);
+  }
 });
 
 test('a working word next to accented letters in a label is not a hit', async () => {

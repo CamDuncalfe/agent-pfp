@@ -60,7 +60,7 @@ const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0
 const IMAGE_CHUNKS = new Set(['IHDR', 'PLTE', 'tRNS', 'IDAT', 'IEND']);
 
 // Returns null when the bytes are not one whole PNG: no signature, a chunk
-// cut short, no IEND, or anything after IEND.
+// cut short, no IEND, an IEND that carries data, or anything after IEND.
 function otherChunks(bytes) {
   if (bytes.length < 8 || !bytes.subarray(0, 8).equals(PNG_SIGNATURE)) return null;
   const found = new Set();
@@ -70,7 +70,7 @@ function otherChunks(bytes) {
     if (end > bytes.length) return null;
     const type = bytes.toString('latin1', at + 4, at + 8);
     if (!IMAGE_CHUNKS.has(type)) found.add(type);
-    if (type === 'IEND') return end === bytes.length ? [...found] : null;
+    if (type === 'IEND') return end === bytes.length && end - at === 12 ? [...found] : null;
     at = end;
   }
   return null;
@@ -183,7 +183,7 @@ for (const src of named) {
     fail(`Could not read layer ${src}: ${error.message}`);
   }
   const chunks = otherChunks(await readFile(source));
-  if (chunks === null) fail(`Layer ${src} is not one whole PNG (no signature, a chunk cut short, or bytes after IEND).`);
+  if (chunks === null) fail(`Layer ${src} is not one whole PNG (no signature, a chunk cut short, no empty IEND at the end, or bytes after it).`);
   if (chunks.length > 0) fail(`Layer ${src} carries ${chunks.join(', ')}. A layer holds image chunks only: export it again without metadata.`);
   const target = join(styleFolder, ...src.split('/'));
   await mkdir(dirname(target), { recursive: true });
