@@ -68,7 +68,7 @@ You need Node 22 or newer, `git` with push access to the repository, the GitHub 
    gh label create agent-needs-help --description "The agent run stopped"
    ```
 
-2. Clone the repository into a folder that only the runner uses, and leave it on `main`. `tick.sh` pulls `main` before each run, so the runner is the version that went through review.
+2. Clone the repository into a folder that only the runner uses, and leave it on `main`. Each run takes the lock, pulls `main` while it holds it and then starts again from the pulled code, so the runner is the version that went through review. A tick that starts during a run finds the lock held and stops without pulling, so the run's checkout stays as it was.
 
 3. Try it: `factory/tick.sh --dry-run` prints the ticket a run would take. A dry run changes nothing on GitHub, doesn't pull and writes no log.
 
