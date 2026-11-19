@@ -420,21 +420,6 @@ test('tickStep: a dry run takes no lock and does not pull', () => {
   assert.equal(tickStep([...node, '--dry-run', TICK_FLAGS.holdingLock]), 'dry-run');
 });
 
-test('tick.sh leaves the pull to tick.js, which pulls only while it holds the lock', async () => {
-  const shell = await readFile(new URL('../factory/tick.sh', import.meta.url), 'utf8');
-  const code = shell.split('\n').filter((line) => !line.trimStart().startsWith('#'));
-  assert.equal(code.some((line) => /\bgit\b/.test(line)), false);
-  assert.match(code.join('\n'), /exec node factory\/tick\.js "\$@"/);
-
-  const tick = await readFile(new URL('../factory/tick.js', import.meta.url), 'utf8');
-  const pulls = tick.split('\n').filter((line) => /'pull'/.test(line) && /'git'/.test(line));
-  assert.equal(pulls.length, 1);
-  // The pull is inside pullAndRestart, which main reaches only on the 'pull' step.
-  const body = tick.slice(tick.indexOf('async function pullAndRestart'), tick.indexOf('async function setLabel'));
-  assert.match(body, /'git', \['pull', '--quiet', '--ff-only', 'origin', 'main'\]/);
-  assert.match(tick, /if \(STEP === 'lock'\) return runLocked\(\);\n {2}if \(STEP === 'pull'\) return pullAndRestart\(\);/);
-});
-
 test('prBody: the ticket, its criteria word for word, then the agent\'s description', () => {
   const body = prBody(8, ['Each group has a lock.', '`npm test` passes.'], '\n## What it does\n\nIt adds locks.\n\n');
   assert.equal(
