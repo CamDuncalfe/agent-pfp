@@ -69,10 +69,15 @@ export function scaleDown(picture, width, height, part) {
   ) {
     throw new RangeError(`the part to scale is not a rectangle inside the ${picture.width}x${picture.height} picture`);
   }
-  const out = createRaster(width, height);
+  // Check the size before createRaster, so a size that is too big is refused
+  // before a raster of that size is made.
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    throw new RangeError(`the size to scale to is not two positive whole numbers: ${width}x${height}`);
+  }
   if (width > from.width || height > from.height) {
     throw new RangeError(`cannot scale a ${from.width}x${from.height} picture down to ${width}x${height}`);
   }
+  const out = createRaster(width, height);
   const src = picture.data;
   const dst = out.data;
   const columns = spans(from.width, width);

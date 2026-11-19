@@ -195,3 +195,53 @@ test('scaleDown refuses a bigger size, a bad size and something that is not a ra
   assert.throws(() => scaleDown({ width: 2, height: 2, data: [] }, 1, 1), TypeError);
   assert.throws(() => scaleDown(null, 1, 1), TypeError);
 });
+
+test('scaleDown refuses a size bigger than the part before it makes a raster', () => {
+  const picture = solid(4, 4, [1, 2, 3, 255]);
+  const part = { x: 0, y: 0, width: 4, height: 4 };
+  // No raster this big can be made. Each size gets the size error and not an
+  // allocation error, so scaleDown refused it before it made a raster.
+  for (const [width, height] of [
+    [2 ** 31, 2 ** 31],
+    [2 ** 31, 2],
+    [2, 2 ** 31],
+    [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER],
+  ]) {
+    const error = { name: 'RangeError', message: `cannot scale a 4x4 picture down to ${width}x${height}` };
+    assert.throws(() => scaleDown(picture, width, height), error);
+    assert.throws(() => scaleDown(picture, width, height, part), error);
+  }
+  // A part smaller than the picture is what the size is checked against.
+  const big = solid(20, 20, [1, 2, 3, 255]);
+  assert.throws(() => scaleDown(big, 16, 16, { x: 2, y: 2, width: 8, height: 8 }), {
+    name: 'RangeError',
+    message: 'cannot scale a 8x8 picture down to 16x16',
+  });
+});
+
+test('scaleDown says when the size is not two positive whole numbers', () => {
+  const picture = solid(4, 4, [1, 2, 3, 255]);
+  for (const [width, height] of [
+    [0, 2],
+    [2, 0],
+    [-1, 2],
+    [2, -1],
+    [2.5, 2],
+    [2, 2.5],
+    [NaN, 2],
+    [2, NaN],
+    [Infinity, 2],
+    [2, Infinity],
+    ['2', 2],
+    [2, undefined],
+    [null, 2],
+    // Not a whole number and bigger than the picture: this error comes first.
+    [4.5, 2],
+  ]) {
+    assert.throws(
+      () => scaleDown(picture, width, height),
+      { name: 'RangeError', message: /^the size to scale to is not two positive whole numbers/ },
+      `${width}x${height}`,
+    );
+  }
+});
