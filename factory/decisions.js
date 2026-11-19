@@ -238,8 +238,12 @@ export function lockCommand(platform, lockFile) {
   return { command: 'flock', args: ['--nonblock', '--conflict-exit-code', '75', lockFile], heldExit: 75 };
 }
 
-/** The flags tick.js passes when it starts itself again. */
-export const TICK_FLAGS = Object.freeze({ holdingLock: '--holding-lock', pulled: '--pulled' });
+/**
+ * The environment variable tick.js sets when it starts itself again, to say
+ * how far the tick has got. tick.sh clears it, so every scheduled tick starts
+ * from the lock, whatever arguments it was given.
+ */
+export const TICK_STEP_ENV = 'FACTORY_TICK_STEP';
 
 /**
  * What this start of tick.js does first. The pull happens while the lock is
@@ -247,13 +251,23 @@ export const TICK_FLAGS = Object.freeze({ holdingLock: '--holding-lock', pulled:
  * After the pull the script starts again, so the run is the code it just
  * pulled. A dry run takes no lock and doesn't pull.
  * @param {string[]} argv
+ * @param {Record<string, string | undefined>} env
  * @returns {'dry-run' | 'lock' | 'pull' | 'run'}
  */
-export function tickStep(argv) {
+export function tickStep(argv, env = {}) {
   if (argv.includes('--dry-run')) return 'dry-run';
-  if (!argv.includes(TICK_FLAGS.holdingLock)) return 'lock';
-  if (!argv.includes(TICK_FLAGS.pulled)) return 'pull';
-  return 'run';
+  if (env[TICK_STEP_ENV] === 'locked') return 'pull';
+  if (env[TICK_STEP_ENV] === 'pulled') return 'run';
+  return 'lock';
+}
+
+/**
+ * The pull a tick makes under the lock. It has no time limit, like the shell
+ * pull it replaced: a slow fetch makes the tick wait, it doesn't end it.
+ * @returns {{ command: string, args: string[], timeout: number }} timeout 0 means none
+ */
+export function pullCommand() {
+  return { command: 'git', args: ['pull', '--quiet', '--ff-only', 'origin', 'main'], timeout: 0 };
 }
 
 /**

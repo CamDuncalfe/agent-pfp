@@ -65,7 +65,8 @@ async function setUp() {
   await writeFile(gitLog, '');
 
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, FACTORY_HOME: home };
-  const tick = (...args) => run('sh', [join(runner, 'factory', 'tick.sh'), ...args], { env, cwd: root });
+  const tick = (args = [], extraEnv = {}) =>
+    run('sh', [join(runner, 'factory', 'tick.sh'), ...args], { env: { ...env, ...extraEnv }, cwd: root });
   const head = () => git(runner, 'rev-parse', 'HEAD');
   const originHead = () => git(origin, 'rev-parse', 'main');
   const gitCalls = async () => (await readFile(gitLog, 'utf8')).split('\n').filter(Boolean);
@@ -136,9 +137,30 @@ test('a dry run takes no lock and does not pull', async () => {
   const release = await holdLock(s.home);
   try {
     const before = await s.head();
-    const { stdout } = await s.tick('--dry-run');
+    const { stdout } = await s.tick(['--dry-run']);
     // The lock is held, and the dry run still answers, from the code it started with.
     assert.match(stdout, /No ticket has the ready-for-agent label\./);
+    assert.equal(await s.head(), before);
+    assert.deepEqual(await s.gitCalls(), []);
+  } finally {
+    await release();
+    await rm(s.root, { recursive: true, force: true });
+  }
+});
+
+test('a scheduled tick always starts from the lock, whatever it is given', async () => {
+  const s = await setUp();
+  const release = await holdLock(s.home);
+  try {
+    const before = await s.head();
+    for (const [args, extraEnv] of [
+      [['--holding-lock', '--pulled'], {}],
+      [[], { FACTORY_TICK_STEP: 'pulled' }],
+      [[], { FACTORY_TICK_STEP: 'locked' }],
+    ]) {
+      const { stdout } = await s.tick(args, extraEnv);
+      assert.match(stdout, /Another run holds the lock\./);
+    }
     assert.equal(await s.head(), before);
     assert.deepEqual(await s.gitCalls(), []);
   } finally {

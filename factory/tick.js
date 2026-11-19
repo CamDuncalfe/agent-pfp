@@ -37,7 +37,8 @@ import {
   qodoCall,
   reviewPoll,
   ticketProblems,
-  TICK_FLAGS,
+  TICK_STEP_ENV,
+  pullCommand,
   tickStep,
 } from './decisions.js';
 
@@ -47,7 +48,7 @@ const HOME = process.env.FACTORY_HOME || join(homedir(), '.agent-pfp-factory');
 const CLAUDE = process.env.FACTORY_CLAUDE || 'claude';
 const QODO = process.env.FACTORY_QODO || 'qodo';
 const LOCK = join(HOME, 'tick.lock');
-const STEP = tickStep(process.argv);
+const STEP = tickStep(process.argv, process.env);
 const DRY_RUN = STEP === 'dry-run';
 /** The agent leaves its notes for the runner here, inside the worktree. Git ignores the folder. */
 const NOTES = '.factory-run';
@@ -110,7 +111,10 @@ async function runLocked() {
   await mkdir(HOME, { recursive: true });
   const { command, args, heldExit } = lockCommand(process.platform, LOCK);
   const code = await new Promise((resolve, reject) => {
-    const child = spawn(command, [...args, process.execPath, fileURLToPath(import.meta.url), TICK_FLAGS.holdingLock], { stdio: 'inherit' });
+    const child = spawn(command, [...args, process.execPath, fileURLToPath(import.meta.url)], {
+      stdio: 'inherit',
+      env: { ...process.env, [TICK_STEP_ENV]: 'locked' },
+    });
     child.on('error', reject);
     child.on('exit', (exitCode) => resolve(exitCode ?? 1));
   });
@@ -126,10 +130,12 @@ async function runLocked() {
  * @returns {Promise<number>} the exit code of the run
  */
 async function pullAndRestart() {
-  await must('git', ['pull', '--quiet', '--ff-only', 'origin', 'main']);
+  const pull = pullCommand();
+  await must(pull.command, pull.args, { timeout: pull.timeout });
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), TICK_FLAGS.holdingLock, TICK_FLAGS.pulled], {
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url)], {
       stdio: 'inherit',
+      env: { ...process.env, [TICK_STEP_ENV]: 'pulled' },
     });
     child.on('error', reject);
     child.on('exit', (exitCode) => resolve(exitCode ?? 1));

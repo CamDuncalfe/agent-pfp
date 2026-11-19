@@ -24,7 +24,8 @@ import {
   labelledBy,
   lockCommand,
   lowFindingsText,
-  TICK_FLAGS,
+  TICK_STEP_ENV,
+  pullCommand,
   tickStep,
   fixRoundText,
   readyComment,
@@ -406,18 +407,26 @@ test('lockCommand: the operating system holds the lock, and a held lock has its 
 });
 
 test('tickStep: a run locks first, pulls under the lock, then runs the pulled code', () => {
-  const node = ['/usr/local/bin/node', '/runner/factory/tick.js'];
-  assert.equal(tickStep(node), 'lock');
-  assert.equal(tickStep([...node, TICK_FLAGS.holdingLock]), 'pull');
-  assert.equal(tickStep([...node, TICK_FLAGS.holdingLock, TICK_FLAGS.pulled]), 'run');
-  // The pulled flag alone doesn't skip the lock.
-  assert.equal(tickStep([...node, TICK_FLAGS.pulled]), 'lock');
+  const argv = ['/usr/local/bin/node', '/runner/factory/tick.js'];
+  assert.equal(tickStep(argv, {}), 'lock');
+  assert.equal(tickStep(argv, { [TICK_STEP_ENV]: 'locked' }), 'pull');
+  assert.equal(tickStep(argv, { [TICK_STEP_ENV]: 'pulled' }), 'run');
+  assert.equal(tickStep(argv, { [TICK_STEP_ENV]: 'something else' }), 'lock');
+});
+
+test('tickStep: arguments never skip the lock or the pull', () => {
+  const argv = ['/usr/local/bin/node', '/runner/factory/tick.js', '--holding-lock', '--pulled'];
+  assert.equal(tickStep(argv, {}), 'lock');
 });
 
 test('tickStep: a dry run takes no lock and does not pull', () => {
-  const node = ['/usr/local/bin/node', '/runner/factory/tick.js'];
-  assert.equal(tickStep([...node, '--dry-run']), 'dry-run');
-  assert.equal(tickStep([...node, '--dry-run', TICK_FLAGS.holdingLock]), 'dry-run');
+  const argv = ['/usr/local/bin/node', '/runner/factory/tick.js', '--dry-run'];
+  assert.equal(tickStep(argv, {}), 'dry-run');
+  assert.equal(tickStep(argv, { [TICK_STEP_ENV]: 'locked' }), 'dry-run');
+});
+
+test('pullCommand: a fast-forward pull of main with no time limit', () => {
+  assert.deepEqual(pullCommand(), { command: 'git', args: ['pull', '--quiet', '--ff-only', 'origin', 'main'], timeout: 0 });
 });
 
 test('prBody: the ticket, its criteria word for word, then the agent\'s description', () => {

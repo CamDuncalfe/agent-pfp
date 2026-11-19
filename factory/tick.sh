@@ -5,4 +5,6 @@
 # docs/factory.md has the setup.
 set -eu
 cd "$(dirname "$0")/.."
+# Only tick.js sets this, when it starts itself again under the lock.
+unset FACTORY_TICK_STEP
 exec node factory/tick.js "$@"
