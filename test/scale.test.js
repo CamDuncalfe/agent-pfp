@@ -221,7 +221,7 @@ test('scaleDown refuses a size bigger than the part before it makes a raster', (
 
 test('scaleDown says when the size is not two positive whole numbers', () => {
   const picture = solid(4, 4, [1, 2, 3, 255]);
-  for (const [width, height] of [
+  const sizes = [
     [0, 2],
     [2, 0],
     [-1, 2],
@@ -233,15 +233,25 @@ test('scaleDown says when the size is not two positive whole numbers', () => {
     [Infinity, 2],
     [2, Infinity],
     ['2', 2],
+    [Symbol('size'), 2],
+    [2, Symbol('size')],
+    [Object.create(null), 2],
+    [2, { toString: null, valueOf: null }],
+    [{}, 2],
+    [2n, 2],
     [2, undefined],
     [null, 2],
     // Not a whole number and bigger than the picture: this error comes first.
     [4.5, 2],
-  ]) {
+  ];
+  // The label is the index: a symbol or an object with no string form can't go in a template.
+  sizes.forEach(([width, height], index) => {
     assert.throws(
       () => scaleDown(picture, width, height),
       { name: 'RangeError', message: /^the size to scale to is not two positive whole numbers/ },
-      `${width}x${height}`,
+      `size ${index}`,
     );
-  }
+  });
+  // A number in the size is named in the message, so the caller can see it.
+  assert.throws(() => scaleDown(picture, 2.5, 2), { message: /: 2\.5x2$/ });
 });
