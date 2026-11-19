@@ -962,5 +962,26 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": null,
     "post": null
+  },
+  {
+    "pr": 77,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/77",
+    "mergedAt": "2026-11-19T13:13:40Z",
+    "merge": "5db168d8fc1701afa785efd3c28c3b2389ece091",
+    "tickets": [
+      52
+    ],
+    "day": 14,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Symbol sizes throw the wrong error",
+        "fixedIn": "9f6197a545f33fd3222cc88a4dd330c986a7b2c7"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
   }
 ]
