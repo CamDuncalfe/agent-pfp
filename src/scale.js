@@ -34,6 +34,17 @@ function spans(source, target) {
 }
 
 /**
+ * One side of a size, for an error message. A number is written as it is.
+ * Anything else is named by its type, because a symbol or an object with no
+ * string form throws a TypeError when it goes in a template string.
+ * @param {unknown} value
+ * @returns {string}
+ */
+function describeSize(value) {
+  return typeof value === 'number' ? String(value) : `(${value === null ? 'null' : typeof value})`;
+}
+
+/**
  * Scale a picture down to width x height. Each target pixel is the average
  * of the source pixels it covers, weighted by the area covered. Colour is
  * also weighted by alpha, so a see-through pixel adds no colour to the
@@ -69,10 +80,17 @@ export function scaleDown(picture, width, height, part) {
   ) {
     throw new RangeError(`the part to scale is not a rectangle inside the ${picture.width}x${picture.height} picture`);
   }
-  const out = createRaster(width, height);
+  // Check the size before createRaster, so a size that is too big is refused
+  // before a raster of that size is made.
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    throw new RangeError(
+      `the size to scale to is not two positive whole numbers: ${describeSize(width)}x${describeSize(height)}`,
+    );
+  }
   if (width > from.width || height > from.height) {
     throw new RangeError(`cannot scale a ${from.width}x${from.height} picture down to ${width}x${height}`);
   }
+  const out = createRaster(width, height);
   const src = picture.data;
   const dst = out.data;
   const columns = spans(from.width, width);
