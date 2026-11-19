@@ -72,15 +72,29 @@ async function setUp() {
   return { root, home, tick, head, originHead, gitCalls };
 }
 
-/** Hold the runner's lock in another process until `release` is called. */
+/**
+ * Hold the runner's lock in another process until `release` is called. The
+ * held command prints "held", and the lock command only starts it once the
+ * lock is taken, so the tick starts after that line however slow the machine is.
+ */
 async function holdLock(home) {
   const { command, args } = lockCommand(process.platform, join(home, 'tick.lock'));
-  const holder = spawn(command, [...args, 'sleep', '30'], { stdio: 'ignore' });
+  // Its own process group, so release can end the lock command and the sleep under it together.
+  const holder = spawn(command, [...args, 'sh', '-c', 'echo held; exec sleep 60'], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+    detached: true,
+  });
   const exited = new Promise((resolve) => holder.on('exit', resolve));
-  // Give the holder time to take the lock before the tick starts.
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await new Promise((resolve, reject) => {
+    let out = '';
+    holder.stdout.on('data', (chunk) => {
+      out += chunk;
+      if (out.includes('held')) resolve();
+    });
+    holder.on('exit', (code) => reject(new Error(`the lock holder ended with ${code} before it took the lock`)));
+  });
   return async () => {
-    holder.kill();
+    process.kill(-holder.pid, 'SIGTERM');
     await exited;
   };
 }
