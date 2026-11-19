@@ -37,6 +37,8 @@ import {
   qodoCall,
   reviewPoll,
   ticketProblems,
+  TICK_FLAGS,
+  tickStep,
 } from './decisions.js';
 
 const FACTORY = dirname(fileURLToPath(import.meta.url));
@@ -45,9 +47,8 @@ const HOME = process.env.FACTORY_HOME || join(homedir(), '.agent-pfp-factory');
 const CLAUDE = process.env.FACTORY_CLAUDE || 'claude';
 const QODO = process.env.FACTORY_QODO || 'qodo';
 const LOCK = join(HOME, 'tick.lock');
-/** Set on the second start of this script, the one that runs while the lock is held. */
-const HOLDING_LOCK = '--holding-lock';
-const DRY_RUN = process.argv.includes('--dry-run');
+const STEP = tickStep(process.argv);
+const DRY_RUN = STEP === 'dry-run';
 /** The agent leaves its notes for the runner here, inside the worktree. Git ignores the folder. */
 const NOTES = '.factory-run';
 
@@ -109,13 +110,30 @@ async function runLocked() {
   await mkdir(HOME, { recursive: true });
   const { command, args, heldExit } = lockCommand(process.platform, LOCK);
   const code = await new Promise((resolve, reject) => {
-    const child = spawn(command, [...args, process.execPath, fileURLToPath(import.meta.url), HOLDING_LOCK], { stdio: 'inherit' });
+    const child = spawn(command, [...args, process.execPath, fileURLToPath(import.meta.url), TICK_FLAGS.holdingLock], { stdio: 'inherit' });
     child.on('error', reject);
     child.on('exit', (exitCode) => resolve(exitCode ?? 1));
   });
   if (code !== heldExit) return code;
   await log('Another run holds the lock.');
   return 0;
+}
+
+/**
+ * Bring this checkout up to date with main while the lock is held, then start
+ * this script again from the pulled code and wait for it. The lock stays held
+ * the whole time, because the lock command waits for this process.
+ * @returns {Promise<number>} the exit code of the run
+ */
+async function pullAndRestart() {
+  await must('git', ['pull', '--quiet', '--ff-only', 'origin', 'main']);
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), TICK_FLAGS.holdingLock, TICK_FLAGS.pulled], {
+      stdio: 'inherit',
+    });
+    child.on('error', reject);
+    child.on('exit', (exitCode) => resolve(exitCode ?? 1));
+  });
 }
 
 async function setLabel(repo, number, from, to) {
@@ -326,7 +344,8 @@ async function main() {
     await log(ticket ? `Dry run: would take #${ticket.number} "${ticket.title}" on branch ${branchFor(ticket)}.` : `No ticket has the ${LABELS.ready} label.`);
     return 0;
   }
-  if (!process.argv.includes(HOLDING_LOCK)) return runLocked();
+  if (STEP === 'lock') return runLocked();
+  if (STEP === 'pull') return pullAndRestart();
 
   const ticket = await chooseTicket(repo, owner.login);
   if (!ticket) {

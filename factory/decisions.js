@@ -238,6 +238,24 @@ export function lockCommand(platform, lockFile) {
   return { command: 'flock', args: ['--nonblock', '--conflict-exit-code', '75', lockFile], heldExit: 75 };
 }
 
+/** The flags tick.js passes when it starts itself again. */
+export const TICK_FLAGS = Object.freeze({ holdingLock: '--holding-lock', pulled: '--pulled' });
+
+/**
+ * What this start of tick.js does first. The pull happens while the lock is
+ * held, so a tick that starts during a run leaves that run's checkout alone.
+ * After the pull the script starts again, so the run is the code it just
+ * pulled. A dry run takes no lock and doesn't pull.
+ * @param {string[]} argv
+ * @returns {'dry-run' | 'lock' | 'pull' | 'run'}
+ */
+export function tickStep(argv) {
+  if (argv.includes('--dry-run')) return 'dry-run';
+  if (!argv.includes(TICK_FLAGS.holdingLock)) return 'lock';
+  if (!argv.includes(TICK_FLAGS.pulled)) return 'pull';
+  return 'run';
+}
+
 /**
  * The criteria as a numbered list, one per line. The build prompt and the
  * pull request description both get this text, so the agent is asked to meet
