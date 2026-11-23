@@ -30,38 +30,37 @@
       "id": "frog",
       "name": "Frog",
       "manifest": "styles/frog/manifest.json"
-    }
-  ],
-  "comingSoon": [
+    },
     {
       "id": "duck",
       "name": "Duck",
-      "picture": "styles/coming-soon/duck.png"
+      "manifest": "styles/duck/manifest.json"
     },
     {
       "id": "penguin",
       "name": "Penguin",
-      "picture": "styles/coming-soon/penguin.png"
+      "manifest": "styles/penguin/manifest.json"
     },
     {
       "id": "owl",
       "name": "Owl",
-      "picture": "styles/coming-soon/owl.png"
+      "manifest": "styles/owl/manifest.json"
     },
     {
       "id": "rabbit",
       "name": "Rabbit",
-      "picture": "styles/coming-soon/rabbit.png"
+      "manifest": "styles/rabbit/manifest.json"
     },
     {
       "id": "skeleton",
       "name": "Skeleton",
-      "picture": "styles/coming-soon/skeleton.png"
+      "manifest": "styles/skeleton/manifest.json"
     },
     {
       "id": "cyclops",
       "name": "Cyclops",
-      "picture": "styles/coming-soon/cyclops.png"
+      "manifest": "styles/cyclops/manifest.json"
     }
-  ]
+  ],
+  "comingSoon": []
 }

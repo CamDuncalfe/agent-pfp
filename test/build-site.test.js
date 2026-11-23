@@ -220,10 +220,9 @@ test('the build of this repository holds each file the builder asks for', async 
     for (const file of await expectedStyleFiles(repo)) assert.ok(files.has(file), file);
     const index = JSON.parse(await readFile(join(repo, 'styles', 'index.json'), 'utf8'));
     for (const entry of index.styles) assert.ok(files.has(entry.manifest), entry.manifest);
-    // The six coming-soon pictures the Character tab shows are in the site. Their notice is not a file the page asks for.
-    assert.equal(index.comingSoon.length, 6);
-    for (const entry of index.comingSoon) assert.ok(files.has(entry.picture), entry.picture);
-    assert.ok(!files.has('styles/coming-soon/NOTICE.md'));
+    // The index names no coming-soon character, so the site holds no coming-soon picture.
+    assert.deepEqual(index.comingSoon, []);
+    assert.ok(![...files].some((file) => file.startsWith('styles/coming-soon/')), 'no coming-soon file in the site');
     // The fixtures are test data and stay off the public site.
     assert.ok(![...files].some((file) => file.startsWith('fixtures/')), 'no fixture file in the site');
   } finally {

@@ -1,0 +1,270 @@
+{
+  "version": 1,
+  "style": "duck",
+  "name": "Duck",
+  "canvas": {
+    "width": 1024,
+    "height": 1024,
+    "opaque": true
+  },
+  "groups": [
+    {
+      "id": "background",
+      "label": "Background",
+      "base": true,
+      "bleed": [
+        "top",
+        "right",
+        "bottom",
+        "left"
+      ],
+      "options": [
+        {
+          "id": "yellow",
+          "label": "Yellow",
+          "src": "layers/background/yellow.png"
+        },
+        {
+          "id": "butter",
+          "label": "Butter",
+          "src": "layers/background/butter.png"
+        },
+        {
+          "id": "peach",
+          "label": "Peach",
+          "src": "layers/background/peach.png"
+        },
+        {
+          "id": "cream",
+          "label": "Cream",
+          "src": "layers/background/cream.png"
+        },
+        {
+          "id": "pink",
+          "label": "Pink",
+          "src": "layers/background/pink.png"
+        },
+        {
+          "id": "tomato",
+          "label": "Tomato",
+          "src": "layers/background/tomato.png"
+        },
+        {
+          "id": "lilac",
+          "label": "Lilac",
+          "src": "layers/background/lilac.png"
+        },
+        {
+          "id": "sky",
+          "label": "Sky",
+          "src": "layers/background/sky.png"
+        },
+        {
+          "id": "mint",
+          "label": "Mint",
+          "src": "layers/background/mint.png"
+        },
+        {
+          "id": "sage",
+          "label": "Sage",
+          "src": "layers/background/sage.png"
+        }
+      ]
+    },
+    {
+      "id": "character",
+      "label": "Character",
+      "base": true,
+      "bleed": [
+        "bottom"
+      ],
+      "options": [
+        {
+          "id": "duck",
+          "label": "Duck",
+          "src": "layers/character/duck.png"
+        }
+      ]
+    },
+    {
+      "id": "clothes",
+      "label": "Clothes",
+      "bleed": [
+        "bottom",
+        "left",
+        "right"
+      ],
+      "zone": {
+        "x": 120,
+        "y": 713,
+        "width": 763,
+        "height": 311
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "White tee",
+          "src": "layers/clothes/default.png"
+        },
+        {
+          "id": "hoodie",
+          "label": "Hoodie",
+          "src": "layers/clothes/hoodie.png"
+        },
+        {
+          "id": "hawaiian-shirt",
+          "label": "Hawaiian shirt",
+          "src": "layers/clothes/hawaiian-shirt.png"
+        },
+        {
+          "id": "suit",
+          "label": "Suit",
+          "src": "layers/clothes/suit.png"
+        },
+        {
+          "id": "varsity-jacket",
+          "label": "Varsity jacket",
+          "src": "layers/clothes/varsity-jacket.png"
+        },
+        {
+          "id": "turtleneck",
+          "label": "Turtleneck",
+          "src": "layers/clothes/turtleneck.png"
+        },
+        {
+          "id": "striped-tee",
+          "label": "Striped tee",
+          "src": "layers/clothes/striped-tee.png"
+        }
+      ]
+    },
+    {
+      "id": "eyes",
+      "label": "Eyes",
+      "zone": {
+        "x": 383,
+        "y": 298,
+        "width": 348,
+        "height": 170
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "Bored",
+          "src": "layers/eyes/default.png"
+        },
+        {
+          "id": "wide",
+          "label": "Wide",
+          "src": "layers/eyes/wide.png"
+        },
+        {
+          "id": "angry",
+          "label": "Angry",
+          "src": "layers/eyes/angry.png"
+        },
+        {
+          "id": "closed",
+          "label": "Closed",
+          "src": "layers/eyes/closed.png"
+        },
+        {
+          "id": "wink",
+          "label": "Wink",
+          "src": "layers/eyes/wink.png"
+        },
+        {
+          "id": "hearts",
+          "label": "Hearts",
+          "src": "layers/eyes/hearts.png"
+        },
+        {
+          "id": "spiral",
+          "label": "Spiral",
+          "src": "layers/eyes/spiral.png"
+        },
+        {
+          "id": "stars",
+          "label": "Stars",
+          "src": "layers/eyes/stars.png"
+        }
+      ]
+    },
+    {
+      "id": "eyewear",
+      "label": "Eyewear",
+      "optional": true,
+      "over": [
+        "eyes"
+      ],
+      "options": [
+        {
+          "id": "wayfarers",
+          "label": "Wayfarers",
+          "src": "layers/eyewear/wayfarers.png"
+        },
+        {
+          "id": "round-shades",
+          "label": "Round shades",
+          "src": "layers/eyewear/round-shades.png"
+        },
+        {
+          "id": "clear-glasses",
+          "label": "Clear glasses",
+          "src": "layers/eyewear/clear-glasses.png"
+        },
+        {
+          "id": "aviators",
+          "label": "Aviators",
+          "src": "layers/eyewear/aviators.png"
+        },
+        {
+          "id": "heart-shades",
+          "label": "Heart shades",
+          "src": "layers/eyewear/heart-shades.png"
+        },
+        {
+          "id": "x-3d-glasses",
+          "label": "3D glasses",
+          "src": "layers/eyewear/3d-glasses.png"
+        }
+      ]
+    },
+    {
+      "id": "headwear",
+      "label": "Headwear",
+      "optional": true,
+      "over": [
+        "eyes",
+        "eyewear"
+      ],
+      "options": [
+        {
+          "id": "beanie",
+          "label": "Beanie",
+          "src": "layers/headwear/beanie.png"
+        },
+        {
+          "id": "cap",
+          "label": "Cap",
+          "src": "layers/headwear/cap.png"
+        },
+        {
+          "id": "bucket-hat",
+          "label": "Bucket hat",
+          "src": "layers/headwear/bucket-hat.png"
+        },
+        {
+          "id": "propeller-cap",
+          "label": "Propeller cap",
+          "src": "layers/headwear/propeller-cap.png"
+        },
+        {
+          "id": "party-hat",
+          "label": "Party hat",
+          "src": "layers/headwear/party-hat.png"
+        }
+      ]
+    }
+  ]
+}

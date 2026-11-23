@@ -212,17 +212,17 @@ test('the Character tab opens first only when there is a choice, and stays open 
   assert.equal(characterTabOpens({ styleCount: 12, firstStyle: false }), true);
 });
 
-test('with six characters and six coming-soon characters the page opens on the Character tab', async () => {
+test('with twelve characters and no coming-soon character the page opens on the Character tab', async () => {
   const index = await readJson('styles/index.json');
   const tiles = characterTiles(index.styles, index.comingSoon);
   assert.equal(tiles.length, 12);
-  // Only a style counts as a character to pick from.
+  // Only a style counts as a character to pick from, and every tile is one.
   const styleCount = tiles.filter((tile) => !tile.comingSoon).length;
-  assert.equal(styleCount, 6);
+  assert.equal(styleCount, 12);
   assert.equal(characterTabOpens({ styleCount, firstStyle: true }), true);
 });
 
-test('the Character tab shows each style, then each coming-soon character, in index order', async () => {
+test('the Character tab shows each style in index order, and a coming-soon character after them', async () => {
   const index = await readJson('styles/index.json');
   const tiles = characterTiles(index.styles, index.comingSoon);
   assert.deepEqual(
@@ -230,15 +230,15 @@ test('the Character tab shows each style, then each coming-soon character, in in
     ['Alien', 'Bear', 'Fox', 'Cat', 'Raccoon', 'Frog', 'Duck', 'Penguin', 'Owl', 'Rabbit', 'Skeleton', 'Cyclops'],
   );
   assert.deepEqual(tiles[0], { id: 'alien', name: 'Alien', comingSoon: false, style: index.styles[0] });
-  assert.deepEqual(tiles[1], { id: 'bear', name: 'Bear', comingSoon: false, style: index.styles[1] });
-  assert.deepEqual(tiles[6], { id: 'duck', name: 'Duck', comingSoon: true, picture: 'styles/coming-soon/duck.png' });
-  // The first six tiles are styles. A coming-soon tile carries a picture and no style: nothing on it names a manifest.
-  for (const tile of tiles.slice(0, 6)) assert.equal(tile.comingSoon, false, tile.id);
-  for (const tile of tiles.slice(6)) {
-    assert.equal(tile.comingSoon, true, tile.id);
-    assert.deepEqual(Object.keys(tile).sort(), ['comingSoon', 'id', 'name', 'picture'], tile.id);
-  }
-  assert.deepEqual(characterTiles(index.styles, []), tiles.slice(0, 6));
+  assert.deepEqual(tiles[6], { id: 'duck', name: 'Duck', comingSoon: false, style: index.styles[6] });
+  for (const tile of tiles) assert.equal(tile.comingSoon, false, tile.id);
+  // An empty list adds no tile.
+  assert.deepEqual(characterTiles(index.styles, []), tiles);
+  // A coming-soon character goes after the styles. Its tile carries a picture and no style: nothing on it names a manifest.
+  const withComing = characterTiles(index.styles, [{ id: 'yeti', name: 'Yeti', picture: 'styles/coming-soon/yeti.png' }]);
+  assert.equal(withComing.length, 13);
+  assert.deepEqual(withComing.slice(0, 12), tiles);
+  assert.deepEqual(withComing[12], { id: 'yeti', name: 'Yeti', comingSoon: true, picture: 'styles/coming-soon/yeti.png' });
 });
 
 test('a style takes the place of the coming-soon tile with its id', () => {
@@ -287,13 +287,15 @@ test('the arrow keys walk each character tile and never pick a coming-soon one',
   assert.deepEqual(characterKeyMove(live, at, 'ArrowRight'), { index: 0, pick: true });
 });
 
-test('Randomize and Reset work from the manifest of the style on screen, which names no coming-soon character', async () => {
+test('Randomize and Reset work from the manifest of the style on screen, which names no other character', async () => {
   const index = await readJson('styles/index.json');
   const manifest = await alien();
-  const comingIds = index.comingSoon.map((entry) => entry.id);
+  // Every other style in the index, and any coming-soon character, is another character.
+  const comingIds = [...index.styles.filter((entry) => entry.id !== 'alien'), ...index.comingSoon].map((entry) => entry.id);
+  assert.equal(comingIds.length, 11);
   const optionIds = manifest.groups.flatMap((group) => [group.id, ...group.options.map((option) => option.id)]);
   for (const id of comingIds) assert.ok(!optionIds.includes(id), id);
-  // Neither Reset nor Randomize gives back a group or a choice that is a coming-soon character.
+  // Neither Reset nor Randomize gives back a group or a choice that is another character.
   const reset = resetState(manifest);
   const random = randomizeUnlocked(manifest, reset.selection, reset.locks, () => 0.99);
   for (const selection of [reset.selection, random]) {
