@@ -156,37 +156,11 @@
       ]
     },
     {
-      "id": "eyewear",
-      "label": "Eyewear",
-      "optional": true,
-      "over": [
-        "eyes"
-      ],
-      "options": [
-        {
-          "id": "wayfarers",
-          "label": "Wayfarers",
-          "src": "layers/eyewear/wayfarers.png"
-        },
-        {
-          "id": "round-shades",
-          "label": "Round shades",
-          "src": "layers/eyewear/round-shades.png"
-        },
-        {
-          "id": "clear-glasses",
-          "label": "Clear glasses",
-          "src": "layers/eyewear/clear-glasses.png"
-        }
-      ]
-    },
-    {
       "id": "headwear",
       "label": "Headwear",
       "optional": true,
       "over": [
-        "eyes",
-        "eyewear"
+        "eyes"
       ],
       "options": [
         {
@@ -203,6 +177,33 @@
           "id": "cap",
           "label": "Cap",
           "src": "layers/headwear/cap.png"
+        }
+      ]
+    },
+    {
+      "id": "eyewear",
+      "label": "Eyewear",
+      "optional": true,
+      "over": [
+        "eyes",
+        "headwear"
+      ],
+      "options": [
+        {
+          "id": "wayfarers",
+          "label": "Wayfarers",
+          "src": "layers/eyewear/wayfarers.png"
+        },
+        {
+          "id": "round-shades",
+          "label": "Round shades",
+          "src": "layers/eyewear/round-shades.png"
+        },
+        {
+          "id": "clear-glasses",
+          "label": "Clear glasses",
+          "src": "layers/eyewear/clear-glasses.png",
+          "seeThrough": true
         }
       ]
     }
