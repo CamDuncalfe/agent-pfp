@@ -120,6 +120,31 @@
           "id": "suit",
           "label": "Suit",
           "src": "layers/clothes/suit.png"
+        },
+        {
+          "id": "varsity-jacket",
+          "label": "Varsity jacket",
+          "src": "layers/clothes/varsity-jacket.png"
+        },
+        {
+          "id": "turtleneck",
+          "label": "Turtleneck",
+          "src": "layers/clothes/turtleneck.png"
+        },
+        {
+          "id": "denim-jacket",
+          "label": "Denim jacket",
+          "src": "layers/clothes/denim-jacket.png"
+        },
+        {
+          "id": "striped-tee",
+          "label": "Striped tee",
+          "src": "layers/clothes/striped-tee.png"
+        },
+        {
+          "id": "space-suit",
+          "label": "Space suit",
+          "src": "layers/clothes/space-suit.png"
         }
       ]
     },
@@ -127,10 +152,10 @@
       "id": "eyes",
       "label": "Eyes",
       "zone": {
-        "x": 472,
-        "y": 415,
-        "width": 281,
-        "height": 100
+        "x": 467,
+        "y": 414,
+        "width": 286,
+        "height": 101
       },
       "options": [
         {
@@ -152,6 +177,31 @@
           "id": "closed",
           "label": "Closed",
           "src": "layers/eyes/closed.png"
+        },
+        {
+          "id": "angry",
+          "label": "Angry",
+          "src": "layers/eyes/angry.png"
+        },
+        {
+          "id": "wink",
+          "label": "Wink",
+          "src": "layers/eyes/wink.png"
+        },
+        {
+          "id": "hearts",
+          "label": "Hearts",
+          "src": "layers/eyes/hearts.png"
+        },
+        {
+          "id": "spiral",
+          "label": "Spiral",
+          "src": "layers/eyes/spiral.png"
+        },
+        {
+          "id": "focused",
+          "label": "Focused",
+          "src": "layers/eyes/focused.png"
         }
       ]
     },
@@ -177,18 +227,38 @@
           "id": "clear-glasses",
           "label": "Clear glasses",
           "src": "layers/eyewear/clear-glasses.png"
+        },
+        {
+          "id": "heart-shades",
+          "label": "Heart shades",
+          "src": "layers/eyewear/heart-shades.png"
+        },
+        {
+          "id": "x-3d-glasses",
+          "label": "3D glasses",
+          "src": "layers/eyewear/3d-glasses.png"
+        },
+        {
+          "id": "visor",
+          "label": "Visor",
+          "src": "layers/eyewear/visor.png"
+        },
+        {
+          "id": "aviators",
+          "label": "Aviators",
+          "src": "layers/eyewear/aviators.png"
         }
       ]
     },
     {
       "id": "headwear",
       "label": "Headwear",
-      "optional": true,
-      "over": [
-        "eyes",
-        "eyewear"
-      ],
       "options": [
+        {
+          "id": "no-hat",
+          "label": "No hat",
+          "src": "layers/headwear/no-hat.png"
+        },
         {
           "id": "beanie",
           "label": "Beanie",
@@ -203,8 +273,34 @@
           "id": "cap",
           "label": "Cap",
           "src": "layers/headwear/cap.png"
+        },
+        {
+          "id": "bucket-hat",
+          "label": "Bucket hat",
+          "src": "layers/headwear/bucket-hat.png"
+        },
+        {
+          "id": "propeller-cap",
+          "label": "Propeller cap",
+          "src": "layers/headwear/propeller-cap.png"
+        },
+        {
+          "id": "party-hat",
+          "label": "Party hat",
+          "src": "layers/headwear/party-hat.png"
+        },
+        {
+          "id": "crown",
+          "label": "Crown",
+          "src": "layers/headwear/crown.png"
         }
-      ]
+      ],
+      "zone": {
+        "x": 179,
+        "y": 70,
+        "width": 697,
+        "height": 344
+      }
     }
   ]
 }
