@@ -14,12 +14,17 @@
  *    its group lists in `over`, it has to let that option show, so the
  *    picture differs from the one over the group's default option.
  *
+ * With step 3, each size Download offers is made from the finished picture
+ * the way the builder makes it (`pictureToSave`) and checked: it is the size
+ * asked for, and on an opaque canvas it has no see-through pixel.
+ *
  * The format fields it reads are documented in docs/manifest.md.
  */
 import { validateManifest, resolveSelection, groupChoices, EDGES } from './manifest.js';
 import { compositeLayers, isRaster } from './composite.js';
 import { countCombinations, walkCombinations, sampleCombinations } from './combinations.js';
 import { defaultSelection } from './builder-layout.js';
+import { planDownload, pictureToSave, sizesFor } from './download.js';
 
 export const DEFAULT_OPTIONS = Object.freeze({
   /** A pixel counts as drawn when its alpha is at least this (1-255). */
@@ -33,7 +38,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
 });
 
 /**
- * @typedef {'manifest' | 'missing' | 'size' | 'empty' | 'clip' | 'zone' | 'overlap' | 'hole' | 'covered'} IssueKind
+ * @typedef {'manifest' | 'missing' | 'size' | 'empty' | 'clip' | 'zone' | 'overlap' | 'hole' | 'download' | 'covered'} IssueKind
  * @typedef {{
  *   kind: IssueKind,
  *   message: string,
@@ -43,6 +48,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
  *   otherOption?: string | null,
  *   defaultOption?: string | null,
  *   edge?: string,
+ *   size?: string,
  *   pixels?: number,
  *   selection?: import('./manifest.js').Selection,
  * }} Issue
@@ -56,8 +62,12 @@ export const DEFAULT_OPTIONS = Object.freeze({
  *   layers: number,
  *   pairs: number,
  *   combinations: { total: number | null, checked: number, failed: number, exhaustive: boolean },
+ *   downloads: { id: string, label: string }[],
  *   issues: Issue[],
  * }} Report
+ *
+ * `downloads` lists the sizes Download offers for the style, each checked on
+ * every combination the check draws. It is empty when the manifest is not valid.
  */
 
 function readOptions(options) {
@@ -267,6 +277,43 @@ function checkSeeThrough(manifest, usable) {
 }
 
 /**
+ * Check each file Download can save for one finished picture. For each size
+ * `sizesFor` offers, the picture goes through `pictureToSave` with the plan
+ * `planDownload` makes, as the builder page does, and the saved picture has
+ * to be the size asked for. On an opaque canvas a scaled copy may not have a
+ * see-through pixel either. Full size saves the finished picture itself,
+ * which the `hole` check has read already, so it is not counted twice.
+ * @param {import('./manifest.js').Manifest} manifest a valid manifest
+ * @param {import('./composite.js').Raster} picture the finished picture at canvas size
+ * @param {import('./manifest.js').Selection} selection the combination it shows
+ * @param {typeof pictureToSave} [save] makes the saved picture; the builder's own by default
+ * @returns {Issue[]}
+ */
+export function checkDownloads(manifest, picture, selection, save = pictureToSave) {
+  const issues = [];
+  for (const size of sizesFor(manifest.canvas)) {
+    const plan = planDownload(manifest, size.id);
+    const saved = save(picture, plan);
+    const where = `the ${size.label} download (${plan.fileName}) for ${describeSelection(selection)}`;
+    if (!isRaster(saved) || saved.width !== plan.width || saved.height !== plan.height) {
+      const got = isRaster(saved) ? `${saved.width}x${saved.height}` : 'not a picture';
+      issues.push({ kind: 'download', size: size.id, selection, message: `${where} is ${got}, not ${plan.width}x${plan.height}` });
+      continue;
+    }
+    if (manifest.canvas.opaque === true && saved !== picture) {
+      let seeThrough = 0;
+      for (let i = 3; i < saved.data.length; i += 4) {
+        if (saved.data[i] < 255) seeThrough += 1;
+      }
+      if (seeThrough > 0) {
+        issues.push({ kind: 'download', size: size.id, pixels: seeThrough, selection, message: `${seeThrough} see-through px in ${where}` });
+      }
+    }
+  }
+  return issues;
+}
+
+/**
  * Run the render check on one style.
  *
  * @param {unknown} manifest parsed manifest.json
@@ -285,6 +332,7 @@ export async function checkManifest(manifest, loadLayer, options = {}) {
     layers: 0,
     pairs: 0,
     combinations: { total: 0, checked: 0, failed: 0, exhaustive: true },
+    downloads: [],
     issues,
   };
 
@@ -294,6 +342,7 @@ export async function checkManifest(manifest, loadLayer, options = {}) {
     return report;
   }
   report.style = manifest.style;
+  report.downloads = sizesFor(manifest.canvas).map(({ id, label }) => ({ id, label }));
   const { width, height } = manifest.canvas;
 
   // 1. Each layer on its own.
@@ -404,24 +453,32 @@ export async function checkManifest(manifest, loadLayer, options = {}) {
     }
     // A combination with a layer that is missing or the wrong size cannot be drawn.
     const drawable = keys.every((key) => usable.has(key));
-    if (drawable && manifest.canvas.opaque === true) {
+    if (drawable) {
       const picture = compositeLayers(
         width,
         height,
         keys.map((key) => usable.get(key).raster),
       );
-      let seeThrough = 0;
-      for (let i = 3; i < picture.data.length; i += 4) {
-        if (picture.data[i] < 255) seeThrough += 1;
+      if (manifest.canvas.opaque === true) {
+        let seeThrough = 0;
+        for (let i = 3; i < picture.data.length; i += 4) {
+          if (picture.data[i] < 255) seeThrough += 1;
+        }
+        if (seeThrough > 0) {
+          failed = true;
+          issues.push({
+            kind: 'hole',
+            pixels: seeThrough,
+            selection,
+            message: `${seeThrough} see-through px in the finished picture for ${describeSelection(selection)}`,
+          });
+        }
       }
-      if (seeThrough > 0) {
+      // Each file Download can save for this combination.
+      const downloadIssues = checkDownloads(manifest, picture, selection);
+      if (downloadIssues.length > 0) {
         failed = true;
-        issues.push({
-          kind: 'hole',
-          pixels: seeThrough,
-          selection,
-          message: `${seeThrough} see-through px in the finished picture for ${describeSelection(selection)}`,
-        });
+        issues.push(...downloadIssues);
       }
     }
     if (failed) report.combinations.failed += 1;
@@ -451,6 +508,10 @@ export function formatReport(report, { maxPerKind = 20 } = {}) {
     ? `all ${total}`
     : `a sample of ${combinations.checked} different ones out of ${total}`;
   lines.push(`Combinations checked: ${scope}, ${combinations.failed} failed`);
+  // A style with one download size saves the picture the line above counts. More sizes get their own line.
+  if ((report.downloads ?? []).length > 1) {
+    lines.push(`Download sizes checked on each: ${report.downloads.map((size) => size.label).join(', ')}`);
+  }
   if (report.ok) {
     lines.push('Render check passed.');
     return lines.join('\n');
