@@ -1,6 +1,6 @@
 # Style index
 
-[`styles/index.json`](../styles/index.json) lists the styles the builder offers, and the characters it shows as coming soon. The builder page reads it and shows one tile per style in the Character tab, the first tab of the trait panel, in the order of the file. A tile shows the picture the style opens with and the style's name under it, and the panel names the picked style. The first style opens by default. After the styles the tab shows one tile per coming-soon character. The index lists six styles (the alien, bear, fox, cat, raccoon and frog) and six coming-soon characters. This shows the first style and the first coming-soon character:
+[`styles/index.json`](../styles/index.json) lists the styles the builder offers, and the characters it shows as coming soon. The builder page reads it and shows one tile per style in the Character tab, the first tab of the trait panel, in the order of the file. A tile shows the picture the style opens with and the style's name under it, and the panel names the picked style. The first style opens by default. After the styles the tab shows one tile per coming-soon character. The index lists twelve styles (the alien, bear, fox, cat, raccoon, frog, duck, penguin, owl, rabbit, skeleton and cyclops) and no coming-soon character. This shows the first style, with a coming-soon character for the shape of an entry:
 
 ```json
 {
@@ -14,9 +14,9 @@
   ],
   "comingSoon": [
     {
-      "id": "duck",
-      "name": "Duck",
-      "picture": "styles/coming-soon/duck.png"
+      "id": "yeti",
+      "name": "Yeti",
+      "picture": "styles/coming-soon/yeti.png"
     }
   ]
 }
@@ -42,7 +42,7 @@ The fixture styles are test data, so the builder doesn't offer them. [`fixtures/
 
 A coming-soon character is a name and one flat picture. It is not a style: it has no manifest and no layers, and an entry that has a `manifest` field is not valid. The render check, `chooseStyle` and the thumbnail worker read `styles` only, so none of them opens one.
 
-- The pictures are in [`styles/coming-soon/`](../styles/coming-soon/), with a notice about the artwork. Each is the character cut out on a transparent ground, 352 px square, twice the widest picture a tile shows. The page puts it on the yellow of the alien's first background.
+- The pictures go in `styles/coming-soon/`, with a notice about the artwork. The index lists none, so the folder isn't in the repository. Each is the character cut out on a transparent ground, 352 px square, twice the widest picture a tile shows. The page puts it on the yellow of the alien's first background.
 - A tile shows the picture, the name and a small "Coming soon" tag. It can't be picked. It holds no radio button, a screen reader reads it as a disabled radio button whose name ends with the tag, and the arrow keys move the focus onto it and leave the pick where it was. `characterTiles` and `characterKeyMove` in [`src/builder-layout.js`](../src/builder-layout.js) decide both.
 - Randomize, Reset and Download work from the manifest of the style on screen, which names no coming-soon character.
 - To open a character as a style, add its style folder, move its entry from `comingSoon` to `styles` with the path of its manifest in place of `picture`, and delete its picture.

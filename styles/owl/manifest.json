@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "style": "owl",
+  "name": "Owl",
+  "canvas": {
+    "width": 1024,
+    "height": 1024,
+    "opaque": true
+  },
+  "groups": [
+    {
+      "id": "background",
+      "label": "Background",
+      "base": true,
+      "bleed": [
+        "top",
+        "right",
+        "bottom",
+        "left"
+      ],
+      "options": [
+        {
+          "id": "yellow",
+          "label": "Yellow",
+          "src": "layers/background/yellow.png"
+        },
+        {
+          "id": "butter",
+          "label": "Butter",
+          "src": "layers/background/butter.png"
+        },
+        {
+          "id": "peach",
+          "label": "Peach",
+          "src": "layers/background/peach.png"
+        },
+        {
+          "id": "cream",
+          "label": "Cream",
+          "src": "layers/background/cream.png"
+        },
+        {
+          "id": "pink",
+          "label": "Pink",
+          "src": "layers/background/pink.png"
+        },
+        {
+          "id": "tomato",
+          "label": "Tomato",
+          "src": "layers/background/tomato.png"
+        },
+        {
+          "id": "lilac",
+          "label": "Lilac",
+          "src": "layers/background/lilac.png"
+        },
+        {
+          "id": "sky",
+          "label": "Sky",
+          "src": "layers/background/sky.png"
+        },
+        {
+          "id": "mint",
+          "label": "Mint",
+          "src": "layers/background/mint.png"
+        },
+        {
+          "id": "sage",
+          "label": "Sage",
+          "src": "layers/background/sage.png"
+        }
+      ]
+    },
+    {
+      "id": "character",
+      "label": "Character",
+      "base": true,
+      "bleed": [
+        "bottom"
+      ],
+      "options": [
+        {
+          "id": "owl",
+          "label": "Owl",
+          "src": "layers/character/owl.png"
+        }
+      ]
+    },
+    {
+      "id": "clothes",
+      "label": "Clothes",
+      "bleed": [
+        "bottom",
+        "left",
+        "right"
+      ],
+      "zone": {
+        "x": 139,
+        "y": 762,
+        "width": 715,
+        "height": 262
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "White tee",
+          "src": "layers/clothes/default.png"
+        },
+        {
+          "id": "hoodie",
+          "label": "Hoodie",
+          "src": "layers/clothes/hoodie.png"
+        },
+        {
+          "id": "hawaiian-shirt",
+          "label": "Hawaiian shirt",
+          "src": "layers/clothes/hawaiian-shirt.png"
+        },
+        {
+          "id": "suit",
+          "label": "Suit",
+          "src": "layers/clothes/suit.png"
+        },
+        {
+          "id": "varsity-jacket",
+          "label": "Varsity jacket",
+          "src": "layers/clothes/varsity-jacket.png"
+        },
+        {
+          "id": "turtleneck",
+          "label": "Turtleneck",
+          "src": "layers/clothes/turtleneck.png"
+        }
+      ]
+    },
+    {
+      "id": "eyes",
+      "label": "Eyes",
+      "zone": {
+        "x": 325,
+        "y": 443,
+        "width": 464,
+        "height": 182
+      },
+      "options": [
+        {
+          "id": "default",
+          "label": "Bored",
+          "src": "layers/eyes/default.png"
+        },
+        {
+          "id": "wide",
+          "label": "Wide",
+          "src": "layers/eyes/wide.png"
+        },
+        {
+          "id": "angry",
+          "label": "Angry",
+          "src": "layers/eyes/angry.png"
+        },
+        {
+          "id": "hearts",
+          "label": "Hearts",
+          "src": "layers/eyes/hearts.png"
+        },
+        {
+          "id": "spiral",
+          "label": "Spiral",
+          "src": "layers/eyes/spiral.png"
+        },
+        {
+          "id": "stars",
+          "label": "Stars",
+          "src": "layers/eyes/stars.png"
+        }
+      ]
+    },
+    {
+      "id": "eyewear",
+      "label": "Eyewear",
+      "optional": true,
+      "over": [
+        "eyes"
+      ],
+      "options": [
+        {
+          "id": "wayfarers",
+          "label": "Wayfarers",
+          "src": "layers/eyewear/wayfarers.png"
+        },
+        {
+          "id": "round-shades",
+          "label": "Round shades",
+          "src": "layers/eyewear/round-shades.png"
+        },
+        {
+          "id": "x-3d-glasses",
+          "label": "3D glasses",
+          "src": "layers/eyewear/3d-glasses.png"
+        }
+      ]
+    },
+    {
+      "id": "headwear",
+      "label": "Headwear",
+      "zone": {
+        "x": 146,
+        "y": 247,
+        "width": 751,
+        "height": 241
+      },
+      "options": [
+        {
+          "id": "no-hat",
+          "label": "No hat",
+          "src": "layers/headwear/no-hat.png"
+        },
+        {
+          "id": "cap",
+          "label": "Cap",
+          "src": "layers/headwear/cap.png"
+        }
+      ]
+    }
+  ]
+}

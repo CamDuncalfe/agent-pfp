@@ -42,12 +42,15 @@ async function runCli(args) {
   }
 }
 
-test('styles/index.json lists the six characters and no fixture style', async () => {
+/** The characters styles/index.json offers, in the order of the Character tab. */
+const STYLES = ['Alien', 'Bear', 'Fox', 'Cat', 'Raccoon', 'Frog', 'Duck', 'Penguin', 'Owl', 'Rabbit', 'Skeleton', 'Cyclops'];
+
+test('styles/index.json lists the twelve characters and no fixture style', async () => {
   const index = await loadIndex();
   assert.deepEqual(validateStyleIndex(index), { ok: true, errors: [] });
   assert.deepEqual(
     index.styles,
-    ['Alien', 'Bear', 'Fox', 'Cat', 'Raccoon', 'Frog'].map((name) => ({ id: name.toLowerCase(), name, manifest: `styles/${name.toLowerCase()}/manifest.json` })),
+    STYLES.map((name) => ({ id: name.toLowerCase(), name, manifest: `styles/${name.toLowerCase()}/manifest.json` })),
   );
   const fixtureIds = (await loadFixtureIndex()).styles.map((entry) => entry.id);
   for (const entry of index.styles) {
@@ -371,23 +374,13 @@ test('check-styles exits 1 when a listed style fails and 2 when it cannot run', 
   assert.equal((await runCli([indexPath, '--nope'])).code, 2);
 });
 
-/** The characters styles/index.json names as coming soon, in the order of the Character tab. */
-const COMING_SOON = ['Duck', 'Penguin', 'Owl', 'Rabbit', 'Skeleton', 'Cyclops'];
-
-test('styles/index.json names six coming-soon characters after the six styles, each with a picture and no manifest', async () => {
+test('styles/index.json names no coming-soon character, and the repository holds no coming-soon picture', async () => {
   const index = await loadIndex();
-  const coming = comingSoonEntries(index);
-  assert.deepEqual(
-    coming,
-    COMING_SOON.map((name) => ({ id: name.toLowerCase(), name, picture: `styles/coming-soon/${name.toLowerCase()}.png` })),
-  );
-  // No character is both a style and coming soon.
-  const styleIds = index.styles.map((entry) => entry.id);
-  for (const entry of coming) assert.ok(!styleIds.includes(entry.id), entry.id);
-  for (const entry of coming) assert.equal('manifest' in entry, false, entry.id);
-  // The folder holds those six pictures and its notice, and no style: no manifest and no layers.
-  const folder = await readdir(new URL('styles/coming-soon/', rootUrl));
-  assert.deepEqual(folder.sort(), ['NOTICE.md', ...coming.map((entry) => `${entry.id}.png`)].sort());
+  // Every character has opened as a style. The list is there and empty.
+  assert.deepEqual(index.comingSoon, []);
+  assert.deepEqual(comingSoonEntries(index), []);
+  // A picture is deleted when its character opens, so no folder of them is left.
+  await assert.rejects(readdir(new URL('styles/coming-soon/', rootUrl)), { code: 'ENOENT' });
 });
 
 test('each coming-soon picture is a square PNG twice the widest picture a character tile shows', async () => {
@@ -395,6 +388,8 @@ test('each coming-soon picture is a square PNG twice the widest picture a charac
   // A tile is --character-tile wide at most, with a 2 px border on each side.
   const tile = Number(/--character-tile: (\d+)px;/.exec(css)[1]);
   const side = (tile - 4) * 2;
+  // docs/styles.md gives the size: 352 px square.
+  assert.equal(side, 352);
   for (const entry of comingSoonEntries(await loadIndex())) {
     const file = await readFile(new URL(entry.picture, rootUrl));
     assert.equal(file.subarray(1, 4).toString('latin1'), 'PNG', entry.id);
@@ -454,14 +449,19 @@ test('a coming-soon picture resolves against the folder that holds the index fol
 });
 
 test('a coming-soon character in the address opens the first style and the notice says it is coming soon', async () => {
-  const index = await loadIndex();
+  // The repository's index names no coming-soon character, so this one is added to a copy of it.
+  const index = { ...(await loadIndex()), comingSoon: [{ id: 'yeti', name: 'Yeti', picture: 'styles/coming-soon/yeti.png' }] };
+  assert.deepEqual(validateStyleIndex(index), { ok: true, errors: [] });
   const first = index.styles[0];
-  assert.deepEqual(styleFromSearch(index, '?style=duck'), { entry: first, notice: 'Duck is coming soon. Showing Alien.' });
-  assert.deepEqual(styleFromSearch(index, '?style=cyclops'), { entry: first, notice: 'Cyclops is coming soon. Showing Alien.' });
+  assert.deepEqual(styleFromSearch(index, '?style=yeti'), { entry: first, notice: 'Yeti is coming soon. Showing Alien.' });
   assert.equal(comingSoonNotice({ id: 'b', name: 'B', picture: 'b.png' }, first), 'B is coming soon. Showing Alien.');
   // chooseStyle never gives a coming-soon character back as the style to open.
   for (const entry of comingSoonEntries(index)) {
     assert.deepEqual(chooseStyle(index, entry.id), { entry: first, unknown: entry.id });
+  }
+  // A character that opened as a style opens itself, with no notice.
+  for (const id of ['duck', 'cyclops']) {
+    assert.deepEqual(styleFromSearch(index, `?style=${id}`).entry, index.styles.find((entry) => entry.id === id), id);
   }
 });
 
