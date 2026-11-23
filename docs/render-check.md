@@ -44,7 +44,20 @@ The check composites the combination with the same `compositeLayers` function th
 | --- | --- |
 | `hole` | The finished picture has see-through pixels and the manifest sets `canvas.opaque` to `true`. |
 
-The summary line counts a combination as failed when it has a hole or uses a layer or a pair that failed an earlier step.
+The check also makes each file Download can save from that picture, the way the builder page makes it: each size `sizesFor` in [`src/download.js`](../src/download.js) offers, through `planDownload` and `pictureToSave`. A style with a square canvas of 500 px or more offers Full size and GitHub (500 x 500). The GitHub file is the finished picture scaled down with `scaleDown`.
+
+| Issue | Meaning |
+| --- | --- |
+| `download` | A file Download would save is not the size asked for, or, when the manifest sets `canvas.opaque` to `true`, a scaled copy has see-through pixels. The message names the size, the file name and the combination. Full size saves the finished picture itself, so its see-through pixels are a `hole`. |
+
+When a style offers more than one size, the report has a line under the combinations that names the sizes checked on each one:
+
+```
+Combinations checked: a sample of 2000 different ones out of 648000, 0 failed
+Download sizes checked on each: Full size, GitHub (500 x 500)
+```
+
+The summary line counts a combination as failed when it has a hole or a download issue, or uses a layer or a pair that failed an earlier step.
 
 **Each see-through option**
 
