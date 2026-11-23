@@ -1028,5 +1028,41 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": "The stricter choice in #56: the render check makes the 500 px file and checks it",
     "post": null
+  },
+  {
+    "pr": 89,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/89",
+    "mergedAt": "2026-11-23T22:53:09Z",
+    "merge": "2593dd40740a6c5f7649c7f5bc92677f70f560e5",
+    "tickets": [
+      88
+    ],
+    "day": null,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "High",
+        "title": "Clear glasses evade visibility checks",
+        "fixedIn": "cbfb2e9c1be3f128a0143d1ace51bac9942fdefb"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "The art for the duck, penguin, owl, rabbit, skeleton and cyclops, approved from their sheets",
+    "post": null
+  },
+  {
+    "pr": 93,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/93",
+    "mergedAt": "2026-11-23T23:36:54Z",
+    "merge": "05dca8733fb8ee3f9009ba13c70acaebe2a80c0e",
+    "tickets": [
+      92
+    ],
+    "day": null,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 51840, 0 failed; fox: a sample of 2000 different ones out of 17280, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 16800, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": "The new layers for the bear, fox, raccoon, alien and frog, approved from their sheets",
+    "post": null
   }
 ]
