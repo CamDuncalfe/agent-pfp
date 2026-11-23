@@ -998,5 +998,20 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": null,
     "post": null
+  },
+  {
+    "pr": 86,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/86",
+    "mergedAt": "2026-11-23T13:41:18Z",
+    "merge": "427d0c42fb3c3a8fb93a8c581af59d5fe098c4e4",
+    "tickets": [
+      85
+    ],
+    "day": 16,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 2560, 0 failed; fox: a sample of 2000 different ones out of 2560, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 2560, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
   }
 ]
