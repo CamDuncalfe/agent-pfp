@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { checkManifest, analyzeLayer, formatReport } from '../src/render-check.js';
-import { createRaster } from '../src/composite.js';
+import { checkManifest, checkDownloads, analyzeLayer, formatReport } from '../src/render-check.js';
+import { compositeLayers, createRaster } from '../src/composite.js';
+import { pictureToSave } from '../src/download.js';
 
 const SIZE = 16;
 const INK = [20, 20, 20, 255];
@@ -440,4 +441,106 @@ test('formatReport groups issues by kind and shortens long lists', async () => {
   assert.match(text, /\.\.\. and 3 more/);
   assert.match(text, /Render check failed with 4 issues\./);
   assert.match(formatReport(await checkManifest(makeStyle().manifest, makeStyle().load)), /Render check passed\./);
+});
+
+/** A 520 px square style, big enough for the GitHub size, with a picture of several colours. */
+function makeBigStyle() {
+  const side = 520;
+  const fill = (rects) => layer(rects, side);
+  const manifest = {
+    version: 1,
+    style: 'big',
+    name: 'Big unit test style',
+    canvas: { width: side, height: side, opaque: true },
+    groups: [
+      {
+        id: 'background',
+        label: 'Background',
+        base: true,
+        bleed: ['top', 'right', 'bottom', 'left'],
+        options: [{ id: 'split', label: 'Split', src: 'background/split.png' }],
+      },
+      {
+        id: 'face',
+        label: 'Face',
+        options: [
+          { id: 'red', label: 'Red', src: 'face/red.png' },
+          { id: 'blue', label: 'Blue', src: 'face/blue.png' },
+        ],
+      },
+    ],
+  };
+  const layers = {
+    // Two colours side by side, with an odd edge so the scaled copy mixes them.
+    'background/split.png': fill([[0, 0, 261, side, [250, 220, 90, 255]], [261, 0, side - 261, side, [40, 90, 200, 255]]]),
+    'face/red.png': fill([[101, 133, 301, 257, [220, 40, 40, 255]]]),
+    'face/blue.png': fill([[150, 150, 3, 3, [10, 10, 120, 255]]]),
+  };
+  return { manifest, layers, load: (src) => layers[src] };
+}
+
+test('on a canvas big enough for the GitHub size, each combination is also checked as both downloads', async () => {
+  const { manifest, layers, load } = makeBigStyle();
+  const report = await checkManifest(manifest, load);
+  assert.deepEqual(report.issues, []);
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.downloads, [
+    { id: 'full', label: 'Full size' },
+    { id: 'github', label: 'GitHub (500 x 500)' },
+  ]);
+  assert.match(formatReport(report), /\nDownload sizes checked on each: Full size, GitHub \(500 x 500\)\n/);
+  // The 500 px copy the check reads is the one the builder saves: several colours, opaque, mixed at the edges.
+  const picture = compositeLayers(520, 520, [layers['background/split.png'], layers['face/red.png']]);
+  const seen = [];
+  const issues = checkDownloads(manifest, picture, { background: 'split', face: 'red' }, (raster, plan) => {
+    const saved = pictureToSave(raster, plan);
+    seen.push({ plan, saved });
+    return saved;
+  });
+  assert.deepEqual(issues, []);
+  assert.deepEqual(seen.map(({ plan }) => [plan.fileName, plan.width, plan.height, plan.scaled]), [
+    ['agent-pfp-big.png', 520, 520, false],
+    ['agent-pfp-big-500.png', 500, 500, true],
+  ]);
+  const small = seen[1].saved;
+  const colours = new Set();
+  for (let i = 0; i < small.data.length; i += 4) {
+    assert.equal(small.data[i + 3], 255);
+    colours.add(small.data.slice(i, i + 3).join());
+  }
+  assert.ok(colours.size > 3, `${colours.size} colours`);
+});
+
+test('a download of the wrong size is reported with the file it would save', async () => {
+  const { manifest, layers } = makeBigStyle();
+  const picture = compositeLayers(520, 520, [layers['background/split.png'], layers['face/blue.png']]);
+  const selection = { background: 'split', face: 'blue' };
+  const issues = checkDownloads(manifest, picture, selection, (raster, plan) => (plan.scaled ? createRaster(499, 500) : raster));
+  assert.deepEqual(issues.map(({ kind, size }) => [kind, size]), [['download', 'github']]);
+  assert.match(issues[0].message, /GitHub \(500 x 500\) download \(agent-pfp-big-500\.png\) .* is 499x500, not 500x500/);
+  assert.deepEqual(issues[0].selection, selection);
+  assert.match(checkDownloads(manifest, picture, selection, () => null)[0].message, /is not a picture, not 520x520/);
+});
+
+test('a scaled download with a see-through pixel is reported on an opaque canvas only', () => {
+  const { manifest, layers } = makeBigStyle();
+  const picture = compositeLayers(520, 520, [layers['background/split.png'], layers['face/red.png']]);
+  const leaky = (raster, plan) => {
+    const saved = pictureToSave(raster, plan);
+    if (plan.scaled) saved.data[3] = 254;
+    return saved;
+  };
+  const issues = checkDownloads(manifest, picture, {}, leaky);
+  assert.deepEqual(issues.map(({ kind, size, pixels }) => [kind, size, pixels]), [['download', 'github', 1]]);
+  manifest.canvas.opaque = false;
+  assert.deepEqual(checkDownloads(manifest, picture, {}, leaky), []);
+});
+
+test('a canvas smaller than the GitHub size offers Full size only, and the report says nothing more', async () => {
+  const { manifest, load } = makeStyle();
+  const report = await checkManifest(manifest, load);
+  assert.deepEqual(report.downloads, [{ id: 'full', label: 'Full size' }]);
+  assert.doesNotMatch(formatReport(report), /Download sizes/);
+  // An invalid manifest has no sizes.
+  assert.deepEqual((await checkManifest({ version: 1 }, load)).downloads, []);
 });
