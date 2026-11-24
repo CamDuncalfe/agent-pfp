@@ -239,6 +239,38 @@ export function lockCommand(platform, lockFile) {
 }
 
 /**
+ * The environment variable tick.js sets when it starts itself again, to say
+ * how far the tick has got. tick.sh clears it, so every scheduled tick starts
+ * from the lock, whatever arguments it was given.
+ */
+export const TICK_STEP_ENV = 'FACTORY_TICK_STEP';
+
+/**
+ * What this start of tick.js does first. The pull happens while the lock is
+ * held, so a tick that starts during a run leaves that run's checkout alone.
+ * After the pull the script starts again, so the run is the code it just
+ * pulled. A dry run takes no lock and doesn't pull.
+ * @param {string[]} argv
+ * @param {Record<string, string | undefined>} env
+ * @returns {'dry-run' | 'lock' | 'pull' | 'run'}
+ */
+export function tickStep(argv, env = {}) {
+  if (argv.includes('--dry-run')) return 'dry-run';
+  if (env[TICK_STEP_ENV] === 'locked') return 'pull';
+  if (env[TICK_STEP_ENV] === 'pulled') return 'run';
+  return 'lock';
+}
+
+/**
+ * The pull a tick makes under the lock. It has no time limit, like the shell
+ * pull it replaced: a slow fetch makes the tick wait, it doesn't end it.
+ * @returns {{ command: string, args: string[], timeout: number }} timeout 0 means none
+ */
+export function pullCommand() {
+  return { command: 'git', args: ['pull', '--quiet', '--ff-only', 'origin', 'main'], timeout: 0 };
+}
+
+/**
  * The criteria as a numbered list, one per line. The build prompt and the
  * pull request description both get this text, so the agent is asked to meet
  * the list the description shows, under the same numbers.

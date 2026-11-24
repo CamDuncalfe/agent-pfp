@@ -24,6 +24,9 @@ import {
   labelledBy,
   lockCommand,
   lowFindingsText,
+  TICK_STEP_ENV,
+  pullCommand,
+  tickStep,
   fixRoundText,
   readyComment,
   nextStep,
@@ -401,6 +404,29 @@ test('lockCommand: the operating system holds the lock, and a held lock has its 
   assert.equal(linux.command, 'flock');
   assert.deepEqual(linux.args, ['--nonblock', '--conflict-exit-code', '75', '/tmp/f/tick.lock']);
   assert.equal(linux.heldExit, 75);
+});
+
+test('tickStep: a run locks first, pulls under the lock, then runs the pulled code', () => {
+  const argv = ['/usr/local/bin/node', '/runner/factory/tick.js'];
+  assert.equal(tickStep(argv, {}), 'lock');
+  assert.equal(tickStep(argv, { [TICK_STEP_ENV]: 'locked' }), 'pull');
+  assert.equal(tickStep(argv, { [TICK_STEP_ENV]: 'pulled' }), 'run');
+  assert.equal(tickStep(argv, { [TICK_STEP_ENV]: 'something else' }), 'lock');
+});
+
+test('tickStep: arguments never skip the lock or the pull', () => {
+  const argv = ['/usr/local/bin/node', '/runner/factory/tick.js', '--holding-lock', '--pulled'];
+  assert.equal(tickStep(argv, {}), 'lock');
+});
+
+test('tickStep: a dry run takes no lock and does not pull', () => {
+  const argv = ['/usr/local/bin/node', '/runner/factory/tick.js', '--dry-run'];
+  assert.equal(tickStep(argv, {}), 'dry-run');
+  assert.equal(tickStep(argv, { [TICK_STEP_ENV]: 'locked' }), 'dry-run');
+});
+
+test('pullCommand: a fast-forward pull of main with no time limit', () => {
+  assert.deepEqual(pullCommand(), { command: 'git', args: ['pull', '--quiet', '--ff-only', 'origin', 'main'], timeout: 0 });
 });
 
 test('prBody: the ticket, its criteria word for word, then the agent\'s description', () => {
