@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { checkManifest, checkDownloads, analyzeLayer, formatReport } from '../src/render-check.js';
 import { compositeLayers, createRaster } from '../src/composite.js';
 import { pictureToSave } from '../src/download.js';
+import { readPng } from '../src/png.js';
+import { readFile } from 'node:fs/promises';
 
 const SIZE = 16;
 const INK = [20, 20, 20, 255];
@@ -260,15 +262,113 @@ test('a see-through option that hides the eyes is reported as covered, naming bo
   assert.match(formatReport(report), /covered \(1\)/);
 });
 
-test('a see-through option with empty lenses passes', async () => {
-  const { manifest, load } = withEyewear(layer(EMPTY_LENSES));
+/**
+ * A 64 px style with eyes and a see-through eyewear option, big enough that
+ * each eye option differs from the default by more than the default
+ * seeThroughTolerance (dots and bar by 128 px, full and dots by 256 px).
+ * The 16 px style's eye options differ by only 8 px, which is under it.
+ */
+function bigEyewear(lens) {
+  const size = 64;
+  const draw = (rects) => layer(rects, size);
+  const manifest = {
+    version: 1,
+    style: 'unit-big',
+    name: 'Unit test style, 64 px',
+    canvas: { width: size, height: size, opaque: true },
+    groups: [
+      {
+        id: 'background',
+        label: 'Background',
+        base: true,
+        bleed: ['top', 'right', 'bottom', 'left'],
+        options: [{ id: 'plain', label: 'Plain', src: 'background/plain.png' }],
+      },
+      { id: 'face', label: 'Face', base: true, options: [{ id: 'square', label: 'Square', src: 'face/square.png' }] },
+      {
+        id: 'eyes',
+        label: 'Eyes',
+        zone: { x: 16, y: 24, width: 32, height: 12 },
+        options: [
+          { id: 'dots', label: 'Dots', src: 'eyes/dots.png' },
+          { id: 'bar', label: 'Bar', src: 'eyes/bar.png' },
+          { id: 'full', label: 'Full', src: 'eyes/full.png' },
+        ],
+      },
+      {
+        id: 'eyewear',
+        label: 'Eyewear',
+        optional: true,
+        over: ['eyes'],
+        options: [{ id: 'clear', label: 'Clear', src: 'eyewear/clear.png', seeThrough: true }],
+      },
+    ],
+  };
+  const layers = {
+    'background/plain.png': draw([[0, 0, size, size, [200, 200, 200, 255]]]),
+    'face/square.png': draw([[12, 12, 40, 40, [240, 210, 160, 255]]]),
+    'eyes/dots.png': draw([[18, 26, 8, 8], [38, 26, 8, 8]]),
+    'eyes/bar.png': draw([[16, 29, 32, 3]]),
+    'eyes/full.png': draw([[16, 24, 32, 12]]),
+    'eyewear/clear.png': draw(lens),
+  };
+  return { manifest, load: (src) => layers[src] };
+}
+
+test('at the default limit, see-through lenses that are empty or tinted pass over every eye option', async () => {
+  const lenses = {
+    empty: [[16, 23, 32, 1], [16, 36, 32, 1]],
+    tinted: [[16, 23, 32, 14, [90, 120, 200, 128]]],
+  };
+  for (const [name, lens] of Object.entries(lenses)) {
+    const { manifest, load } = bigEyewear(lens);
+    assert.deepEqual((await checkManifest(manifest, load)).issues, [], `${name} lenses`);
+  }
+  // The same style with painted lenses reports both other eye options.
+  const { manifest, load } = bigEyewear([[16, 23, 32, 14, [90, 120, 200, 255]]]);
   const report = await checkManifest(manifest, load);
+  assert.deepEqual(report.issues.map((issue) => `${issue.kind} ${issue.otherOption}`), ['covered bar', 'covered full']);
+});
+
+test('see-through pictures count as the same when they differ in up to seeThroughTolerance pixels', async () => {
+  // A painted lens with a 1 px gap at 4,7, where the bar eyes draw and the dots don't.
+  const lens = layer(PAINTED_LENSES);
+  lens.data.set([0, 0, 0, 0], (7 * SIZE + 4) * 4);
+  const { manifest, load } = withEyewear(lens);
+  let report = await checkManifest(manifest, load, { seeThroughTolerance: 1 });
+  assert.deepEqual(kinds(report), ['covered']);
+  assert.equal(report.issues[0].pixels, 1);
+  assert.equal(report.issues[0].message, 'eyewear/clear is see-through, but over it eyes/bar gives the same picture as eyes/dots, apart from 1 px');
+  report = await checkManifest(manifest, load, { seeThroughTolerance: 0 });
   assert.deepEqual(report.issues, []);
 });
 
-test('tinted lenses that let the eyes show pass', async () => {
-  const { manifest, load } = withEyewear(layer([[4, 6, 8, 4, [90, 120, 200, 128]]]));
-  assert.deepEqual((await checkManifest(manifest, load)).issues, []);
+test('with the raccoon\'s painted clear glasses marked see-through, every other eye option is covered at the default limit', async () => {
+  // The raccoon's live clear glasses (not marked see-through) paint the
+  // default eyes on their lenses. Only 25 px of the spiral eyes show past
+  // them, and nothing of the other eye options.
+  const styleUrl = new URL('../styles/raccoon/', import.meta.url);
+  const manifest = JSON.parse(await readFile(new URL('manifest.json', styleUrl), 'utf8'));
+  const eyewear = manifest.groups.find((group) => group.id === 'eyewear');
+  const clear = eyewear.options.find((option) => option.id === 'clear-glasses');
+  assert.equal(clear.seeThrough, undefined);
+  // A test copy: the clear glasses marked see-through, and only the first
+  // option of each group the check doesn't compare, to keep it quick.
+  clear.seeThrough = true;
+  for (const group of manifest.groups) {
+    if (group.id === 'eyes') continue;
+    group.options = group.id === 'eyewear' ? [clear] : group.options.slice(0, 1);
+  }
+  const load = (src) => readPng(new URL(src, styleUrl));
+  const report = await checkManifest(manifest, load, { maxCombinations: 1 });
+  const eyes = manifest.groups.find((group) => group.id === 'eyes');
+  assert.equal(eyes.options.length, 8);
+  assert.deepEqual(
+    report.issues.map((issue) => `${issue.kind} ${issue.otherOption} like ${issue.defaultOption}`),
+    eyes.options.slice(1).map((option) => `covered ${option.id} like ${eyes.options[0].id}`),
+  );
+  const pixels = Object.fromEntries(report.issues.map((issue) => [issue.otherOption, issue.pixels]));
+  assert.deepEqual(pixels, { sleepy: 0, wide: 0, closed: 0, wink: 0, spiral: 25, 'side-eye': 0, yellow: 0 });
 });
 
 test('an option not marked see-through may hide the eyes', async () => {
@@ -309,7 +409,8 @@ test('see-through checks each option marked, with the default picks for the othe
   // The background has two options; the comparison draws its default, the first.
   manifest.groups[0].options.push({ id: 'dark', label: 'Dark', src: 'background/dark.png' });
   layers['background/dark.png'] = layer([[0, 0, SIZE, SIZE, [40, 40, 40, 255]]]);
-  const report = await checkManifest(manifest, load);
+  // The eye options differ by 8 px, under the default limit, so compare exact pictures.
+  const report = await checkManifest(manifest, load, { seeThroughTolerance: 0 });
   assert.deepEqual(
     report.issues.map((issue) => `${issue.kind} ${issue.option} ${issue.otherOption}`),
     ['covered painted bar'],
@@ -336,7 +437,8 @@ test('several see-through options over several covered groups on half-transparen
   layers['eyewear/painted.png'] = layer(PAINTED_LENSES);
   layers['eyewear/tinted.png'] = layer([[4, 6, 8, 4, [90, 120, 200, 128]]]);
   layers['eyewear/shades.png'] = layer(PAINTED_LENSES);
-  const report = await checkManifest(manifest, load);
+  // The options here differ by 20 px or less, under the default limit, so compare exact pictures.
+  const report = await checkManifest(manifest, load, { seeThroughTolerance: 0 });
   assert.deepEqual(
     report.issues.map((issue) => `${issue.kind} ${issue.option} ${issue.otherGroup}/${issue.otherOption} like ${issue.defaultOption}`),
     ['covered painted eyes/bar like dots', 'covered painted eyes/full like dots'],
@@ -420,6 +522,8 @@ test('bad options are refused', async () => {
   const { manifest, load } = makeStyle();
   await assert.rejects(checkManifest(manifest, load, { alphaThreshold: 0 }), RangeError);
   await assert.rejects(checkManifest(manifest, load, { overlapTolerance: -1 }), RangeError);
+  await assert.rejects(checkManifest(manifest, load, { seeThroughTolerance: -1 }), RangeError);
+  await assert.rejects(checkManifest(manifest, load, { seeThroughTolerance: 2.5 }), RangeError);
   await assert.rejects(checkManifest(manifest, load, { maxCombinations: 0 }), RangeError);
   await assert.rejects(checkManifest(manifest, load, { seed: 1.5 }), RangeError);
 });

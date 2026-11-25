@@ -39,7 +39,7 @@ The builder uses `over` for its thumbnails too. A thumbnail of a group's option 
 | `id` | string | Unique within the group. |
 | `label` | string | Name of the option's thumbnail: a screen reader reads it and it shows when the pointer rests on the thumbnail. |
 | `src` | string | Path of the layer image, relative to the manifest, with forward slashes. Each part of the path may use letters, digits, hyphens, underscores and dots, and may not start with a dot. A path cannot leave the style folder. |
-| `seeThrough` | boolean, optional | When `true`, the layer lets the groups its group lists in `over` show through it, like clear glasses over the eyes. The render check fails the option when one of those groups' options looks the same under it as the group's default option (issue `covered`). Leave it out for a layer that is meant to hide what it covers, like sunglasses. |
+| `seeThrough` | boolean, optional | When `true`, the layer lets the groups its group lists in `over` show through it, like clear glasses over the eyes. The render check fails the option when one of those groups' options looks the same under it as the group's default option, apart from a few pixels at most (issue `covered`, limit `seeThroughTolerance` in [render-check.md](render-check.md)). Leave it out for a layer that is meant to hide what it covers, like sunglasses. |
 
 ## Selections
 

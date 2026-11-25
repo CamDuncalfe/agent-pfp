@@ -53,9 +53,10 @@ test('fixtures/blocks passes the render check on its 96x64 canvas', async () => 
  * fixtures/shapes with an optional Eyewear group of clear glasses that may
  * cover the eyes. The glasses are plain rectangles drawn here: a frame
  * around each eye and, when `lenses` is given, lenses filled with that
- * colour and a pair of eyes of their own painted on.
+ * colour and, unless `paintedEyes` is false, a pair of eyes of their own
+ * painted on.
  */
-async function shapesWithGlasses(lenses) {
+async function shapesWithGlasses(lenses, { paintedEyes = true } = {}) {
   const manifest = JSON.parse(await readFile(new URL('shapes/manifest.json', fixturesUrl), 'utf8'));
   manifest.groups.push({
     id: 'eyewear',
@@ -74,7 +75,7 @@ async function shapesWithGlasses(lenses) {
   for (const left of [19, 35]) {
     if (lenses) {
       paint(left, 24, 10, 8, lenses);
-      paint(left + 3, 26, 4, 4, [30, 30, 36, 255]);
+      if (paintedEyes) paint(left + 3, 26, 4, 4, [30, 30, 36, 255]);
     }
     paint(left, 24, 10, 1, FRAME);
     paint(left, 31, 10, 1, FRAME);
@@ -88,7 +89,7 @@ async function shapesWithGlasses(lenses) {
 
 const FRAME = [60, 60, 70, 255];
 
-test('see-through glasses that paint over the eyes fail with "covered", and empty lenses pass', async () => {
+test('see-through glasses that paint over the eyes fail with "covered", and empty or tinted lenses pass at the default limit', async () => {
   const painted = await shapesWithGlasses([180, 220, 240, 255]);
   const failing = await checkManifest(painted.manifest, painted.load);
   assert.deepEqual(
@@ -108,6 +109,12 @@ test('see-through glasses that paint over the eyes fail with "covered", and empt
   const passing = await checkManifest(empty.manifest, empty.load);
   assert.deepEqual(passing.issues, []);
   assert.equal(passing.ok, true);
+
+  // Half-transparent lenses with no eyes painted on: the eyes show, tinted.
+  const tinted = await shapesWithGlasses([180, 220, 240, 128], { paintedEyes: false });
+  const tintedReport = await checkManifest(tinted.manifest, tinted.load);
+  assert.deepEqual(tintedReport.issues, []);
+  assert.equal(tintedReport.ok, true);
 });
 
 test('fixtures/broken fails once for each bad layer', async () => {
