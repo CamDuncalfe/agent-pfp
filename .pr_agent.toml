@@ -14,6 +14,8 @@ Report a finding when a change gives the user pixels the render check never draw
 """
 
 [checks]
-# When a CI job on a pull request fails, Qodo posts what failed (stage, test,
-# summary, error lines) in the pull request. The default is off.
+# Temporary, for one red run on #98. When a CI job on a pull request fails,
+# Qodo posts what failed (stage, test, summary, error lines) in a public
+# comment, on every pull request including ones from forks. A follow-up pull
+# request turns it off again after that run. The default is off.
 enable_auto_checks_feedback = true
