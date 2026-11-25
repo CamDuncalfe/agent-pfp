@@ -12,10 +12,3 @@ show_context_used = true
 issues_user_guidelines = """
 Report a finding when a change gives the user pixels the render check never draws, for example a picture that is scaled, cropped or encoded again after compositeLayers drew it, or a second place that stacks layers. Name the file the user ends up with and say what checks it.
 """
-
-[checks]
-# Temporary, for one red run on #98. When a CI job on a pull request fails,
-# Qodo posts what failed (stage, test, summary, error lines) in a public
-# comment, on every pull request including ones from forks. A follow-up pull
-# request turns it off again after that run. The default is off.
-enable_auto_checks_feedback = true
