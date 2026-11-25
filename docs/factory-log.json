@@ -1064,5 +1064,37 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 51840, 0 failed; fox: a sample of 2000 different ones out of 17280, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 16800, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": "The new layers for the bear, fox, raccoon, alien and frog, approved from their sheets",
     "post": null
+  },
+  {
+    "pr": 100,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/100",
+    "mergedAt": "2026-11-25T17:58:37Z",
+    "merge": "8036c79f9635e48a008c21b5e3047335b664cc16",
+    "tickets": [],
+    "day": 18,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "CI failure comments turn on for every pull request",
+        "fixedIn": "7f098cd2365601b43b8fb3cca34ad508b192860f"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 51840, 0 failed; fox: a sample of 2000 different ones out of 17280, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 16800, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
+  },
+  {
+    "pr": 101,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/101",
+    "mergedAt": "2026-11-25T19:12:33Z",
+    "merge": "00536fcc4f4d3341fb5b9ca1ae904cf9e3e5733f",
+    "tickets": [],
+    "day": 18,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 51840, 0 failed; fox: a sample of 2000 different ones out of 17280, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 16800, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
   }
 ]
