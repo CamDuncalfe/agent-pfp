@@ -211,7 +211,8 @@
         {
           "id": "clear-glasses",
           "label": "Clear glasses",
-          "src": "layers/eyewear/clear-glasses.png"
+          "src": "layers/eyewear/clear-glasses.png",
+          "seeThrough": true
         },
         {
           "id": "x-3d-glasses",
