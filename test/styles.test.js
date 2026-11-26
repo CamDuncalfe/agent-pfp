@@ -470,7 +470,10 @@ test('the render check and the site build read a coming-soon entry as a picture,
   const check = await readFile(new URL('bin/check-styles.js', rootUrl), 'utf8');
   assert.doesNotMatch(check, /comingSoon/);
   const index = await loadIndex();
-  const { stdout } = await run(process.execPath, [cli, 'styles/index.json'], { cwd: fileURLToPath(rootUrl) });
+  // When the check fails, its report goes into the failure message, so the log says which style and why.
+  const { stdout } = await run(process.execPath, [cli, 'styles/index.json'], { cwd: fileURLToPath(rootUrl) }).catch((error) =>
+    assert.fail(`check-styles exited ${error.code}\n--- stdout ---\n${error.stdout}\n--- stderr ---\n${error.stderr}`),
+  );
   assert.match(stdout, new RegExp(`Styles checked: ${index.styles.length}\\n`));
   // The site build copies the picture and reads nothing else of the entry.
   const build = await readFile(new URL('bin/build-site.js', rootUrl), 'utf8');
