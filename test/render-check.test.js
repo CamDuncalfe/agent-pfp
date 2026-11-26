@@ -489,6 +489,7 @@ test('on a canvas big enough for the GitHub size, each combination is also check
     { id: 'github', label: 'GitHub (500 x 500)' },
   ]);
   assert.match(formatReport(report), /\nDownload sizes checked on each: Full size, GitHub \(500 x 500\)\n/);
+  assert.doesNotMatch(formatReport(report), /sampled/);
   // The 500 px copy the check reads is the one the builder saves: several colours, opaque, mixed at the edges.
   const picture = compositeLayers(520, 520, [layers['background/split.png'], layers['face/red.png']]);
   const seen = [];
@@ -509,6 +510,17 @@ test('on a canvas big enough for the GitHub size, each combination is also check
     colours.add(small.data.slice(i, i + 3).join());
   }
   assert.ok(colours.size > 3, `${colours.size} colours`);
+});
+
+test('when the check samples, the download line says the sizes were checked on the sampled combinations', async () => {
+  const { manifest, load } = makeBigStyle();
+  const report = await checkManifest(manifest, load, { maxCombinations: 1 });
+  assert.equal(report.combinations.exhaustive, false);
+  assert.equal(report.ok, true);
+  const text = formatReport(report);
+  assert.match(text, /\nCombinations checked: a sample of 1 different ones out of 2, 0 failed\n/);
+  assert.match(text, /\nDownload sizes checked on each sampled combination: Full size, GitHub \(500 x 500\)\n/);
+  assert.doesNotMatch(text, /checked on each:/);
 });
 
 test('a download of the wrong size is reported with the file it would save', async () => {
