@@ -1096,5 +1096,20 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 51840, 0 failed; fox: a sample of 2000 different ones out of 17280, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 16800, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": null,
     "post": null
+  },
+  {
+    "pr": 103,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/103",
+    "mergedAt": "2026-11-26T13:47:54Z",
+    "merge": "58ae94b58cfc120752068857743888fa9965f3de",
+    "tickets": [
+      96
+    ],
+    "day": 19,
+    "review": "nothing",
+    "caught": [],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 51840, 0 failed; fox: a sample of 2000 different ones out of 17280, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 16800, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
   }
 ]
