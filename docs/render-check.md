@@ -53,8 +53,15 @@ The check also makes each file Download can save from that picture, the way the 
 When a style offers more than one size, the report has a line under the combinations that names the sizes checked on each one:
 
 ```
-Combinations checked: a sample of 2000 different ones out of 648000, 0 failed
+Combinations checked: all 1800, 0 failed
 Download sizes checked on each: Full size, GitHub (500 x 500)
+```
+
+When the check samples, the line says the sizes were checked on the sampled combinations only:
+
+```
+Combinations checked: a sample of 2000 different ones out of 648000, 0 failed
+Download sizes checked on each sampled combination: Full size, GitHub (500 x 500)
 ```
 
 The summary line counts a combination as failed when it has a hole or a download issue, or uses a layer or a pair that failed an earlier step.
@@ -109,7 +116,7 @@ It exits with 0 when each copy is caught and both clean styles pass, and with 1 
 ## Limits
 
 - The check compares pixel coverage. It does not judge how a combination looks.
-- Layers and pairs are always checked in full. Only the hole check depends on the combination sample, so a style with more combinations than `--max-combinations` can hide a hole in a combination the sample did not visit.
+- Layers and pairs are always checked in full. The hole check and the download check depend on the combination sample, so a style with more combinations than `--max-combinations` can hide a hole, or a bad file at a download size, in a combination the sample did not visit.
 - Zones are rectangles.
 - The check and the builder page read layer pixels in different ways. The check decodes the PNG file. The page reads pixels back from a canvas, which stores colour multiplied by alpha. Alpha values and opaque pixels are the same in both. The colour of a see-through pixel can differ by a few levels in the page: in Chrome a pixel of red 200 comes back as 199 at alpha 128 and as 204 at alpha 10. Every check but `covered` counts drawn pixels by alpha and never reads colour, so its results hold for what the page draws. The `covered` check compares the full colour of two decoded pictures. Two pictures that are the same in the check are the same in the page. Two that differ only by a few colour levels in see-through pixels could come out the same in the page.
 - The `covered` check draws every picture it compares, and `--max-combinations` does not cap them. A see-through option with N covered options costs N + 1 pictures per covered group. The layers drawn before a covered group are composited once for that group, so each picture only draws the covered option and the layers above it.

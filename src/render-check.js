@@ -508,9 +508,11 @@ export function formatReport(report, { maxPerKind = 20 } = {}) {
     ? `all ${total}`
     : `a sample of ${combinations.checked} different ones out of ${total}`;
   lines.push(`Combinations checked: ${scope}, ${combinations.failed} failed`);
-  // A style with one download size saves the picture the line above counts. More sizes get their own line.
+  // A style with one download size saves the picture the line above counts. More sizes get their own line,
+  // which says when they were only checked on the sampled combinations.
   if ((report.downloads ?? []).length > 1) {
-    lines.push(`Download sizes checked on each: ${report.downloads.map((size) => size.label).join(', ')}`);
+    const on = combinations.exhaustive ? 'each' : 'each sampled combination';
+    lines.push(`Download sizes checked on ${on}: ${report.downloads.map((size) => size.label).join(', ')}`);
   }
   if (report.ok) {
     lines.push('Render check passed.');
