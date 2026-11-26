@@ -12,7 +12,8 @@
  *    pixels.
  * 4. Each option marked `seeThrough`: drawn over each option of the groups
  *    its group lists in `over`, it has to let that option show, so the
- *    picture differs from the one over the group's default option.
+ *    picture differs from the one over the group's default option in more
+ *    than `seeThroughTolerance` pixels.
  *
  * With step 3, each size Download offers is made from the finished picture
  * the way the builder makes it (`pictureToSave`) and checked: it is the size
@@ -31,6 +32,11 @@ export const DEFAULT_OPTIONS = Object.freeze({
   alphaThreshold: 16,
   /** Number of shared pixels two layers may have before it counts as overlap. */
   overlapTolerance: 0,
+  /**
+   * Number of pixels two see-through pictures may differ by and still count
+   * as the same picture for the `covered` check.
+   */
+  seeThroughTolerance: 26,
   /** Above this many combinations the check samples instead of visiting all. */
   maxCombinations: 2000,
   /** Seed for the sample, so a failing run can be repeated. */
@@ -77,6 +83,9 @@ function readOptions(options) {
   }
   if (!Number.isInteger(merged.overlapTolerance) || merged.overlapTolerance < 0) {
     throw new RangeError('overlapTolerance must be an integer of 0 or more');
+  }
+  if (!Number.isInteger(merged.seeThroughTolerance) || merged.seeThroughTolerance < 0) {
+    throw new RangeError('seeThroughTolerance must be an integer of 0 or more');
   }
   if (!Number.isInteger(merged.maxCombinations) || merged.maxCombinations < 1) {
     throw new RangeError('maxCombinations must be a positive integer');
@@ -198,12 +207,20 @@ function checkLayer(group, option, analysis) {
   return issues;
 }
 
-function samePixels(a, b) {
-  if (a.data.length !== b.data.length) return false;
-  for (let i = 0; i < a.data.length; i += 1) {
-    if (a.data[i] !== b.data[i]) return false;
+/**
+ * Count the pixels where two same-size pictures differ in any channel. Stops
+ * counting once the count passes `limit`, and returns limit + 1 then.
+ */
+function countDifferent(a, b, limit) {
+  if (a.data.length !== b.data.length) return limit + 1;
+  let different = 0;
+  for (let i = 0; i < a.data.length; i += 4) {
+    if (a.data[i] !== b.data[i] || a.data[i + 1] !== b.data[i + 1] || a.data[i + 2] !== b.data[i + 2] || a.data[i + 3] !== b.data[i + 3]) {
+      different += 1;
+      if (different > limit) return different;
+    }
   }
-  return true;
+  return different;
 }
 
 function choiceName(choice) {
@@ -213,10 +230,12 @@ function choiceName(choice) {
 /**
  * Draw each option marked `seeThrough` over each choice of each group its
  * group lists in `over`, with the default picks (the builder's
- * defaultSelection) for every other group. A choice whose picture is the
- * same as the picture over that group's default choice is hidden by the
- * see-through layer. Combinations with a layer that failed to load or has
- * the wrong size are skipped; that layer is reported already.
+ * defaultSelection) for every other group. A choice whose picture differs
+ * from the picture over that group's default choice in no more than
+ * `tolerance` pixels is hidden by the see-through layer: a few pixels of it
+ * that show past a painted lens don't make it seen. Combinations with a
+ * layer that failed to load or has the wrong size are skipped; that layer is
+ * reported already.
  *
  * Each picture needs every option of a covered group drawn under each
  * see-through option, so the number of pictures is not capped by
@@ -225,9 +244,10 @@ function choiceName(choice) {
  * their default picks in every picture of it. compositeLayers copies its
  * first layer onto the empty canvas pixel for pixel, so drawing that
  * composite and then the rest gives the same bytes as drawing every layer.
+ * @param {number} tolerance differing pixels at or under which two pictures count as the same
  * @returns {Issue[]}
  */
-function checkSeeThrough(manifest, usable) {
+function checkSeeThrough(manifest, usable, tolerance) {
   const issues = [];
   const { width, height } = manifest.canvas;
   const defaults = defaultSelection(manifest);
@@ -258,8 +278,11 @@ function checkSeeThrough(manifest, usable) {
         for (const choice of groupChoices(lower)) {
           if (choice === base) continue;
           const picture = draw(pick(choice), lower);
-          if (!picture || !samePixels(picture, reference)) continue;
+          if (!picture) continue;
+          const different = countDifferent(picture, reference, tolerance);
+          if (different > tolerance) continue;
           const upperKey = layerKey(upper.id, option.id);
+          const apart = different === 0 ? '' : `, apart from ${different} px`;
           issues.push({
             kind: 'covered',
             group: upper.id,
@@ -267,7 +290,8 @@ function checkSeeThrough(manifest, usable) {
             otherGroup: lower.id,
             otherOption: choice,
             defaultOption: base,
-            message: `${upperKey} is see-through, but over it ${layerKey(lower.id, choiceName(choice))} gives the same picture as ${layerKey(lower.id, choiceName(base))}`,
+            pixels: different,
+            message: `${upperKey} is see-through, but over it ${layerKey(lower.id, choiceName(choice))} gives the same picture as ${layerKey(lower.id, choiceName(base))}${apart}`,
           });
         }
       }
@@ -485,7 +509,7 @@ export async function checkManifest(manifest, loadLayer, options = {}) {
   }
 
   // 4. Each see-through option has to let each option of the groups it may cover show.
-  issues.push(...checkSeeThrough(manifest, usable));
+  issues.push(...checkSeeThrough(manifest, usable, settings.seeThroughTolerance));
 
   report.ok = issues.length === 0;
   return report;
