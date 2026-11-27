@@ -5,9 +5,10 @@ A Checkly browser check watches the live builder at https://camduncalfe.github.i
 Once an hour, from `us-east-1` or `eu-west-1` in turn, the check in [`__checks__/builder.spec.ts`](__checks__/builder.spec.ts) does what a visitor does:
 
 1. Opens the site and follows it to the builder, which opens the alien style.
-2. Reads the preview canvas and checks that all 1024 x 1024 pixels are covered by the layers.
-3. Clicks Randomize until a trait changes, up to 5 times.
-4. Picks GitHub (500 x 500), clicks Download and checks the file is `agent-pfp-alien-500.png`, a PNG 500 px wide and high and over 50 KB.
+2. Waits for the Download button, which turns on once the preview is painted, and checks that all 1024 x 1024 pixels of the preview canvas are covered by the layers.
+3. Clicks Randomize until a trait changes, up to 5 times, and waits for Download again.
+4. Picks GitHub (500 x 500), clicks Download and checks the file is `agent-pfp-alien-500.png`, over 50 KB, with 500 x 500 in its PNG header.
+5. Has the browser decode the whole file and checks it's a 500 x 500 picture with every pixel covered.
 
 A failed run, after Checkly's one retry, sends an email to the account owner. [`__checks__/builder.check.ts`](__checks__/builder.check.ts) points at that email channel by id, so the address isn't in this repository.
 
