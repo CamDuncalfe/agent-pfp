@@ -1111,5 +1111,31 @@
     "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 51840, 0 failed; fox: a sample of 2000 different ones out of 17280, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 16800, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
     "taste": null,
     "post": null
+  },
+  {
+    "pr": 106,
+    "url": "https://github.com/CamDuncalfe/agent-pfp/pull/106",
+    "mergedAt": "2026-11-27T13:17:56Z",
+    "merge": "47d17ecdcb85b06fe05b1f7f44cedca08cdafd67",
+    "tickets": [
+      105
+    ],
+    "day": 20,
+    "review": "findings",
+    "caught": [
+      {
+        "severity": "Medium",
+        "title": "Healthy builds trigger false alarms",
+        "fixedIn": "2407e1a88c1abc5e97fda7ca2debfaca4b99335c"
+      },
+      {
+        "severity": "Medium",
+        "title": "Broken downloads pass the PNG check",
+        "fixedIn": "2407e1a88c1abc5e97fda7ca2debfaca4b99335c"
+      }
+    ],
+    "renderCheck": "alien: a sample of 2000 different ones out of 648000, 0 failed; bear: a sample of 2000 different ones out of 51840, 0 failed; fox: a sample of 2000 different ones out of 17280, 0 failed; cat: a sample of 2000 different ones out of 648000, 0 failed; raccoon: a sample of 2000 different ones out of 16800, 0 failed; frog: a sample of 2000 different ones out of 2560, 0 failed; duck: a sample of 2000 different ones out of 23520, 0 failed; penguin: a sample of 2000 different ones out of 40320, 0 failed; owl: a sample of 2000 different ones out of 2880, 0 failed; rabbit: a sample of 2000 different ones out of 21600, 0 failed; skeleton: a sample of 2000 different ones out of 43740, 0 failed; cyclops: a sample of 2000 different ones out of 42240, 0 failed; fixture-shapes: all 48, 0 failed; fixture-blocks: all 24, 0 failed; Render check passed",
+    "taste": null,
+    "post": null
   }
 ]
