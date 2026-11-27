@@ -1,0 +1,13 @@
+{
+  "name": "agent-pfp-monitoring",
+  "private": true,
+  "description": "Checkly checks that watch the live builder on GitHub Pages.",
+  "scripts": {
+    "test": "checkly test",
+    "deploy": "checkly deploy"
+  },
+  "devDependencies": {
+    "checkly": "^10.5.0",
+    "jiti": "^2.7.0"
+  }
+}
